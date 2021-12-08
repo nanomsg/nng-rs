@@ -10,6 +10,8 @@ use std::{
 	time::Duration,
 };
 
+use log::error;
+
 use crate::{
 	ctx::Context,
 	error::{Error, Result, SendResult},
@@ -17,7 +19,6 @@ use crate::{
 	socket::Socket,
 	util::{abort_unwind, duration_to_nng, validate_ptr},
 };
-use log::error;
 
 /// Represents the type of the inner "trampoline" callback function.
 type InnerCallback = Box<dyn Fn() + Send + Sync + 'static>;
@@ -442,10 +443,11 @@ impl Aio
 	///
 	/// # Safety
 	///
-	/// Because the underlying `nng_aio` object does not track whether or not it owns an `nng_msg`,
-	/// the Rust `Aio` type utilizes a state variable to keep track of that information. This
-	/// function is marked as `unsafe` as it provides a way for the validity of the `nng_msg`
-	/// pointer to change without updating the tracking variable. See [`Aio::set_state`].
+	/// Because the underlying `nng_aio` object does not track whether or not it
+	/// owns an `nng_msg`, the Rust `Aio` type utilizes a state variable to keep
+	/// track of that information. This function is marked as `unsafe` as it
+	/// provides a way for the validity of the `nng_msg` pointer to change
+	/// without updating the tracking variable. See [`Aio::set_state`].
 	///
 	///
 	/// [`Aio::set_state`]: struct.Aio.html#method.set_state
@@ -467,9 +469,10 @@ impl Aio
 	///
 	/// # Safety
 	///
-	/// The provided state must actually match the state of the Rust side `Aio` object. That
-	/// information is used to track whether or not the `nng_aio` contains a valid message pointer
-	/// and any inconsistency might result in issues .
+	/// The provided state must actually match the state of the Rust side `Aio`
+	/// object. That information is used to track whether or not the `nng_aio`
+	/// contains a valid message pointer and any inconsistency might result in
+	/// issues .
 	pub unsafe fn set_state(&self, state: State, ordering: Ordering)
 	{
 		self.inner.state.store(state as usize, ordering)
@@ -624,6 +627,5 @@ mod state
 
 #[cfg(not(feature = "ffi-module"))]
 use self::state::State;
-
 #[cfg(feature = "ffi-module")]
 pub use self::state::State;

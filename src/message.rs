@@ -403,7 +403,8 @@ impl<I: SliceIndex<[u8]>> IndexMut<I> for Message
 /// The header of a [`Message`].
 ///
 /// Most normal applications will never have to touch the message header. The
-/// only time it will be necessary is if the socket is in "raw" mode ([`RawSocket`]).
+/// only time it will be necessary is if the socket is in "raw" mode
+/// ([`RawSocket`]).
 ///
 ///
 /// [`Message`]: struct.Message.html

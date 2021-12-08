@@ -13,11 +13,11 @@ use crate::{
 /// Active listener for incoming connections.
 ///
 /// A `Listener` is the object that is responsible for accepting incoming
-/// connections. A given `Listener` can have many connections to multiple clients
-/// simultaneously. Directly creating a listener object is only necessary when one wishes to
-/// configure the listener before opening it or if one wants to close the
-/// connections without closing the socket. Otherwise, [`Socket::listen`] can be
-/// used.
+/// connections. A given `Listener` can have many connections to multiple
+/// clients simultaneously. Directly creating a listener object is only
+/// necessary when one wishes to configure the listener before opening it or if
+/// one wants to close the connections without closing the socket. Otherwise,
+/// [`Socket::listen`] can be used.
 ///
 /// Note that the client/server relationship described by a dialer/listener is
 /// completely orthogonal to any similar relationship in the protocols. For
@@ -236,8 +236,8 @@ impl ListenerBuilder
 		rv2res!(rv, ListenerBuilder { handle })
 	}
 
-	/// Cause the [`Listener`] to start listening on the address with which it was
-	/// created.
+	/// Cause the [`Listener`] to start listening on the address with which it
+	/// was created.
 	///
 	/// The returned handle controls the life of the [`Listener`]. If it is
 	/// dropped, the [`Listener`] is shut down and no more messages will be

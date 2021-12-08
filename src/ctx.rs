@@ -43,7 +43,8 @@ impl Context
 	///
 	/// # Errors
 	///
-	/// * [`NotSupported`]: The protocol does not support separate contexts or the socket was opened in raw mode.
+	/// * [`NotSupported`]: The protocol does not support separate contexts or
+	///   the socket was opened in raw mode.
 	/// * [`OutOfMemory`]: Insufficient memory is available.
 	///
 	/// [`NotSupported`]: enum.Error.html#variant.NotSupported
@@ -70,7 +71,8 @@ impl Context
 		aio.send_ctx(self, msg)
 	}
 
-	/// Start a receive operation using the given [`Aio`] and return immediately.
+	/// Start a receive operation using the given [`Aio`] and return
+	/// immediately.
 	///
 	/// # Errors
 	///

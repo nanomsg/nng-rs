@@ -663,17 +663,18 @@ impl Drop for Inner
 
 /// A socket that is open in "raw" mode.
 ///
-/// Most NNG applications will interact with sockets in "cooked" mode. This mode will automatically
-/// handle the full semantics of the protocol, such as _req_ sockets automatically matching a reply
-/// to a request or resenting a request periodically if no reply was received.
+/// Most NNG applications will interact with sockets in "cooked" mode. This mode
+/// will automatically handle the full semantics of the protocol, such as _req_
+/// sockets automatically matching a reply to a request or resenting a request
+/// periodically if no reply was received.
 ///
-/// However, there are situations, such as with [proxies][1], where it is desirable to bypass these
-/// semantics and pass messages without any extra handling. This is possible with "raw" mode
-/// sockets.
+/// However, there are situations, such as with [proxies][1], where it is
+/// desirable to bypass these semantics and pass messages without any extra
+/// handling. This is possible with "raw" mode sockets.
 ///
-/// When using these sockets, the user is responsible for applying any additional socket semantics
-/// which typically means inspecting the message [`Header`] on incoming messages and supplying them
-/// on outgoing messages.
+/// When using these sockets, the user is responsible for applying any
+/// additional socket semantics which typically means inspecting the message
+/// [`Header`] on incoming messages and supplying them on outgoing messages.
 ///
 /// [1]: fn.forwarder.html
 /// [`Header`]: struct.Header.html
