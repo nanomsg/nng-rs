@@ -16,6 +16,8 @@ The format is based on https://keepachangelog.com/en/1.0.0/[Keep a Changelog] an
 
 === Fixed ===
 
+* Made building `nng-sys` optional again. (#55)
+
 === Security ===
 
 //------------------------------------------------------------------------------
