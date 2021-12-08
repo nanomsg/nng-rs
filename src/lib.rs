@@ -49,8 +49,8 @@
 //! settings, there are three ways to change the build:
 //!
 //! 1. [Patch][5] the `nng-sys` dependency and enable the desired build features.
-//! 2. Disable the `build-nng` feature and directly depend on `nng-sys`.
-//! 3. Disable the `build-nng` feature and manually compile NNG.
+//! 2. Disable the `build-nng` feature and directly depend on `nng-sys`. 3. Disable
+//!    the `build-nng` feature and manually compile NNG.
 //!
 //! The build features are not exposed in this crate because Cargo features are
 //! currently [strictly additive][6] and there is no way to specify mutually
@@ -181,6 +181,12 @@ mod socket;
 
 pub mod options;
 
+#[cfg(feature = "ffi-module")]
+/// Raw NNG foreign function interface.
+pub use nng_sys as ffi;
+
+#[cfg(feature = "ffi-module")]
+pub use crate::aio::State as AioState;
 pub use crate::{
 	addr::SocketAddr,
 	aio::{Aio, AioResult},
@@ -194,10 +200,3 @@ pub use crate::{
 	protocol::Protocol,
 	socket::{RawSocket, Socket},
 };
-
-#[cfg(feature = "ffi-module")]
-/// Raw NNG foreign function interface.
-pub use nng_sys as ffi;
-
-#[cfg(feature = "ffi-module")]
-pub use crate::aio::State as AioState;

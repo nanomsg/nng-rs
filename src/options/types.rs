@@ -1,7 +1,6 @@
-use std::time::Duration;
-
 #[cfg(unix)]
 use std::os::unix::io::RawFd;
+use std::time::Duration;
 
 use crate::addr::SocketAddr;
 

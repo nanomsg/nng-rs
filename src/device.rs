@@ -26,8 +26,8 @@ use crate::{
 ///
 /// # Errors
 ///
-/// In addition to returning any error that the underlying sockets can encounter, this function also
-/// has the following error conditions:
+/// In addition to returning any error that the underlying sockets can
+/// encounter, this function also has the following error conditions:
 ///
 /// * [`Closed`]: At least one of the sockets is not open.
 /// * [`InvalidInput`]: Sockets are not compatible or both are invalid.
@@ -66,8 +66,8 @@ pub fn forwarder(s1: RawSocket, s2: RawSocket) -> Result<()>
 ///
 /// # Errors
 ///
-/// In addition to returning any error that the underlying sockets can encounter, this function also
-/// has the following error conditions:
+/// In addition to returning any error that the underlying sockets can
+/// encounter, this function also has the following error conditions:
 ///
 /// * [`Closed`]: The socket is not open.
 /// * [`InvalidInput`]: The socket is not capable of sending messages to itself.
