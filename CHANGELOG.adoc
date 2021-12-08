@@ -16,13 +16,17 @@ The format is based on https://keepachangelog.com/en/1.0.0/[Keep a Changelog] an
 
 === Fixed ===
 
-* Made building `nng-sys` optional again. (#55)
-
 === Security ===
 
 //------------------------------------------------------------------------------
 // Past Releases
 //------------------------------------------------------------------------------
+
+== [nng-rs v1.0.1] - 2021-12-07 ==
+
+=== Fixed ===
+
+* Made building `nng-sys` optional again. (#55)
 
 == [nng-rs v1.0.0] - 2021-04-26 ==
 

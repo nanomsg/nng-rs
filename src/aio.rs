@@ -475,7 +475,7 @@ impl Aio
 	/// issues .
 	pub unsafe fn set_state(&self, state: State, ordering: Ordering)
 	{
-		self.inner.state.store(state as usize, ordering)
+		self.inner.state.store(state as usize, ordering);
 	}
 }
 

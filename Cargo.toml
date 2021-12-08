@@ -1,6 +1,6 @@
 [package]
 name = "nng"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Nathan Kent <nate@nkent.net>"]
 
 description = "A safe wrapper for NNG (Nanomsg v2)"
