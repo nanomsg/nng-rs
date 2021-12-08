@@ -204,7 +204,7 @@ impl Aio
 				cb_aio.inner.state.store(State::Inactive as usize, Ordering::Release);
 				res
 			};
-			callback(cb_aio, res)
+			callback(cb_aio, res);
 		};
 
 		// There are ways to avoid the double boxing, but unfortunately storing
@@ -416,13 +416,14 @@ impl Aio
 	{
 		abort_unwind(|| unsafe {
 			let callback_ptr = arg as *const InnerCallback;
-			if callback_ptr.is_null() {
-				// This should never happen. It means we, Nng-rs, got something wrong in the
-				// allocation code.
-				panic!("Null argument given to trampoline function - please open an issue");
-			}
+			// This should never happen. It means we, Nng-rs, got something wrong in the allocation
+			// code.
+			assert!(
+				!callback_ptr.is_null(),
+				"Null argument given to trampoline function - please open an issue"
+			);
 
-			(*callback_ptr)()
+			(*callback_ptr)();
 		});
 	}
 }
@@ -479,7 +480,7 @@ impl Hash for Aio
 {
 	fn hash<H: Hasher>(&self, state: &mut H)
 	{
-		self.inner.handle.load(Ordering::Relaxed).hash(state)
+		self.inner.handle.load(Ordering::Relaxed).hash(state);
 	}
 }
 

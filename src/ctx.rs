@@ -135,7 +135,7 @@ impl Hash for Context
 	fn hash<H: Hasher>(&self, state: &mut H)
 	{
 		let id = unsafe { nng_sys::nng_ctx_id(self.inner.ctx) };
-		id.hash(state)
+		id.hash(state);
 	}
 }
 

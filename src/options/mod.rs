@@ -69,11 +69,7 @@ pub trait Opt
 }
 
 /// Marks that a type can get the specific NNG option.
-pub trait GetOpt<T: private::OptOps>: private::HasOpts
-{
-}
+pub trait GetOpt<T: private::OptOps>: private::HasOpts {}
 
 /// Marks that a type can set the specific NNG option.
-pub trait SetOpt<T: private::OptOps>: private::HasOpts
-{
-}
+pub trait SetOpt<T: private::OptOps>: private::HasOpts {}

@@ -151,7 +151,7 @@ impl Hash for Listener
 	fn hash<H: Hasher>(&self, state: &mut H)
 	{
 		let id = unsafe { nng_sys::nng_listener_id(self.handle) };
-		id.hash(state)
+		id.hash(state);
 	}
 }
 

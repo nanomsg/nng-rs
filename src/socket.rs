@@ -512,7 +512,7 @@ impl Socket
 			//
 			// If people disagree, feel free to open a Gitlab issue.
 			if let Some(callback) = &*inner.pipe_notify.read().unwrap() {
-				(*callback)(pipe, ev)
+				(*callback)(pipe, ev);
 			}
 		});
 	}
@@ -559,7 +559,7 @@ impl Hash for Socket
 	fn hash<H: Hasher>(&self, state: &mut H)
 	{
 		let id = unsafe { nng_sys::nng_socket_id(self.inner.handle) };
-		id.hash(state)
+		id.hash(state);
 	}
 }
 

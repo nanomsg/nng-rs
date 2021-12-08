@@ -160,7 +160,7 @@ impl Message
 		let rv =
 			unsafe { nng_sys::nng_msg_insert(self.msgp.as_ptr(), data.as_ptr() as _, data.len()) };
 
-		rv2res!(rv).expect(ALLOC_FAIL_MSG)
+		rv2res!(rv).expect(ALLOC_FAIL_MSG);
 	}
 
 	/// Appends the data to the back of the message body.
@@ -169,7 +169,7 @@ impl Message
 		let rv =
 			unsafe { nng_sys::nng_msg_append(self.msgp.as_ptr(), data.as_ptr() as _, data.len()) };
 
-		rv2res!(rv).expect(ALLOC_FAIL_MSG)
+		rv2res!(rv).expect(ALLOC_FAIL_MSG);
 	}
 
 	/// Returns the pipe object associated with the message.
@@ -268,7 +268,11 @@ impl<'a> From<&'a [u8]> for Message
 		// At this point, NNG thinks we have the requested amount of memory.
 		// There is no more validation we can try to do.
 		unsafe {
-			ptr::copy_nonoverlapping(s.as_ptr(), nng_sys::nng_msg_body(msgp.as_ptr()) as _, s.len())
+			ptr::copy_nonoverlapping(
+				s.as_ptr(),
+				nng_sys::nng_msg_body(msgp.as_ptr()) as _,
+				s.len(),
+			);
 		}
 
 		Message::from_ptr(msgp)
@@ -484,7 +488,7 @@ impl Header
 			nng_sys::nng_msg_header_append(self.msgp.as_ptr(), data.as_ptr() as _, data.len())
 		};
 
-		rv2res!(rv).expect(ALLOC_FAIL_MSG)
+		rv2res!(rv).expect(ALLOC_FAIL_MSG);
 	}
 
 	/// Prepends the data to the message header.
@@ -494,7 +498,7 @@ impl Header
 			nng_sys::nng_msg_header_insert(self.msgp.as_ptr(), data.as_ptr() as _, data.len())
 		};
 
-		rv2res!(rv).expect(ALLOC_FAIL_MSG)
+		rv2res!(rv).expect(ALLOC_FAIL_MSG);
 	}
 }
 unsafe impl Send for Header {}
