@@ -12,8 +12,14 @@ stages:
 # Move a few of the "home" directories here so they are easier to cache.
 variables:
   GIT_SUBMODULE_STRATEGY: normal
-  CARGO_HOME: $CI_PROJECT_DIR/cargo
   APT_CACHE_DIR: $CI_PROJECT_DIR/apt
+  CARGO_HOME: $CI_PROJECT_DIR/cargo
+
+# Store these before jobs to speed up the build
+cache:
+  paths:
+    - $APT_CHACHE_DIR
+    - $CARGO_HOME
 
 # Since we default to compiling nng, we need to install some C tooling.
 before_script:
@@ -111,10 +117,3 @@ pages:
       - public
   only:
     - master
-
-# Store these before jobs to speed up the build
-cache:
-  paths:
-    - apt/
-    - cargo/
-    - target/
