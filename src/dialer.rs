@@ -160,7 +160,7 @@ impl Hash for Dialer
 	fn hash<H: Hasher>(&self, state: &mut H)
 	{
 		let id = unsafe { nng_sys::nng_dialer_id(self.handle) };
-		id.hash(state)
+		id.hash(state);
 	}
 }
 

@@ -123,7 +123,7 @@ impl Hash for Pipe
 	fn hash<H: Hasher>(&self, state: &mut H)
 	{
 		let id = unsafe { nng_sys::nng_pipe_id(self.handle) };
-		id.hash(state)
+		id.hash(state);
 	}
 }
 
