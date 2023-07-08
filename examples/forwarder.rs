@@ -13,8 +13,8 @@ use nng::{
     RawSocket, Protocol, forwarder,
 };
 
-const FRONT_URL: &str = "tcp://localhost:7778";
-const BACK_URL: &str = "tcp://localhost:7779";
+const FRONT_URL: &str = "tcp://localhost:3327";
+const BACK_URL: &str = "tcp://localhost:3328";
 
 fn main() {
     let front_end: RawSocket = RawSocket::new(Protocol::Sub0).unwrap();
