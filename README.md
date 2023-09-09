@@ -3,7 +3,7 @@
 [![docs.rs](https://docs.rs/nng/badge.svg)](https://docs.rs/nng)
 [![crates.io](http://img.shields.io/crates/v/nng.svg)](http://crates.io/crates/nng)
 ![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Rustc 1.36+](https://img.shields.io/badge/rustc-1.36+-lightgray.svg)
+![Rustc 1.66.1+](https://img.shields.io/badge/rustc-1.66.1+-lightgray.svg)
 ![Pipeline](https://gitlab.com/neachdainn/nng-rs/badges/master/pipeline.svg)
 
 ## What Is NNG
@@ -20,11 +20,9 @@ As such, the majority of examples available online should be easy to apply to th
 
 ### Rust Version Requirements
 
-The current version requires **Rustc v1.36 or greater**.
+The current version requires **Rustc v1.66.1 or greater**.
 In general, this crate should always be able to compile with the Rustc version available on the oldest currently-supported Ubuntu LTS release.
 Changes to the minimum required Rustc version will only be considered a breaking change if the newly required version is not available on the oldest currently-supported Ubuntu LTS release.
-
-**NOTE:** This does not necessarily mean that this crate will build without installing packages on Ubuntu LTS, as NNG currently requires a version of CMake (v3.13) that is newer than the one available in the LTS repositories.
 
 ### Features
 

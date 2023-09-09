@@ -417,8 +417,8 @@ impl Aio
 	{
 		abort_unwind(|| unsafe {
 			let callback_ptr = arg as *const InnerCallback;
-			// This should never happen. It means we, Nng-rs, got something wrong in the allocation
-			// code.
+			// This should never happen. It means we, Nng-rs, got something wrong in the
+			// allocation code.
 			assert!(
 				!callback_ptr.is_null(),
 				"Null argument given to trampoline function - please open an issue"

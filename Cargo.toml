@@ -12,6 +12,7 @@ categories = ["api-bindings", "network-programming"]
 license = "MIT"
 
 edition = "2018"
+rust-version = "1.66.1"
 
 [badges]
 gitlab = { repository = "neachdainn/nng-rs", branch = "master" }

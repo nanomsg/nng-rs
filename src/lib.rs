@@ -20,16 +20,12 @@
 //!
 //! ### Rust Version Requirements
 //!
-//! The current version requires **Rustc v1.36 or greater**. In general, this
+//! The current version requires **Rustc v1.66.1 or greater**. In general, this
 //! crate should always be able to compile with the Rustc version available on
 //! the oldest currently-supported Ubuntu LTS release. Changes to the minimum
 //! required Rustc version will only be considered a breaking change if the
 //! newly required version is not available on the oldest currently-supported
 //! Ubuntu LTS release.
-//!
-//! **NOTE:** This does not necessarily mean that this crate will build without
-//! installing packages on Ubuntu LTS, as NNG currently requires a version of
-//! CMake (v3.13) that is newer than the one available in the LTS repositories.
 //!
 //! ### Features
 //!
@@ -44,17 +40,18 @@
 //! ### Building NNG
 //!
 //! Enabling the `build-nng` feature will cause the NNG library to be built
-//! using the default settings and CMake generator.  Most of the time, this
-//! should just work.  However, in the case that the default are not the desired
+//! using the default settings and CMake generator. Most of the time, this
+//! should just work. However, in the case that the default are not the desired
 //! settings, there are three ways to change the build:
 //!
-//! 1. [Patch][5] the `nng-sys` dependency and enable the desired build features.
-//! 2. Disable the `build-nng` feature and directly depend on `nng-sys`. 3. Disable
-//!    the `build-nng` feature and manually compile NNG.
+//! 1. [Patch][5] the `nng-sys` dependency and enable the desired build
+//!    features.
+//! 2. Disable the `build-nng` feature and directly depend on `nng-sys`.
+//! 3. Disable the `build-nng` feature and manually compile NNG.
 //!
 //! The build features are not exposed in this crate because Cargo features are
 //! currently [strictly additive][6] and there is no way to specify mutually
-//! exclusive features (i.e., build settings).  Additionally, it does not seem
+//! exclusive features (i.e., build settings). Additionally, it does not seem
 //! very ergonomic to have this crate expose all of the same build features as
 //! the binding crate, which could lead to feature pollution in any dependent
 //! crates.

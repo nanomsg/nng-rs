@@ -10,6 +10,8 @@ The format is based on https://keepachangelog.com/en/1.0.0/[Keep a Changelog] an
 
 === Changed ===
 
+* Updated MSRV to v1.66.1
+
 === Deprecated ===
 
 === Removed ===
