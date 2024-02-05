@@ -65,10 +65,10 @@ impl Context
 	///
 	/// [`Aio`]: struct.Aio.html
 	/// [`IncorrectState`]: enum.Error.html#variant.IncorrectState
+	#[deprecated(since = "1.1", note = "prefer `Aio::send`")]
 	pub fn send<M: Into<Message>>(&self, aio: &Aio, msg: M) -> SendResult<()>
 	{
-		let msg = msg.into();
-		aio.send_ctx(self, msg)
+		aio.send(self, msg)
 	}
 
 	/// Start a receive operation using the given [`Aio`] and return
@@ -80,7 +80,8 @@ impl Context
 	///
 	/// [`Aio`]: struct.Aio.html
 	/// [`IncorrectState`]: enum.Error.html#variant.IncorrectState
-	pub fn recv(&self, aio: &Aio) -> Result<()> { aio.recv_ctx(self) }
+	#[deprecated(since = "1.1", note = "prefer `Aio::recv`")]
+	pub fn recv(&self, aio: &Aio) -> Result<()> { aio.recv(self) }
 
 	/// Closes the context.
 	///

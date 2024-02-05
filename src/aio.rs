@@ -228,7 +228,6 @@ impl Aio
 		// amount of lost memory is better than a segfaulting Rust library.
 		if rv != 0 && !aio.is_null() {
 			error!("NNG returned a non-null pointer from a failed function");
-			return Err(Error::Unknown(0));
 		}
 		validate_ptr(rv, aio)?;
 		inner.handle.store(aio, Ordering::Release);
@@ -307,6 +306,64 @@ impl Aio
 		Ok(())
 	}
 
+	/// Start a send operation with the given [`Context`] and return immediately.
+	///
+	/// # Errors
+	///
+	/// * [`IncorrectState`]: There is already has a running operation.
+	///
+	/// [`IncorrectState`]: enum.Error.html#variant.IncorrectState
+	pub fn send<M>(&self, ctx: &Context, msg: M) -> SendResult<()>
+	where
+		M: Into<Message>,
+	{
+		// Convert the message before we do anything with the state in order to avoid having an
+		// incorrect state if the conversion panics.
+		let msg = msg.into();
+
+		let inactive = State::Inactive as usize;
+		let sending = State::Sending as usize;
+		if self
+			.inner
+			.state
+			.compare_exchange(inactive, sending, Ordering::AcqRel, Ordering::Acquire)
+			.is_err()
+		{
+			return Err((msg, Error::IncorrectState));
+		}
+
+		let aiop = self.inner.handle.load(Ordering::Relaxed);
+		unsafe {
+			nng_sys::nng_aio_set_msg(aiop, msg.into_ptr().as_ptr());
+			nng_sys::nng_ctx_send(ctx.handle(), aiop);
+		}
+		Ok(())
+	}
+
+	/// Start a receive operation using the given [`Context`] and return
+	/// immediately.
+	///
+	/// # Errors
+	///
+	/// * [`IncorrectState`]: There is already has a running operation.
+	///
+	/// [`IncorrectState`]: enum.Error.html#variant.IncorrectState
+	pub fn recv(&self, ctx: &Context) -> Result<()>
+	{
+		let inactive = State::Inactive as usize;
+		let receiving = State::Receiving as usize;
+		self.inner
+			.state
+			.compare_exchange(inactive, receiving, Ordering::AcqRel, Ordering::Acquire)
+			.map_err(|_| Error::IncorrectState)?;
+
+		let aiop = self.inner.handle.load(Ordering::Relaxed);
+		unsafe {
+			nng_sys::nng_ctx_recv(ctx.handle(), aiop);
+		}
+		Ok(())
+	}
+
 	/// Blocks the current thread until the current asynchronous operation
 	/// completes.
 	///
@@ -364,46 +421,6 @@ impl Aio
 		let aiop = self.inner.handle.load(Ordering::Relaxed);
 		unsafe {
 			nng_sys::nng_recv_aio(socket.handle(), aiop);
-		}
-		Ok(())
-	}
-
-	/// Send a message on the provided context.
-	pub(crate) fn send_ctx(&self, ctx: &Context, msg: Message) -> SendResult<()>
-	{
-		let inactive = State::Inactive as usize;
-		let sending = State::Sending as usize;
-
-		if self
-			.inner
-			.state
-			.compare_exchange(inactive, sending, Ordering::AcqRel, Ordering::Acquire)
-			.is_err()
-		{
-			return Err((msg, Error::IncorrectState));
-		}
-
-		let aiop = self.inner.handle.load(Ordering::Relaxed);
-		unsafe {
-			nng_sys::nng_aio_set_msg(aiop, msg.into_ptr().as_ptr());
-			nng_sys::nng_ctx_send(ctx.handle(), aiop);
-		}
-		Ok(())
-	}
-
-	/// Receive a message on the provided context.
-	pub(crate) fn recv_ctx(&self, ctx: &Context) -> Result<()>
-	{
-		let inactive = State::Inactive as usize;
-		let receiving = State::Receiving as usize;
-		self.inner
-			.state
-			.compare_exchange(inactive, receiving, Ordering::AcqRel, Ordering::Acquire)
-			.map_err(|_| Error::IncorrectState)?;
-
-		let aiop = self.inner.handle.load(Ordering::Relaxed);
-		unsafe {
-			nng_sys::nng_ctx_recv(ctx.handle(), aiop);
 		}
 		Ok(())
 	}

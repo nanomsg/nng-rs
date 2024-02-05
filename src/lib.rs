@@ -176,6 +176,7 @@ mod pipe;
 mod protocol;
 mod socket;
 
+pub mod asynk;
 pub mod options;
 
 #[cfg(feature = "ffi-module")]

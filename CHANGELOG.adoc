@@ -14,6 +14,8 @@ The format is based on https://keepachangelog.com/en/1.0.0/[Keep a Changelog] an
 
 === Deprecated ===
 
+* Deprecated `Context::send` and `Context::recv` in favor of `Aio::send` and `Aio::recv`.
+
 === Removed ===
 
 === Fixed ===
