@@ -2,7 +2,11 @@
 mod tests {
 
     use nng_sys::*;
-    use std::{ffi::CString, os::raw::c_char, ptr::null_mut};
+    use std::{
+        ffi::{CStr, CString},
+        os::raw::c_char,
+        ptr::null_mut,
+    };
 
     #[test]
     fn basic() {
@@ -38,6 +42,60 @@ mod tests {
 
             nng_close(req_socket);
             nng_close(rep_socket);
+        }
+    }
+
+    /// Test that verifies nng_version() runtime call matches compile-time constants
+    #[test]
+    fn verify_runtime_version_matches_constants() {
+        unsafe {
+            // Get the runtime version string from nng_version()
+            // Note: nng_version() returns a pointer to a static string literal,
+            // so we don't need to free it - it's valid for the program's lifetime
+            let version_ptr = nng_version();
+            assert!(!version_ptr.is_null(), "nng_version() returned null");
+
+            let version_cstr = CStr::from_ptr(version_ptr);
+            let version_str = version_cstr
+                .to_str()
+                .expect("nng_version() returned invalid UTF-8");
+
+            // Build expected version string from compile-time constants
+            let expected_version = format!(
+                "{}.{}.{}",
+                NNG_MAJOR_VERSION, NNG_MINOR_VERSION, NNG_PATCH_VERSION
+            );
+
+            println!("Runtime version from nng_version(): {}", version_str);
+            println!("Expected version from constants: {}", expected_version);
+
+            // Verify the runtime version matches our compile-time constants
+            assert_eq!(
+                version_str, expected_version,
+                "Runtime version '{}' doesn't match compile-time constants '{}'",
+                version_str, expected_version
+            );
+
+            // Also verify by parsing the version string
+            let parts: Vec<&str> = version_str.split('.').collect();
+            assert_eq!(parts.len(), 3, "Version string should have 3 parts");
+
+            let runtime_major: u32 = parts[0].parse().expect("a valid major version");
+            let runtime_minor: u32 = parts[1].parse().expect("a valid minor version");
+            let runtime_patch: u32 = parts[2].parse().expect("a valid patch version");
+
+            assert_eq!(
+                runtime_major, NNG_MAJOR_VERSION,
+                "runtime major version doesn't match constant"
+            );
+            assert_eq!(
+                runtime_minor, NNG_MINOR_VERSION,
+                "runtime minor version doesn't match constant"
+            );
+            assert_eq!(
+                runtime_patch, NNG_PATCH_VERSION,
+                "runtime patch version doesn't match constant"
+            );
         }
     }
 }

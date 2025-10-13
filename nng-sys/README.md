@@ -12,7 +12,7 @@ Rust FFI bindings to [NNG](https://github.com/nanomsg/nng):
 
 ## Usage
 
-Version of this crate tracks NNG: `<NNG_version>-rc.<crate_version>` (e.g. `1.1.1-rc.2`).
+Version of this crate tracks NNG: `<NNG_version>-rc.<crate_version>` (e.g. `1.11.0-rc.0`).
 
 To use the __latest crate__ for the most recent __stable version of NNG__ (1.4.x), in `Cargo.toml`:  
 ```toml
@@ -42,13 +42,13 @@ Requirements:
 _Example_) Re-generate FFI bindings with bindgen:
 ```toml
 [dependencies]
-nng-sys = { version = "1.4.0-rc", features = ["build-bindgen"] }
+nng-sys = { version = "1.11.0-rc.0", features = ["build-bindgen"] }
 ```
 
 _Example_) Disable stats and use Ninja cmake generator:
 ```toml
 [dependencies.nng-sys]
-version = "1.4.0-rc"
+version = "1.11.0"
 default-features = false
 features = ["cmake-ninja"]
 ```
