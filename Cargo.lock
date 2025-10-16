@@ -154,17 +154,7 @@ name = "nng"
 version = "1.0.1"
 dependencies = [
  "log",
- "nng-sys 1.4.0-rc.0",
-]
-
-[[package]]
-name = "nng-sys"
-version = "1.4.0-rc.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50d0e7f39a8fd1792a710da9351320e864dc799cf439960e332c977b2f876da6"
-dependencies = [
- "cmake",
- "version_check",
+ "nng-sys",
 ]
 
 [[package]]
