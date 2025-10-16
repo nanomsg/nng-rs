@@ -1,0 +1,29 @@
+language: rust
+rust:
+  - stable
+
+matrix:
+  include:
+    - os: osx
+    - os: linux
+      dist: bionic
+
+# Need travis full VM otherwise kcov fails
+sudo: required
+addons:
+  apt:
+    packages:
+      - cmake
+  snaps:
+    - name: powershell
+      confinement: classic
+  homebrew:
+    casks:
+      - powershell
+    update: true
+
+install:
+  - pwsh ./scripts/install.ps1
+
+script:
+  - pwsh ./scripts/build.ps1

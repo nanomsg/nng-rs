@@ -1,0 +1,53 @@
+[package]
+name = "nng-sys"
+version = "1.4.0-rc.0"
+authors = ["Nathan Kent <nate@nkent.net>", "Jake W <jeikabu@gmail.com>"]
+
+description = "Bindings to NNG (Nanomsg-Next-Generation) aka Nanomsg2"
+keywords = ["nng", "nanomsg", "zeromq"]
+categories = ["network-programming", "external-ffi-bindings", "os"]
+license = "MIT"
+repository = "https://github.com/jeikabu/nng-rust"
+readme = "README.md"
+edition = "2018"
+
+[badges]
+travis-ci = { repository = "jeikabu/nng-rust", branch = "master" }
+
+[features]
+default = ["build-nng", "nng-stats"]
+
+# Whether or not to build the NNG library
+build-nng = ["cmake"]
+# Whether or not to run bindgen
+build-bindgen = ["bindgen"]
+
+# Cmake generators
+cmake-unix = ["build-nng"]
+cmake-ninja = ["build-nng"]
+cmake-vs2017-win64 = ["build-nng"]
+cmake-vs2017 = ["build-nng"]
+cmake-vs2019 = ["build-nng"]
+
+# NNG Options
+nng-stats = ["build-nng"]
+nng-tls = ["build-nng"]
+nng-compat = ["build-bindgen"]
+nng-supplemental = ["build-bindgen"]
+
+no_std = ["cty"]
+
+## `source-` features should only be used when working with the source code (as opposed to using a crate)
+# Update `src/bindings.rs`
+source-update-bindings = ["build-bindgen"]
+
+[dependencies]
+cty = {version = "0.2", optional = true}
+
+[build-dependencies]
+cmake = {version = "0.1.44", optional = true}
+bindgen = {version = "0.54", optional = true}
+version_check = "0.9"
+
+[package.metadata.docs.rs]
+all-features = false
