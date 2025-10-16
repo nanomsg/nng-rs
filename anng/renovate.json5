@@ -1,0 +1,113 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  prConcurrentLimit: 10,
+  dependencyDashboard: true,
+  lockFileMaintenance: {
+    enabled: true,
+    automerge: true,
+    // Get the transitive bumps out of the way at the weekend so that they don't
+    // clog CI runners (especially Jetsons) during the week.
+    schedule: [
+      'every weekend'
+    ],
+  },
+  // Order from least to most important/specific since later options override earlier ones after merging.
+  packageRules: [
+    // the "normal" cargo rules also update Cargo.toml even if only minor/patch
+    // versions have changed. this isn't what we want -- Cargo.toml should list
+    // the _required_ version, not the _current_ version (that's what lockfiles
+    // are for). so, we disable cargo generally and enable it to run just for the
+    // specific upgrades we'd like to see. note that our lockfiles already get
+    // bumped separately through the lockFileMaintenance renovate job.
+    //
+    // the same applies anywhere we're using ^ dependencies in other
+    // ecosystems, which is currently the case for poetry and npm as well.
+    // https://python-poetry.org/docs/dependency-specification/#caret-requirements
+    // https://github.com/npm/node-semver?tab=readme-ov-file#caret-ranges-123-025-004
+    //
+    // unfortunately, we can't disable-by-default
+    //
+    //     {
+    //       matchManagers: [
+    //         'cargo',
+    //         'poetry',
+    //         'npm',
+    //       ],
+    //       enabled: false,
+    //     },
+    //
+    // since that breaks renovate:
+    //
+    //   https://github.com/renovatebot/renovate/discussions/33597
+    //
+    // even though (imo) it's easier to reason about the rules for what _does_
+    // get MRs rather than the things that _don't_ get MRs.
+    //
+    // anyway. for ^ dependencies, breaking changes happen if the leftmost
+    // non-zero component changes. that means minor for 0.x and patch for
+    // 0.0.x. in other words, we want to disable MRs for minor/patch updates
+    // for anything above 1.0.0, and disable MRs for patch updates for anything
+    // above 0.1.0. those updates _should_ still (and only) get updated through
+    // regular lockfile maintenance.
+    {
+      matchUpdateTypes: [
+        'minor', 'patch'
+      ],
+      matchCurrentVersion: ">=1.0.0",
+      matchManagers: [
+        'cargo',
+      ],
+      enabled: false,
+    },
+    {
+      matchUpdateTypes: [
+        'patch',
+      ],
+      matchCurrentVersion: ">=0.1.0",
+      matchManagers: [
+        'cargo',
+      ],
+      enabled: false,
+    },
+    // pinned dependencies should be re-visited occasionally (here: quarterly)
+    {
+      matchUpdateTypes: [
+        'pin',
+      ],
+      matchManagers: [
+        'cargo',
+      ],
+      schedule: [
+        // the first day of each quarter (i.e., January, April, July, October).
+        "* * 1 */3 *"
+      ],
+    },
+    // pin digest updates (mostly Docker images) only once a week to avoid
+    // churn of their sometimes very regular updates.
+    {
+      matchUpdateTypes: [
+        'pinDigest',
+      ],
+      schedule: [
+        'before 4am on Monday'
+      ],
+      automerge: true,
+    },
+    // ditto for {nix,hel}pkgs updates;
+    // note that they are generally already captured by `pinDigest`, but we
+    // match them specially in case we want to handle them differently.
+    {
+      matchManagers: [
+        'nix'
+      ],
+      // There's a decent chance these will need manual intervention, but we
+      // can at least try to automerge.
+      automerge: true,
+      // Run early on Monday so it's ready for someone to deal with if needed.
+      schedule: [
+        'before 4am on Monday'
+      ],
+      // Note: no need for enabled: true since we never disabled nix.
+    },
+  ],
+}

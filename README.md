@@ -21,3 +21,7 @@ linking it, offering various features to control the build process. This crate
 is intended for developers who need direct access to the NNG C API or are
 building higher-level wrappers like `nng`. For more details, please see the
 [`nng-sys` crate's README](./nng-sys/README.md).
+
+## `anng`
+
+This crate provides safe, async Rust bindings for NNG.
