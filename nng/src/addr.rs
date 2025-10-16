@@ -25,6 +25,10 @@ pub enum SocketAddr
 	/// Used to represent a ZeroTier address.
 	ZeroTier(SocketAddrZt),
 
+	#[doc(hidden)]
+	/// Used to represent an abstract IPC socket address.
+	Abstract(Box<[u8]>),
+
 	/// An invalid address type.
 	#[doc(hidden)]
 	Unspecified,
@@ -44,6 +48,18 @@ impl fmt::Display for SocketAddr
 			SocketAddr::Inet(s) => write!(f, "tcp://{}", s),
 			SocketAddr::Inet6(s) => write!(f, "tcp://{}", s),
 			SocketAddr::ZeroTier(s) => write!(f, "zt://{}", s),
+			SocketAddr::Abstract(s) => {
+				write!(f, "abstract://")?;
+				// Quick-and-dirty URI-encoding:
+				for &b in s {
+					if b.is_ascii_graphic() {
+						write!(f, "{}", char::from(b))?;
+					} else {
+						write!(f, "%{b:02x}")?;
+					}
+				}
+				Ok(())
+			},
 			SocketAddr::Unspecified => write!(f, "unspecified"),
 		}
 	}
@@ -74,7 +90,11 @@ impl From<nng_sys::nng_sockaddr> for SocketAddr
 				Some(nng_sys::nng_sockaddr_family::NNG_AF_ZT) => {
 					SocketAddr::ZeroTier(SocketAddrZt::new(&addr.s_zt))
 				},
-				Some(nng_sys::nng_sockaddr_family::NNG_AF_UNSPEC) | None => SocketAddr::Unspecified,
+				Some(nng_sys::nng_sockaddr_family::NNG_AF_ABSTRACT) => {
+					SocketAddr::Abstract(Box::from(&addr.s_abstract.sa_name[..usize::from(addr.s_abstract.sa_len)]))
+				},
+				// Note that we treat unknown new families also as unspecified
+				Some(nng_sys::nng_sockaddr_family::NNG_AF_UNSPEC) | Some(_) | None => SocketAddr::Unspecified,
 			}
 		}
 	}

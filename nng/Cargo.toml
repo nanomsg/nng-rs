@@ -22,5 +22,9 @@ build-nng = ["nng-sys/build-nng"]
 ffi-module = []
 
 [dependencies]
-nng-sys = { version = "1.4.0-rc.0", default-features = false }
 log = "0.4"
+
+[dependencies.nng-sys]
+version = "1.11.0-rc.0"
+default-features = false
+path = "../nng-sys"

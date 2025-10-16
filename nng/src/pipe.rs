@@ -202,13 +202,13 @@ pub enum PipeEvent
 impl PipeEvent
 {
 	/// Converts the NNG code into a `PipeEvent`.
-	pub(crate) fn from_code(event: u32) -> Self
+	pub(crate) fn from_code(event: nng_sys::nng_pipe_ev) -> Self
 	{
 		match event {
-			nng_sys::NNG_PIPE_EV_ADD_PRE => PipeEvent::AddPre,
-			nng_sys::NNG_PIPE_EV_ADD_POST => PipeEvent::AddPost,
-			nng_sys::NNG_PIPE_EV_REM_POST => PipeEvent::RemovePost,
-			_ => PipeEvent::Unknown(event),
+			nng_sys::nng_pipe_ev::NNG_PIPE_EV_ADD_PRE => PipeEvent::AddPre,
+			nng_sys::nng_pipe_ev::NNG_PIPE_EV_ADD_POST => PipeEvent::AddPost,
+			nng_sys::nng_pipe_ev::NNG_PIPE_EV_REM_POST => PipeEvent::RemovePost,
+			_ => PipeEvent::Unknown(event as u32),
 		}
 	}
 }
