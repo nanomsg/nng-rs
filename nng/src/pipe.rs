@@ -197,7 +197,7 @@ pub enum PipeEvent
 	///
 	/// Should never happen - used for forward compatibility.
 	#[doc(hidden)]
-	Unknown(nng_sys::nng_pipe_ev),
+	Unknown(u32),
 }
 impl PipeEvent
 {
@@ -208,7 +208,7 @@ impl PipeEvent
 			nng_sys::nng_pipe_ev::NNG_PIPE_EV_ADD_PRE => PipeEvent::AddPre,
 			nng_sys::nng_pipe_ev::NNG_PIPE_EV_ADD_POST => PipeEvent::AddPost,
 			nng_sys::nng_pipe_ev::NNG_PIPE_EV_REM_POST => PipeEvent::RemovePost,
-			_ => PipeEvent::Unknown(event),
+			_ => PipeEvent::Unknown(event as u32),
 		}
 	}
 }
