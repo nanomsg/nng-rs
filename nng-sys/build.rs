@@ -5,6 +5,8 @@ fn main() {
 }
 
 fn cfg() {
+    // Make the config directive try_from known to rustc to suppress the warning
+    println!("cargo::rustc-check-cfg=cfg(try_from)");
     match version_check::is_min_version("1.34.0") {
         Some(true) => println!("cargo:rustc-cfg=try_from"),
         _ => {}
@@ -39,6 +41,9 @@ fn link_nng() {
     };
 
     let tls = if cfg!(feature = "nng-tls") {
+        println!("cargo:rustc-link-lib=dylib=mbedcrypto");
+        println!("cargo:rustc-link-lib=dylib=mbedtls");
+        println!("cargo:rustc-link-lib=dylib=mbedx509");
         "ON"
     } else {
         "OFF"
@@ -47,13 +52,14 @@ fn link_nng() {
     // Run cmake to build nng
     let mut config = cmake::Config::new("nng");
     config
-        .define("NNG_TESTS", "OFF")
-        .define("NNG_TOOLS", "OFF")
         .define("NNG_ENABLE_STATS", stats)
-        .define("NNG_ENABLE_TLS", tls);
+        .define("NNG_ENABLE_TLS", tls)
+        .build_target("nng");
+
     if let Some(generator) = generator {
         config.generator(generator.0);
     }
+
     let dst = config.build();
 
     // Check output of `cargo build --verbose`, should see something like:
@@ -61,11 +67,7 @@ fn link_nng() {
     // That contains output from cmake
     println!(
         "cargo:rustc-link-search=native={}",
-        dst.join("lib").display()
-    );
-    println!(
-        "cargo:rustc-link-search=native={}",
-        dst.join("lib64").display()
+        dst.join("build").display()
     );
 
     println!("cargo:rustc-link-lib=static=nng");
@@ -81,14 +83,12 @@ fn build_bindgen() {
     use std::{env, path::PathBuf};
 
     let mut builder = bindgen::Builder::default()
-        // This is needed if use `#include <nng.h>` instead of `#include "path/nng.h"` in wrapper.h
-        .clang_arg("-Inng/include/")
         .header("src/wrapper.h")
         // #[derive(Default)]
         .derive_default(true)
-        .whitelist_type("nng_.*")
-        .whitelist_function("nng_.*")
-        .whitelist_var("NNG_.*")
+        .allowlist_type("nng_.*")
+        .allowlist_function("nng_.*")
+        .allowlist_var("NNG_.*")
         .opaque_type("nng_.*_s")
         // Generate `pub const NNG_UNIT_EVENTS` instead of `nng_unit_enum_NNG_UNIT_EVENTS`
         .prepend_enum_name(false)
@@ -107,11 +107,19 @@ fn build_bindgen() {
         // Don't output tests if we're regenerating `src/bindings.rs` (shared by all platforms when bindgen not used)
         .layout_tests(!cfg!(feature = "source-update-bindings"));
 
+    // Ensure that the headers from the vendored nng sources are used
+    // when the `build-nng` feature builds and links the nng library.
+    // If the `build-nng` feature is not set - do *not* add the directory
+    // to the search path in order to make clang find headers "somewhere".
+    if cfg!(feature = "build-nng") {
+        builder = builder.clang_arg("-Inng/include/");
+    }
+
     if cfg!(feature = "nng-compat") {
-        builder = builder.header("compat.h");
+        builder = builder.header("src/compat.h");
     }
     if cfg!(feature = "nng-supplemental") {
-        builder = builder.header("supplemental.h");
+        builder = builder.header("src/supplemental.h");
     }
     if cfg!(feature = "no_std") {
         // no_std support
@@ -141,6 +149,7 @@ fn build_bindgen() {
     // Nothing
 }
 
+#[cfg(feature = "build-bindgen")]
 #[derive(Debug, Default)]
 struct BindgenCallbacks;
 

@@ -1,0 +1,63 @@
+name: nng-sys
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: build-bindgen
+            apt: libclang-dev libnng-dev
+            features: build-bindgen
+          - name: build-nng
+            apt: clang cmake ninja-build
+            features: cmake-unix cmake-ninja
+          - name: nng-stats
+            apt: clang cmake
+            features: nng-stats
+          - name: nng-tls
+            apt: clang cmake libmbedtls-dev
+            features: nng-tls
+          - name: nng-compat
+            apt: libclang-dev libnng-dev
+            features: nng-compat
+          - name: nng-supplemental
+            apt: libclang-dev libnng-dev
+            features: nng-supplemental
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ matrix.name }}
+          restore-keys: ${{ runner.os }}-apt-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.apt }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Test
+        working-directory: nng-sys
+        run: |
+          for feature in ${{ matrix.features }}; do
+            cargo test --no-default-features --features $feature
+          done
