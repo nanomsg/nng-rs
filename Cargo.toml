@@ -1,0 +1,3 @@
+[workspace]
+members = ["nng", "nng-sys"]
+resolver = "2"
