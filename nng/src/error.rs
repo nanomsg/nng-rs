@@ -129,10 +129,9 @@ pub enum Error
 }
 
 #[cfg_attr(not(feature = "ffi-module"), doc(hidden))]
-impl From<NonZeroU32> for Error
-{
-	#[rustfmt::skip]
-	fn from(code: NonZeroU32) -> Error
+impl From<NonZeroU32> for Error {
+    #[rustfmt::skip]
+    fn from(code: NonZeroU32) -> Error
 	{
 		match code.get() {
 			nng_sys::NNG_EINTR        => Error::Interrupted,
@@ -174,20 +173,18 @@ impl From<NonZeroU32> for Error
 	}
 }
 
-impl From<SendError> for Error
-{
-	fn from((_, e): SendError) -> Error { e }
+impl From<SendError> for Error {
+    fn from((_, e): SendError) -> Error {
+        e
+    }
 }
 
-impl From<Error> for io::Error
-{
-	fn from(e: Error) -> io::Error
-	{
-		if let Error::SystemErr(c) = e {
-			io::Error::from_raw_os_error(c as i32)
-		}
-		else {
-			#[rustfmt::skip]
+impl From<Error> for io::Error {
+    fn from(e: Error) -> io::Error {
+        if let Error::SystemErr(c) = e {
+            io::Error::from_raw_os_error(c as i32)
+        } else {
+            #[rustfmt::skip]
 			#[allow(clippy::match_same_arms)]
 			let new_kind = match e {
 				Error::Interrupted => io::ErrorKind::Interrupted,
@@ -204,17 +201,16 @@ impl From<Error> for io::Error
 				_ => io::ErrorKind::Other,
 			};
 
-			io::Error::new(new_kind, e)
-		}
-	}
+            io::Error::new(new_kind, e)
+        }
+    }
 }
 
 impl error::Error for Error {}
 
-impl fmt::Display for Error
-{
-	#[rustfmt::skip]
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+impl fmt::Display for Error {
+    #[rustfmt::skip]
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
 	{
 		// Now, we could do a call into NNG for this but I think that adds
 		// unnecessary complication since we would have to deal with c-strings

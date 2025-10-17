@@ -1,14 +1,14 @@
 use std::{
-	cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
-	hash::{Hash, Hasher},
-	sync::Arc,
+    cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
+    hash::{Hash, Hasher},
+    sync::Arc,
 };
 
 use crate::{
-	aio::Aio,
-	error::{Result, SendResult},
-	message::Message,
-	socket::Socket,
+    aio::Aio,
+    error::{Result, SendResult},
+    message::Message,
+    socket::Socket,
 };
 
 /// A socket context.
@@ -28,117 +28,120 @@ use crate::{
 ///
 /// [`Aio`]: struct.Aio.html
 #[derive(Clone, Debug)]
-pub struct Context
-{
-	/// The inner context.
-	///
-	/// While the `nng_ctx` type is copy and it is thread-safe, we don't want
-	/// to have to worry about closing the context too early. As such, we're
-	/// going to throw the inner, actual `nng_ctx` behind and Arc.
-	inner: Arc<Inner>,
+pub struct Context {
+    /// The inner context.
+    ///
+    /// While the `nng_ctx` type is copy and it is thread-safe, we don't want
+    /// to have to worry about closing the context too early. As such, we're
+    /// going to throw the inner, actual `nng_ctx` behind and Arc.
+    inner: Arc<Inner>,
 }
-impl Context
-{
-	/// Creates a new socket context.
-	///
-	/// # Errors
-	///
-	/// * [`NotSupported`]: The protocol does not support separate contexts or
-	///   the socket was opened in raw mode.
-	/// * [`OutOfMemory`]: Insufficient memory is available.
-	///
-	/// [`NotSupported`]: enum.Error.html#variant.NotSupported
-	/// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
-	pub fn new(socket: &Socket) -> Result<Context>
-	{
-		let mut ctx = nng_sys::nng_ctx::NNG_CTX_INITIALIZER;
-		let rv = unsafe { nng_sys::nng_ctx_open(&mut ctx as _, socket.handle()) };
+impl Context {
+    /// Creates a new socket context.
+    ///
+    /// # Errors
+    ///
+    /// * [`NotSupported`]: The protocol does not support separate contexts or
+    ///   the socket was opened in raw mode.
+    /// * [`OutOfMemory`]: Insufficient memory is available.
+    ///
+    /// [`NotSupported`]: enum.Error.html#variant.NotSupported
+    /// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
+    pub fn new(socket: &Socket) -> Result<Context> {
+        let mut ctx = nng_sys::nng_ctx::NNG_CTX_INITIALIZER;
+        let rv = unsafe { nng_sys::nng_ctx_open(&mut ctx as _, socket.handle()) };
 
-		rv2res!(rv, Context { inner: Arc::new(Inner { ctx }) })
-	}
+        rv2res!(
+            rv,
+            Context {
+                inner: Arc::new(Inner { ctx })
+            }
+        )
+    }
 
-	/// Start a send operation on the given [`Aio`] and return immediately.
-	///
-	/// # Errors
-	///
-	/// * [`IncorrectState`]: The `Aio` already has a running operation.
-	///
-	/// [`Aio`]: struct.Aio.html
-	/// [`IncorrectState`]: enum.Error.html#variant.IncorrectState
-	pub fn send<M: Into<Message>>(&self, aio: &Aio, msg: M) -> SendResult<()>
-	{
-		let msg = msg.into();
-		aio.send_ctx(self, msg)
-	}
+    /// Start a send operation on the given [`Aio`] and return immediately.
+    ///
+    /// # Errors
+    ///
+    /// * [`IncorrectState`]: The `Aio` already has a running operation.
+    ///
+    /// [`Aio`]: struct.Aio.html
+    /// [`IncorrectState`]: enum.Error.html#variant.IncorrectState
+    pub fn send<M: Into<Message>>(&self, aio: &Aio, msg: M) -> SendResult<()> {
+        let msg = msg.into();
+        aio.send_ctx(self, msg)
+    }
 
-	/// Start a receive operation using the given [`Aio`] and return
-	/// immediately.
-	///
-	/// # Errors
-	///
-	/// * [`IncorrectState`]: The `Aio` already has a running operation.
-	///
-	/// [`Aio`]: struct.Aio.html
-	/// [`IncorrectState`]: enum.Error.html#variant.IncorrectState
-	pub fn recv(&self, aio: &Aio) -> Result<()> { aio.recv_ctx(self) }
+    /// Start a receive operation using the given [`Aio`] and return
+    /// immediately.
+    ///
+    /// # Errors
+    ///
+    /// * [`IncorrectState`]: The `Aio` already has a running operation.
+    ///
+    /// [`Aio`]: struct.Aio.html
+    /// [`IncorrectState`]: enum.Error.html#variant.IncorrectState
+    pub fn recv(&self, aio: &Aio) -> Result<()> {
+        aio.recv_ctx(self)
+    }
 
-	/// Closes the context.
-	///
-	/// Messages that have been submitted for sending may be flushed or
-	/// delivered, depending on the underlying transport and the linger option.
-	/// Further attempts to use the context (with this or any other handle)
-	/// will result in an error. Threads waiting for operations on the context
-	/// when this call is executed may also return with an error.
-	///
-	/// Closing the owning socket also closes this context. Additionally, the
-	/// context is closed once all handles have been dropped.
-	pub fn close(&self) { self.inner.close() }
+    /// Closes the context.
+    ///
+    /// Messages that have been submitted for sending may be flushed or
+    /// delivered, depending on the underlying transport and the linger option.
+    /// Further attempts to use the context (with this or any other handle)
+    /// will result in an error. Threads waiting for operations on the context
+    /// when this call is executed may also return with an error.
+    ///
+    /// Closing the owning socket also closes this context. Additionally, the
+    /// context is closed once all handles have been dropped.
+    pub fn close(&self) {
+        self.inner.close()
+    }
 
-	/// Returns the inner `nng_ctx` object.
-	pub(crate) fn handle(&self) -> nng_sys::nng_ctx { self.inner.ctx }
+    /// Returns the inner `nng_ctx` object.
+    pub(crate) fn handle(&self) -> nng_sys::nng_ctx {
+        self.inner.ctx
+    }
 }
 
 #[cfg(feature = "ffi-module")]
-impl Context
-{
-	/// Returns the `nng_ctx` handle for this context.
-	pub fn nng_ctx(&self) -> nng_sys::nng_ctx { self.handle() }
+impl Context {
+    /// Returns the `nng_ctx` handle for this context.
+    pub fn nng_ctx(&self) -> nng_sys::nng_ctx {
+        self.handle()
+    }
 }
 
-impl PartialEq for Context
-{
-	fn eq(&self, other: &Context) -> bool
-	{
-		unsafe { nng_sys::nng_ctx_id(self.inner.ctx) == nng_sys::nng_ctx_id(other.inner.ctx) }
-	}
+impl PartialEq for Context {
+    fn eq(&self, other: &Context) -> bool {
+        unsafe { nng_sys::nng_ctx_id(self.inner.ctx) == nng_sys::nng_ctx_id(other.inner.ctx) }
+    }
 }
 
 impl Eq for Context {}
 
-impl PartialOrd for Context
-{
-	fn partial_cmp(&self, other: &Context) -> Option<Ordering> { Some(self.cmp(other)) }
+impl PartialOrd for Context {
+    fn partial_cmp(&self, other: &Context) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
-impl Ord for Context
-{
-	fn cmp(&self, other: &Context) -> Ordering
-	{
-		unsafe {
-			let us = nng_sys::nng_ctx_id(self.inner.ctx);
-			let them = nng_sys::nng_ctx_id(other.inner.ctx);
-			us.cmp(&them)
-		}
-	}
+impl Ord for Context {
+    fn cmp(&self, other: &Context) -> Ordering {
+        unsafe {
+            let us = nng_sys::nng_ctx_id(self.inner.ctx);
+            let them = nng_sys::nng_ctx_id(other.inner.ctx);
+            us.cmp(&them)
+        }
+    }
 }
 
-impl Hash for Context
-{
-	fn hash<H: Hasher>(&self, state: &mut H)
-	{
-		let id = unsafe { nng_sys::nng_ctx_id(self.inner.ctx) };
-		id.hash(state);
-	}
+impl Hash for Context {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let id = unsafe { nng_sys::nng_ctx_id(self.inner.ctx) };
+        id.hash(state);
+    }
 }
 
 #[rustfmt::skip]
@@ -167,26 +170,24 @@ expose_options!{
 
 /// A wrapper around an `nng_ctx`.
 #[derive(Debug)]
-struct Inner
-{
-	ctx: nng_sys::nng_ctx,
+struct Inner {
+    ctx: nng_sys::nng_ctx,
 }
-impl Inner
-{
-	fn close(&self)
-	{
-		// The only time this can error is if the socket is already closed or
-		// was never open. Neither of those are an issue for us.
-		let rv = unsafe { nng_sys::nng_ctx_close(self.ctx) };
-		assert!(
-			rv == 0 || rv == nng_sys::NNG_ECLOSED as i32,
-			"Unexpected error code while closing context ({})",
-			rv
-		);
-	}
+impl Inner {
+    fn close(&self) {
+        // The only time this can error is if the socket is already closed or
+        // was never open. Neither of those are an issue for us.
+        let rv = unsafe { nng_sys::nng_ctx_close(self.ctx) };
+        assert!(
+            rv == 0 || rv == nng_sys::NNG_ECLOSED as i32,
+            "Unexpected error code while closing context ({})",
+            rv
+        );
+    }
 }
 
-impl Drop for Inner
-{
-	fn drop(&mut self) { self.close() }
+impl Drop for Inner {
+    fn drop(&mut self) {
+        self.close()
+    }
 }

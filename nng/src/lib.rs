@@ -188,15 +188,15 @@ pub use nng_sys as ffi;
 #[cfg(feature = "ffi-module")]
 pub use crate::aio::State as AioState;
 pub use crate::{
-	addr::SocketAddr,
-	aio::{Aio, AioResult},
-	ctx::Context,
-	device::{forwarder, reflector},
-	dialer::{Dialer, DialerBuilder},
-	error::{Error, Result},
-	listener::{Listener, ListenerBuilder},
-	message::{Header, Message},
-	pipe::{Pipe, PipeEvent},
-	protocol::Protocol,
-	socket::{RawSocket, Socket},
+    addr::SocketAddr,
+    aio::{Aio, AioResult},
+    ctx::Context,
+    device::{forwarder, reflector},
+    dialer::{Dialer, DialerBuilder},
+    error::{Error, Result},
+    listener::{Listener, ListenerBuilder},
+    message::{Header, Message},
+    pipe::{Pipe, PipeEvent},
+    protocol::Protocol,
+    socket::{RawSocket, Socket},
 };
