@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      # we mostly care about this for the purposes of updates to the Rust
+      # version, which updates every six weeks. unfortunately, "every six
+      # weeks" isn't something we can specify here. we could do monthly, but
+      # that'll yield noise from other actions updating that we don't
+      # necessarily care so much about (ie, we're unlikely to need new features
+      # from them). since security updates are posted immediately by dependabot
+      # anyway, setting this to quarterly feels like the right compromise, as
+      # it gives us roughly every other Rust version. as we're a library, more
+      # frequent updates than that wouldn't really benefit us since we're
+      # mainly upgrading to ensure we keep up with the Rust requirements of
+      # dependencies.
+      interval: quarterly
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: daily
+    ignore:
+      - dependency-name: "*"
+        # patch and minor updates don't matter for libraries as consumers of this library build
+        # with their own lockfile, rather than the version specified in this library's lockfile
+        # remove this ignore rule if your package has binaries to ensure that the binaries are
+        # built with the exact set of dependencies and those are up to date.
+        update-types:
+          - "version-update:semver-patch"
+          - "version-update:semver-minor"
