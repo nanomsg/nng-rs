@@ -453,14 +453,10 @@ unsafe extern "C" {
         bufsz: usize,
     ) -> *const ::core::ffi::c_char;
 }
-#[repr(u32)]
-#[non_exhaustive]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum nng_pipe_ev {
-    NNG_PIPE_EV_ADD_PRE = 0,
-    NNG_PIPE_EV_ADD_POST = 1,
-    NNG_PIPE_EV_REM_POST = 2,
-}
+pub const NNG_PIPE_EV_ADD_PRE: nng_pipe_ev = 0;
+pub const NNG_PIPE_EV_ADD_POST: nng_pipe_ev = 1;
+pub const NNG_PIPE_EV_REM_POST: nng_pipe_ev = 2;
+pub type nng_pipe_ev = ::core::ffi::c_uint;
 pub type nng_pipe_cb = ::core::option::Option<
     unsafe extern "C" fn(arg1: nng_pipe, arg2: nng_pipe_ev, arg3: *mut ::core::ffi::c_void),
 >;
