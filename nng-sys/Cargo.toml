@@ -14,6 +14,7 @@ license = "MIT"
 repository = "https://github.com/nanomsg/nng-rs"
 readme = "README.md"
 edition = "2018"
+rust-version = "1.82.0" # unsafe extern blocks in generated bindings
 links = "nng"
 
 [features]
