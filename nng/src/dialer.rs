@@ -1,13 +1,13 @@
 use std::{
-	cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
-	ffi::CString,
-	hash::{Hash, Hasher},
-	num::NonZeroU32,
+    cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
+    ffi::CString,
+    hash::{Hash, Hasher},
+    num::NonZeroU32,
 };
 
 use crate::{
-	error::{Error, Result},
-	socket::Socket,
+    error::{Error, Result},
+    socket::Socket,
 };
 
 /// An active outgoing connection.
@@ -33,135 +33,138 @@ use crate::{
 /// [1]: https://nanomsg.github.io/nng/man/v1.2.2/nng_dialer.5.html
 /// [`Socket::dial`]: struct.Socket.html#method.dial
 #[derive(Clone, Copy, Debug)]
-pub struct Dialer
-{
-	/// The handle to the underlying
-	handle: nng_sys::nng_dialer,
+pub struct Dialer {
+    /// The handle to the underlying
+    handle: nng_sys::nng_dialer,
 }
-impl Dialer
-{
-	/// Creates a new dialer object associated with the given socket.
-	///
-	/// Note that this will immediately start the dialer so no configuration
-	/// will be possible. Use [`DialerBuilder`] to change the dialer options
-	/// before starting it.
-	///
-	/// # Errors
-	///
-	/// * [`AddressInvalid`]: An invalid _url_ was specified.
-	/// * [`Closed`]: The socket is not open.
-	/// * [`ConnectionRefused`]: The remote peer refused the connection.
-	/// * [`ConnectionReset`]: The remote peer reset the connection.
-	/// * [`DestUnreachable`]: The remote address is not reachable.
-	/// * [`OutOfMemory`]: Insufficient memory is available.
-	/// * [`PeerAuth`]: Authentication or authorization failure.
-	/// * [`Protocol`]: A protocol error occurred.
-	///
-	///
-	/// [1]: https://nanomsg.github.io/nng/man/v1.2.2/nng_dial.3.html
-	/// [`AddressInvalid`]: enum.Error.html#variant.AddressInvalid
-	/// [`Closed`]: enum.Error.html#variant.Closed
-	/// [`ConnectionRefused`]: enum.Error.html#variant.ConnectionRefused
-	/// [`ConnectionReset`]: enum.Error.html#variant.ConnectionReset
-	/// [`DestUnreachable`]: enum.Error.html#variant.DestUnreachable
-	/// [`DialerBuilder`]: struct.DailerOptions.html
-	/// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
-	/// [`PeerAuth`]: enum.Error.html#variant.PeerAuth
-	/// [`Protocol`]: enum.Error.html#variant.Protocol
-	pub fn new(socket: &Socket, url: &str, nonblocking: bool) -> Result<Self>
-	{
-		// We take a Rust string instead of a c-string because the cost of
-		// creating the dialer will far outweigh the cost of allocating a
-		// single string. Having a full Rust interface will make it easier to
-		// work with.
-		let addr = CString::new(url).map_err(|_| Error::AddressInvalid)?;
-		let mut handle = nng_sys::nng_dialer::NNG_DIALER_INITIALIZER;
-		let flags = if nonblocking { nng_sys::NNG_FLAG_NONBLOCK } else { 0 };
+impl Dialer {
+    /// Creates a new dialer object associated with the given socket.
+    ///
+    /// Note that this will immediately start the dialer so no configuration
+    /// will be possible. Use [`DialerBuilder`] to change the dialer options
+    /// before starting it.
+    ///
+    /// # Errors
+    ///
+    /// * [`AddressInvalid`]: An invalid _url_ was specified.
+    /// * [`Closed`]: The socket is not open.
+    /// * [`ConnectionRefused`]: The remote peer refused the connection.
+    /// * [`ConnectionReset`]: The remote peer reset the connection.
+    /// * [`DestUnreachable`]: The remote address is not reachable.
+    /// * [`OutOfMemory`]: Insufficient memory is available.
+    /// * [`PeerAuth`]: Authentication or authorization failure.
+    /// * [`Protocol`]: A protocol error occurred.
+    ///
+    ///
+    /// [1]: https://nanomsg.github.io/nng/man/v1.2.2/nng_dial.3.html
+    /// [`AddressInvalid`]: enum.Error.html#variant.AddressInvalid
+    /// [`Closed`]: enum.Error.html#variant.Closed
+    /// [`ConnectionRefused`]: enum.Error.html#variant.ConnectionRefused
+    /// [`ConnectionReset`]: enum.Error.html#variant.ConnectionReset
+    /// [`DestUnreachable`]: enum.Error.html#variant.DestUnreachable
+    /// [`DialerBuilder`]: struct.DailerOptions.html
+    /// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
+    /// [`PeerAuth`]: enum.Error.html#variant.PeerAuth
+    /// [`Protocol`]: enum.Error.html#variant.Protocol
+    pub fn new(socket: &Socket, url: &str, nonblocking: bool) -> Result<Self> {
+        // We take a Rust string instead of a c-string because the cost of
+        // creating the dialer will far outweigh the cost of allocating a
+        // single string. Having a full Rust interface will make it easier to
+        // work with.
+        let addr = CString::new(url).map_err(|_| Error::AddressInvalid)?;
+        let mut handle = nng_sys::nng_dialer::NNG_DIALER_INITIALIZER;
+        let flags = if nonblocking {
+            nng_sys::NNG_FLAG_NONBLOCK
+        } else {
+            0
+        };
 
-		let rv = unsafe {
-			nng_sys::nng_dial(socket.handle(), addr.as_ptr(), &mut handle as *mut _, flags as i32)
-		};
+        let rv = unsafe {
+            nng_sys::nng_dial(
+                socket.handle(),
+                addr.as_ptr(),
+                &mut handle as *mut _,
+                flags as i32,
+            )
+        };
 
-		rv2res!(rv, Dialer { handle })
-	}
+        rv2res!(rv, Dialer { handle })
+    }
 
-	/// Closes the dialer.
-	///
-	/// This also closes any [`Pipe`] objects that have been created by the
-	/// dialer. Once this function returns, the dialer has been closed and all
-	/// of its resources have been deallocated. Therefore, any attempt to
-	/// utilize the dialer (with this or any other handle) will result in
-	/// an error.
-	///
-	/// Dialers are implicitly closed when the socket they are associated with
-	/// is closed. Dialers are _not_ closed when all handles are dropped.
-	///
-	///
-	/// [`Pipe`]: struct.Pipe.html
-	#[allow(clippy::missing_panics_doc)]
-	pub fn close(self)
-	{
-		// Closing the dialer should only ever result in success or ECLOSED and
-		// both of those mean that the drop was successful.
-		let rv = unsafe { nng_sys::nng_dialer_close(self.handle) };
-		assert!(
-			rv == 0 || rv == nng_sys::NNG_ECLOSED as i32,
-			"Unexpected error code while closing dialer ({})",
-			rv
-		);
-	}
+    /// Closes the dialer.
+    ///
+    /// This also closes any [`Pipe`] objects that have been created by the
+    /// dialer. Once this function returns, the dialer has been closed and all
+    /// of its resources have been deallocated. Therefore, any attempt to
+    /// utilize the dialer (with this or any other handle) will result in
+    /// an error.
+    ///
+    /// Dialers are implicitly closed when the socket they are associated with
+    /// is closed. Dialers are _not_ closed when all handles are dropped.
+    ///
+    ///
+    /// [`Pipe`]: struct.Pipe.html
+    #[allow(clippy::missing_panics_doc)]
+    pub fn close(self) {
+        // Closing the dialer should only ever result in success or ECLOSED and
+        // both of those mean that the drop was successful.
+        let rv = unsafe { nng_sys::nng_dialer_close(self.handle) };
+        assert!(
+            rv == 0 || rv == nng_sys::NNG_ECLOSED as i32,
+            "Unexpected error code while closing dialer ({})",
+            rv
+        );
+    }
 
-	/// Create a new Dialer handle from an NNG handle.
-	///
-	/// This function will panic if the handle is not valid.
-	pub(crate) fn from_nng_sys(handle: nng_sys::nng_dialer) -> Self
-	{
-		assert!(unsafe { nng_sys::nng_dialer_id(handle) > 0 }, "Dialer handle is not initialized");
-		Dialer { handle }
-	}
+    /// Create a new Dialer handle from an NNG handle.
+    ///
+    /// This function will panic if the handle is not valid.
+    pub(crate) fn from_nng_sys(handle: nng_sys::nng_dialer) -> Self {
+        assert!(
+            unsafe { nng_sys::nng_dialer_id(handle) > 0 },
+            "Dialer handle is not initialized"
+        );
+        Dialer { handle }
+    }
 }
 
 #[cfg(feature = "ffi-module")]
-impl Dialer
-{
-	/// Returns the underlying `nng_dialer` object.
-	pub fn nng_dialer(self) -> nng_sys::nng_dialer { self.handle }
+impl Dialer {
+    /// Returns the underlying `nng_dialer` object.
+    pub fn nng_dialer(self) -> nng_sys::nng_dialer {
+        self.handle
+    }
 }
 
-impl PartialEq for Dialer
-{
-	fn eq(&self, other: &Dialer) -> bool
-	{
-		unsafe { nng_sys::nng_dialer_id(self.handle) == nng_sys::nng_dialer_id(other.handle) }
-	}
+impl PartialEq for Dialer {
+    fn eq(&self, other: &Dialer) -> bool {
+        unsafe { nng_sys::nng_dialer_id(self.handle) == nng_sys::nng_dialer_id(other.handle) }
+    }
 }
 
 impl Eq for Dialer {}
 
-impl PartialOrd for Dialer
-{
-	fn partial_cmp(&self, other: &Dialer) -> Option<Ordering> { Some(self.cmp(other)) }
+impl PartialOrd for Dialer {
+    fn partial_cmp(&self, other: &Dialer) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
-impl Ord for Dialer
-{
-	fn cmp(&self, other: &Dialer) -> Ordering
-	{
-		unsafe {
-			let us = nng_sys::nng_dialer_id(self.handle);
-			let them = nng_sys::nng_dialer_id(other.handle);
-			us.cmp(&them)
-		}
-	}
+impl Ord for Dialer {
+    fn cmp(&self, other: &Dialer) -> Ordering {
+        unsafe {
+            let us = nng_sys::nng_dialer_id(self.handle);
+            let them = nng_sys::nng_dialer_id(other.handle);
+            us.cmp(&them)
+        }
+    }
 }
 
-impl Hash for Dialer
-{
-	fn hash<H: Hasher>(&self, state: &mut H)
-	{
-		let id = unsafe { nng_sys::nng_dialer_id(self.handle) };
-		id.hash(state);
-	}
+impl Hash for Dialer {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let id = unsafe { nng_sys::nng_dialer_id(self.handle) };
+        id.hash(state);
+    }
 }
 
 #[rustfmt::skip]
@@ -207,104 +210,106 @@ expose_options!{
 ///
 /// [`Socket::dial`]: struct.Socket.html#method.dial
 #[derive(Debug)]
-pub struct DialerBuilder
-{
-	/// The underlying dialer object that we are configuring
-	handle: nng_sys::nng_dialer,
+pub struct DialerBuilder {
+    /// The underlying dialer object that we are configuring
+    handle: nng_sys::nng_dialer,
 }
-impl DialerBuilder
-{
-	/// Creates a new dialer object associated with the given socket.
-	///
-	/// Note that this does not start the dialer. In order to start the dialer,
-	/// this object must be consumed by [`DialerBuilder::start`].
-	///
-	/// # Errors
-	///
-	/// * [`AddressInvalid`]: An invalid _url_ was specified.
-	/// * [`Closed`]: The socket is not open.
-	/// * [`OutOfMemory`]: Insufficient memory available.
-	///
-	///
-	/// [`AddressInvalid`]: enum.Error.html#variant.AddressInvalid
-	/// [`Closed`]: enum.Error.html#variant.Closed
-	/// [`DialerBuilder::start`]: struct.DialerBuilder.html#method.start
-	/// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
-	pub fn new(socket: &Socket, url: &str) -> Result<Self>
-	{
-		// We take a Rust string instead of a c-string because the cost of
-		// creating the dialer will far outweigh the cost of allocating a
-		// single string. Having a full Rust interface will make it easier to
-		// work with.
-		let addr = CString::new(url).map_err(|_| Error::AddressInvalid)?;
-		let mut handle = nng_sys::nng_dialer::NNG_DIALER_INITIALIZER;
-		let rv = unsafe {
-			nng_sys::nng_dialer_create(&mut handle as *mut _, socket.handle(), addr.as_ptr())
-		};
+impl DialerBuilder {
+    /// Creates a new dialer object associated with the given socket.
+    ///
+    /// Note that this does not start the dialer. In order to start the dialer,
+    /// this object must be consumed by [`DialerBuilder::start`].
+    ///
+    /// # Errors
+    ///
+    /// * [`AddressInvalid`]: An invalid _url_ was specified.
+    /// * [`Closed`]: The socket is not open.
+    /// * [`OutOfMemory`]: Insufficient memory available.
+    ///
+    ///
+    /// [`AddressInvalid`]: enum.Error.html#variant.AddressInvalid
+    /// [`Closed`]: enum.Error.html#variant.Closed
+    /// [`DialerBuilder::start`]: struct.DialerBuilder.html#method.start
+    /// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
+    pub fn new(socket: &Socket, url: &str) -> Result<Self> {
+        // We take a Rust string instead of a c-string because the cost of
+        // creating the dialer will far outweigh the cost of allocating a
+        // single string. Having a full Rust interface will make it easier to
+        // work with.
+        let addr = CString::new(url).map_err(|_| Error::AddressInvalid)?;
+        let mut handle = nng_sys::nng_dialer::NNG_DIALER_INITIALIZER;
+        let rv = unsafe {
+            nng_sys::nng_dialer_create(&mut handle as *mut _, socket.handle(), addr.as_ptr())
+        };
 
-		rv2res!(rv, DialerBuilder { handle })
-	}
+        rv2res!(rv, DialerBuilder { handle })
+    }
 
-	/// Cause the dialer to start connecting to the address with which it was
-	/// created.
-	///
-	/// Normally, the first attempt to connect to the dialer's address is done
-	/// synchronously, including any necessary name resolution. As a result, a
-	/// failure, such as if the connection is refused, will be returned
-	/// immediately, and no further action will be taken.
-	///
-	/// However, if `nonblocking` is specified, then the connection attempt is
-	/// made asynchronously.
-	///
-	/// Furthermore, if the connection was closed for a synchronously dialed
-	/// connection, the dialer will still attempt to redial asynchronously.
-	///
-	/// The returned handle controls the life of the dialer. If it is dropped,
-	/// the dialer is shut down and no more messages will be received on it.
-	///
-	/// # Errors
-	///
-	/// * [`Closed`]: The socket is not open.
-	/// * [`ConnectionRefused`]: The remote peer refused the connection.
-	/// * [`ConnectionReset`]: The remote peer reset the connection.
-	/// * [`DestUnreachable`]: The remote address is not reachable.
-	/// * [`OutOfMemory`]: Insufficient memory available.
-	/// * [`PeerAuth`]: Authentication or authorization failure.
-	/// * [`Protocol`]: A protocol error occurred.
-	///
-	///
-	/// [`Closed`]: enum.Error.html#variant.Closed
-	/// [`ConnectionRefused`]: enum.Error.html#variant.ConnectionRefused
-	/// [`ConnectionReset`]: enum.Error.html#variant.ConnectionReset
-	/// [`DestUnreachable`]: enum.Error.html#variant.DestUnreachable
-	/// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
-	/// [`PeerAuth`]: enum.Error.html#variant.PeerAuth
-	/// [`Protocol`]: enum.Error.html#variant.Protocol
-	pub fn start(self, nonblocking: bool) -> std::result::Result<Dialer, (Self, Error)>
-	{
-		let flags = if nonblocking { nng_sys::NNG_FLAG_NONBLOCK } else { 0 };
+    /// Cause the dialer to start connecting to the address with which it was
+    /// created.
+    ///
+    /// Normally, the first attempt to connect to the dialer's address is done
+    /// synchronously, including any necessary name resolution. As a result, a
+    /// failure, such as if the connection is refused, will be returned
+    /// immediately, and no further action will be taken.
+    ///
+    /// However, if `nonblocking` is specified, then the connection attempt is
+    /// made asynchronously.
+    ///
+    /// Furthermore, if the connection was closed for a synchronously dialed
+    /// connection, the dialer will still attempt to redial asynchronously.
+    ///
+    /// The returned handle controls the life of the dialer. If it is dropped,
+    /// the dialer is shut down and no more messages will be received on it.
+    ///
+    /// # Errors
+    ///
+    /// * [`Closed`]: The socket is not open.
+    /// * [`ConnectionRefused`]: The remote peer refused the connection.
+    /// * [`ConnectionReset`]: The remote peer reset the connection.
+    /// * [`DestUnreachable`]: The remote address is not reachable.
+    /// * [`OutOfMemory`]: Insufficient memory available.
+    /// * [`PeerAuth`]: Authentication or authorization failure.
+    /// * [`Protocol`]: A protocol error occurred.
+    ///
+    ///
+    /// [`Closed`]: enum.Error.html#variant.Closed
+    /// [`ConnectionRefused`]: enum.Error.html#variant.ConnectionRefused
+    /// [`ConnectionReset`]: enum.Error.html#variant.ConnectionReset
+    /// [`DestUnreachable`]: enum.Error.html#variant.DestUnreachable
+    /// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
+    /// [`PeerAuth`]: enum.Error.html#variant.PeerAuth
+    /// [`Protocol`]: enum.Error.html#variant.Protocol
+    pub fn start(self, nonblocking: bool) -> std::result::Result<Dialer, (Self, Error)> {
+        let flags = if nonblocking {
+            nng_sys::NNG_FLAG_NONBLOCK
+        } else {
+            0
+        };
 
-		// If there is an error starting the dialer, we don't want to consume
-		// it. Instead, we'll return it to the user and they can decide what to
-		// do.
-		let rv = unsafe { nng_sys::nng_dialer_start(self.handle, flags as i32) };
+        // If there is an error starting the dialer, we don't want to consume
+        // it. Instead, we'll return it to the user and they can decide what to
+        // do.
+        let rv = unsafe { nng_sys::nng_dialer_start(self.handle, flags as i32) };
 
-		if let Some(e) = NonZeroU32::new(rv as u32) {
-			Err((self, Error::from(e)))
-		}
-		else {
-			let handle = Dialer { handle: self.handle };
-			std::mem::forget(self);
-			Ok(handle)
-		}
-	}
+        if let Some(e) = NonZeroU32::new(rv as u32) {
+            Err((self, Error::from(e)))
+        } else {
+            let handle = Dialer {
+                handle: self.handle,
+            };
+            std::mem::forget(self);
+            Ok(handle)
+        }
+    }
 }
 
 #[cfg(feature = "ffi-module")]
-impl DialerBuilder
-{
-	/// Returns the underlying `nng_dialer` object.
-	pub fn nng_dialer(&self) -> nng_sys::nng_dialer { self.handle }
+impl DialerBuilder {
+    /// Returns the underlying `nng_dialer` object.
+    pub fn nng_dialer(&self) -> nng_sys::nng_dialer {
+        self.handle
+    }
 }
 
 #[rustfmt::skip]
@@ -346,17 +351,15 @@ expose_options!{
 	         transport::websocket::Protocol];
 }
 
-impl Drop for DialerBuilder
-{
-	fn drop(&mut self)
-	{
-		// Closing the dialer should only ever result in success or ECLOSED and
-		// both of those mean that the drop was successful.
-		let rv = unsafe { nng_sys::nng_dialer_close(self.handle) };
-		assert!(
-			rv == 0 || rv == nng_sys::NNG_ECLOSED as i32,
-			"Unexpected error code while closing dialer ({})",
-			rv
-		);
-	}
+impl Drop for DialerBuilder {
+    fn drop(&mut self) {
+        // Closing the dialer should only ever result in success or ECLOSED and
+        // both of those mean that the drop was successful.
+        let rv = unsafe { nng_sys::nng_dialer_close(self.handle) };
+        assert!(
+            rv == 0 || rv == nng_sys::NNG_ECLOSED as i32,
+            "Unexpected error code while closing dialer ({})",
+            rv
+        );
+    }
 }
