@@ -31,6 +31,8 @@ cmake-ninja = ["build-nng"]
 cmake-vs2017-win64 = ["build-nng"]
 cmake-vs2017 = ["build-nng"]
 cmake-vs2019 = ["build-nng"]
+cmake-vs2022 = ["build-nng"]
+cmake-vs2026 = ["build-nng"]
 
 # NNG Options
 nng-stats = ["build-nng"]
