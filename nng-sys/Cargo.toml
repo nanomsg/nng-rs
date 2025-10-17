@@ -14,6 +14,7 @@ license = "MIT"
 repository = "https://github.com/nanomsg/nng-rs"
 readme = "README.md"
 edition = "2018"
+rust-version = "1.82.0" # unsafe extern blocks in generated bindings
 links = "nng"
 
 [features]
@@ -30,6 +31,8 @@ cmake-ninja = ["build-nng"]
 cmake-vs2017-win64 = ["build-nng"]
 cmake-vs2017 = ["build-nng"]
 cmake-vs2019 = ["build-nng"]
+cmake-vs2022 = ["build-nng"]
+cmake-vs2026 = ["build-nng"]
 
 # NNG Options
 nng-stats = ["build-nng"]
@@ -47,8 +50,8 @@ source-update-bindings = ["build-bindgen"]
 cty = { version = "0.2", optional = true }
 
 [build-dependencies]
-bindgen = { version = "0.72", optional = true }
-cmake = { version = "0.1", optional = true }
+bindgen = { version = "0.72.1", optional = true }
+cmake = { version = "0.1.54", optional = true }
 version_check = "0.9"
 
 [package.metadata.docs.rs]

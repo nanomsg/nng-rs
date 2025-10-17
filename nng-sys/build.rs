@@ -20,6 +20,8 @@ fn link_nng() {
     const NINJA: Generator = Generator("Ninja");
     const VS2017: Generator = Generator("Visual Studio 15 2017");
     const VS2019: Generator = Generator("Visual Studio 16 2019");
+    const VS2022: Generator = Generator("Visual Studio 17 2022");
+    const VS2026: Generator = Generator("Visual Studio 18 2026");
 
     // Compile time settings
     let generator = if cfg!(feature = "cmake-unix") {
@@ -30,6 +32,10 @@ fn link_nng() {
         Some(VS2017)
     } else if cfg!(feature = "cmake-vs2019") {
         Some(VS2019)
+    } else if cfg!(feature = "cmake-vs2022") {
+        Some(VS2022)
+    } else if cfg!(feature = "cmake-vs2026") {
+        Some(VS2026)
     } else {
         None
     };
@@ -54,7 +60,15 @@ fn link_nng() {
     config
         .define("NNG_ENABLE_STATS", stats)
         .define("NNG_ENABLE_TLS", tls)
+        .define("BUILD_SHARED_LIBS", "OFF")
         .build_target("nng");
+
+    if cfg!(target_env = "msvc") {
+        // Rust always links against MSVC's Release CRT, so if we build nng against the Debug
+        // version, we get linker errors. Thus, always build nng in Release to match that of Rust
+        // here (by default, cmake will match the current `OPT_LEVEL`).
+        config.profile("Release");
+    }
 
     if let Some(generator) = generator {
         config.generator(generator.0);
@@ -62,19 +76,33 @@ fn link_nng() {
 
     let dst = config.build();
 
-    // Check output of `cargo build --verbose`, should see something like:
-    // -L native=/path/runng/target/debug/build/runng-sys-abc1234/out
-    // That contains output from cmake
-    println!(
-        "cargo:rustc-link-search=native={}",
-        dst.join("build").display()
-    );
+    if cfg!(target_env = "msvc") {
+        // MSVC does _not_ search recursively, so we have to point it _specifically_ at the
+        // directory that holds nng.lib.
+        println!(
+            "cargo:rustc-link-search=native={}",
+            dst.join("build/Release").display()
+        );
+    } else {
+        println!(
+            "cargo:rustc-link-search=native={}",
+            dst.join("build").display()
+        );
+    }
 
     println!("cargo:rustc-link-lib=static=nng");
+
+    // On Windows, nng has more dependencies
+    if cfg!(target_os = "windows") {
+        println!("cargo:rustc-link-lib=advapi32");
+        println!("cargo:rustc-link-lib=ws2_32");
+        println!("cargo:rustc-link-lib=mswsock");
+    }
 }
 
 #[cfg(not(feature = "build-nng"))]
 fn link_nng() {
+    // move to pkg-config once nng ships with one: https://github.com/nanomsg/nng/issues/926
     println!("cargo:rustc-link-lib=dylib=nng");
 }
 

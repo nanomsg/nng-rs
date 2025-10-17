@@ -1,0 +1,136 @@
+permissions:
+  contents: read
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+name: build
+jobs:
+  linux-sys:
+    name: nng-sys on linux with ${{ matrix.features }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - features: build-bindgen
+            # system nng, clang-dev for bindgen
+            apt: libnng1 libnng-dev libclang-dev
+          - features: build-nng,build-bindgen
+            # vendored nng and clang-dev for bindgen
+            apt: clang cmake libclang-dev
+          - features: cmake-unix
+            # vendored nng (implied by cmake-* features), so need clang + cmake
+            # + make (which is already installed). bundled bindings, so
+            # shouldn't need anything else.
+            apt: clang cmake
+          - features: cmake-ninja
+            # vendored nng, bundled bindings, build with ninja, so need that.
+            apt: clang cmake ninja-build
+          - features: nng-stats
+            # vendored nng to get stats, bundled bindings.
+            apt: clang cmake
+          - features: nng-tls
+            # vendored nng to guarantee we get tls, bundled bindings, need to
+            # link against mbedtls.
+            apt: clang cmake libmbedtls-dev
+          - features: nng-compat
+            # to generate compat, we need to run bindgen since bundled do not
+            # include compat. use system nng though.
+            apt: libnng1 libnng-dev libclang-dev
+          - features: nng-supplemental
+            # ditto for supplemental
+            apt: libnng1 libnng-dev libclang-dev
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
+        with:
+          submodules: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y ${{ matrix.apt }}
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
+        with:
+          toolchain: stable
+      - name: cargo test -p nng-sys --no-default-features --features ${{ matrix.features }}
+        run: cargo test -p nng-sys --locked --all-targets --no-default-features --features ${{ matrix.features }}
+  linux-nng:
+    name: nng on linux without build-nng or build-bindgen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
+        with:
+          submodules: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y libnng1 libnng-dev
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
+        with:
+          toolchain: stable
+      - name: cargo test -p nng --no-default-features
+        run: cargo test -p nng --locked --all-targets --no-default-features
+  macos-sys:
+    name: nng-sys on macOS ${{ matrix.features }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - features:
+            brew: nng
+          - features: --features cmake-unix
+            brew: cmake
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
+        with:
+          submodules: true
+      - name: Install dependencies
+        run: |
+          brew install ${{ matrix.brew }}
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
+        with:
+          toolchain: stable
+      - name: cargo test -p nng-sys --no-default-features ${{ matrix.features }}
+        run: |
+          env \
+            CFLAGS="-I$(brew --prefix)/include${CFLAGS+ ${CFLAGS}}" \
+            RUSTFLAGS="-L native=$(brew --prefix)/lib" \
+            cargo test -p nng-sys --locked --all-targets --no-default-features ${{ matrix.features }}
+  win-sys:
+    name: nng-sys on Windows ${{ matrix.features }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # chocolatey does not have nng as a pre-built library
+          # - os: windows-latest
+          #   features:
+          #   choco: libnng-dev
+          # there are no runners with VS2017 or VS2019, so can't test those
+          - os: windows-2022
+            features: --features cmake-vs2022
+            choco: llvm cmake
+          # chocolatey cmake (4.1.2) doesn't have VS2026 yet (landed in 4.2)
+          # - os: windows-2025
+          #   features: --features cmake-vs2026
+          #   choco: llvm cmake
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
+        with:
+          submodules: true
+      - name: Install dependencies
+        # echo "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        run: |
+          choco install ${{ matrix.choco }}
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
+        with:
+          toolchain: stable
+      - name: cargo test -p nng-sys --no-default-features ${{ matrix.features }}
+        run: cargo test -p nng-sys --locked --all-targets --no-default-features ${{ matrix.features }}
