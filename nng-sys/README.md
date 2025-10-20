@@ -43,7 +43,7 @@ This crate uses the format `<crate version>+<nng version>` following [Semantic V
 | Patch fix in crate bindings | `0.3.1+1.11.0`  | Bug fixes, no API changes                                                                  |
 | Update to newer NNG version | `0.3.2+1.12.0`  | Compatible update to the NNG library                                                       |
 | Breaking change in bindings | `0.4.0+1.12.0`  | Breaking API changes introduced by e.g. a `bindgen` upgrade (pre-1.0, minor acts as major) |
-| NNG mayor version update    | `0.5.0+2.0.0`   | A updated NNG version results in a major version bump                                      |
+| NNG mayor version update    | `0.5.0+2.0.0`   | A backwards-incompatible NNG release also results in a major version bump                                      |
 
 **Note:** Cargo ignores the `+<nng version>` build metadata suffix when resolving dependencies, so version `0.3.0+1.11.0` and `0.3.0+1.12.0` are considered equivalent by Cargo and cannot coexist.
 
