@@ -17,8 +17,10 @@ edition = "2018"
 gitlab = { repository = "neachdainn/nng-rs", branch = "master" }
 
 [features]
-default = ["build-nng"]
-build-nng = ["nng-sys/build-nng"]
+default = ["vendored"]
+vendored = ["nng-sys/vendored"]
+# Legacy alias for backwards compatibility (deprecated)
+build-nng = ["vendored"]
 ffi-module = []
 
 [dependencies]

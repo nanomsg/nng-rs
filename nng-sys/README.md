@@ -1,4 +1,3 @@
-
 Rust FFI bindings to [NNG](https://github.com/nanomsg/nng):
 
 > NNG, like its predecessors nanomsg (and to some extent ZeroMQ), is a lightweight, broker-less library, offering a simple API to solve common recurring messaging problems, such as publish/subscribe, RPC-style request/reply, or service discovery. The API frees the programmer from worrying about details like connection management, retries, and other common considerations, so that they can focus on the application instead of the plumbing.
@@ -6,9 +5,6 @@ Rust FFI bindings to [NNG](https://github.com/nanomsg/nng):
 [![docs.rs](https://docs.rs/nng-sys/badge.svg)](https://docs.rs/nng-sys)
 [![crates.io](http://img.shields.io/crates/v/nng-sys.svg)](http://crates.io/crates/nng-sys)
 ![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Rustc 1.31+](https://img.shields.io/badge/rustc-1.31+-lightgray.svg)
-[![travis](https://travis-ci.org/jeikabu/nng-rust.svg?branch=master)](https://travis-ci.org/jeikabu/nng-rust)
-[![Build Status](https://dev.azure.com/jeikabu/nng-rust/_apis/build/status/jeikabu.nng-rust?branchName=master)](https://dev.azure.com/jeikabu/nng-rust/_build/latest?definitionId=1&branchName=master)
 
 ## Usage
 
@@ -19,14 +15,53 @@ To use the latest version of this crate, add the following to your `Cargo.toml`:
 nng-sys = "0.3.0"
 ```
 
-**Note:** `nng-sys` comes with a vendored version of NNG. See the [Versioning Scheme](#versioning-scheme) section for details on how to identify the exact version. The vendored NNG sources are used if the feature `build-nng` is enabled. If a custom version of NNG is needed, enable the `build-bindgen` feature (*and* disable `build-nng`) to generate bindings from NNG headers installed on the system. The [build script](./build.rs) will search default paths for the NNG headers and add `nng` as a dynamically linked library.
+If you need TLS support:
 
-Requirements:
+```toml
+[dependencies]
+nng-sys = { version = "0.3.0", features = ["tls"] }
+```
+
+This will bundle [mbedTLS](https://tls.mbed.org/). See the [NNG TLS documentation](https://nng.nanomsg.org/man/v1.10.0/nng_tls.7.html) for details.
+
+### Library Discovery
+
+`nng-sys` comes with a vendored version of NNG, whose version is visible from the build metadata in the crate version (the part after `+`).
+Vendoring is enabled through the `vendored` feature and is on by default.
+This is mainly because NNG isn't generally going to be installed on users' systems,
+unlike more widely used libraries like openssl or zlib.
+
+If you do not want to use a vendored build, disable the `vendored` feature (or set `NNG_NO_VENDOR`).
+This will make NNG instead search for a system-provided NNG install to link with.
+Note that when using a system-provided NNG instead,
+bindings are always re-generated with bindgen at build time since there is no guarantee that the system library is the same version
+(or built with the same features)
+as the pre-generated bindings.
+
+The [build script](./build.rs) implements a preference hierarchy to discover system-provided NNG installations:
+
+1. **Explicit env vars** (highest priority):
+   - `NNG_DIR`: Root installation directory (containing `lib/` and `include/` subdirs)
+   - `NNG_LIB_DIR` + `NNG_INCLUDE_DIR`: Separate library and header directories
+
+2. **pkg-config** / **vcpkg**. NNG [does not yet ship `nng.pc` NNG](https://github.com/nanomsg/nng/issues/926), but it may be provided by certain distros.
+
+3. **Platform-specific fallback paths**:
+   - macOS: Homebrew (`/opt/homebrew`) and MacPorts (`/opt/local`)
+
+If no system-provided NNG is found, the build errors.
+There is no fallback to a vendored version.
+
+### Requirements
+
+**Default (vendored build)**:
 - [cmake](https://cmake.org/) v3.13 or newer in `PATH`
-    - On Linux/macOS: default generator is "Unix Makefiles"
-    - On Windows: default generator is generally latest version of Visual Studio installed
-    - To use a different generator, set the `CMAKE_GENERATOR` environment variable
-- _Optional_ libclang needed if using `build-bindgen` feature to run [bindgen](https://rust-lang.github.io/rust-bindgen/requirements.html)
+  - On Linux/macOS: default generator is "Unix Makefiles"
+  - On Windows: default generator is generally latest version of Visual Studio installed
+  - To use a different generator, set the `CMAKE_GENERATOR` environment variable
+
+**Optional** (for `bindgen` feature):
+- libclang needed to run [bindgen](https://rust-lang.github.io/rust-bindgen/requirements.html)
 
 ## Versioning Scheme
 
@@ -44,36 +79,65 @@ This crate uses the format `<crate version>+<nng version>` following [Semantic V
 | Patch fix in crate bindings | `0.3.1+1.11.0`  | Bug fixes, no API changes                                                                  |
 | Update to newer NNG version | `0.3.2+1.12.0`  | Compatible update to the NNG library                                                       |
 | Breaking change in bindings | `0.4.0+1.12.0`  | Breaking API changes introduced by e.g. a `bindgen` upgrade (pre-1.0, minor acts as major) |
-| NNG mayor version update    | `0.5.0+2.0.0`   | A backwards-incompatible NNG release also results in a major version bump                                      |
+| NNG major version update    | `0.5.0+2.0.0`   | A backwards-incompatible NNG release also results in a major version bump                                      |
 
-**Note:** Cargo ignores the `+<nng version>` build metadata suffix when resolving dependencies, so version `0.3.0+1.11.0` and `0.3.0+1.12.0` are considered equivalent by Cargo and cannot coexist.
+**Note:** Cargo ignores the `+<nng version>` build metadata suffix when resolving dependencies,
+so version `0.3.0+1.11.0` and `0.3.0+1.12.0` are considered equivalent by Cargo and cannot coexist.
 
-**Note:** Versions of this crate prior to `0.3.0` used a different scheme (`<NNG_version>-rc.<crate_version>`). This legacy format has been replaced to allow for proper semantic versioning of the crate's API.
+**Note:** Versions of this crate prior to `0.3.0` used a different scheme (`<NNG_version>-rc.<crate_version>`).
+This legacy format has been replaced to allow for proper semantic versioning of the crate's API.
 
 ## Features
 
-- `build-nng`: use cmake to build NNG from source (enabled by default)
-- `build-bindgen`: run bindgen to re-generate Rust FFI bindings to C
-- `nng-stats`: enable NNG stats `NNG_ENABLE_STATS` (enabled by default)
-- `nng-tls`: enable TLS `NNG_ENABLE_TLS` (requires mbedTLS)
-- `nng-supplemental`: generate bindings to NNG's supplemental functions
-- `nng-compat`: generate bindings to NNG's nanomsg compatible functions
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `vendored` | ✓ | Build NNG from bundled sources using CMake |
+| `vendored-stats` | ✓ | Enable NNG stats (`NNG_ENABLE_STATS`) when building vendored NNG |
+| `std` | ✓ | Enable standard library support |
+| `static` | | Force static linking (default: static for vendored, dynamic for system) |
+| `bindgen` | | Generate bindings at build time (uses pre-generated by default) |
+| `tls` | | Enable TLS support (`NNG_ENABLE_TLS`, requires mbedTLS) |
+| `compat` | | Bindings for nanomsg-compatible API (implies `bindgen`) |
+| `supplemental` | | Bindings for supplemental utilities (implies `bindgen`) |
 
-_Example_) Re-generate FFI bindings with bindgen:
-```toml
-[dependencies]
-nng-sys = { version = "0.3.0", features = ["build-bindgen"] }
+**Note:** Features that control NNG build options (`vendored-stats`, `tls`) only affect vendored builds.
+When using a system-provided NNG library, ensure it was built with the features you need.
+
+## Environment Variables
+
+### Quick Reference
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `NNG_DIR` | Root NNG installation directory | `/usr/local` |
+| `NNG_LIB_DIR` + `NNG_INCLUDE_DIR` | Separate library and header paths | `/opt/nng/lib`, `/opt/nng/include` |
+| `NNG_STATIC` | Force static (`1`) or dynamic (`0`) linking | `1` |
+| `NNG_NO_VENDOR` | Prohibit vendored builds (error if system lib not found) | `1` |
+| `{TARGET}_NNG_*` | Target-specific override (cross-compilation) | `AARCH64_UNKNOWN_LINUX_GNU_NNG_DIR` |
+
+### Build Control
+
+- `NNG_STATIC`: Set to `1` to force static linking, `0` for dynamic
+  - Default: `1` (static) for vendored builds, `0` (dynamic) for system-provided libraries
+- `NNG_NO_VENDOR`: Set to `1` to force the use of a system-provided NNG install (errors if none is found)
+  - Overrides vendored build behavior even if the `vendored` feature is enabled
+  - Matches the pattern from openssl-sys (`OPENSSL_NO_VENDOR`) and libgit2-sys (`LIBGIT2_NO_VENDOR`)
+  - Useful for deployments where deep control over exact versions of dependencies is needed
+    (e.g., systems that need to deal with compliance, SBOMs, etc.)
+
+### Cross-Compilation
+
+For cross-compilation, use target-prefixed variants which take precedence:
+
+```bash
+export AARCH64_UNKNOWN_LINUX_GNU_NNG_DIR=/path/to/nng-arm64
+cargo build --target aarch64-unknown-linux-gnu
 ```
 
-_Example_) Disable stats and build from source:
-```toml
-[dependencies.nng-sys]
-version = "0.3.0"
-default-features = false
-features = ["build-nng"]
-```
+Target prefix format: `{TARGET}_{VAR_NAME}` where target uses `_` instead of `-` and is uppercased.
 
-## Examples
+## Code Example
+
 ```rust
 use nng_sys::*;
 use std::{ffi::CString, os::raw::c_char, ptr::null_mut};

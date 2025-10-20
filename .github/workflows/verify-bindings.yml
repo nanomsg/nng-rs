@@ -1,0 +1,44 @@
+permissions:
+  contents: read
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'nng-sys/**'
+  pull_request:
+    paths:
+      - 'nng-sys/**'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+name: sys-bindings
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
+        with:
+          submodules: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y clang cmake libclang-dev
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
+        with:
+          toolchain: stable
+      - name: Generate fresh bindings
+        run: |
+          cp nng-sys/src/bindings{,.orig}.rs
+          cargo check -p nng-sys --features source-update-bindings
+      - name: diff bindings
+        run: |
+          if ! diff -u nng-sys/src/bindings{.orig,}.rs; then
+            echo "::error::Pre-generated bindings are out of sync with bindgen output!"
+            echo "::error::The checked-in src/bindings.rs differs from what bindgen generates."
+            echo
+            echo "To update the bindings:"
+            echo
+            echo "  cargo check -p nng-sys --features source-update-bindings"
+            exit 1
+          fi
+          echo "✓ Pre-generated bindings match bindgen output"
