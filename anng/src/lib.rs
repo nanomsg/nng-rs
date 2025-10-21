@@ -552,10 +552,10 @@ where
     #[cfg(feature = "tokio")]
     {
         use tokio::runtime::RuntimeFlavor;
-        if let Ok(rt) = tokio::runtime::Handle::try_current()
-            && let RuntimeFlavor::MultiThread = rt.runtime_flavor()
-        {
-            return tokio::task::block_in_place(f);
+        if let Ok(rt) = tokio::runtime::Handle::try_current() {
+            if let RuntimeFlavor::MultiThread = rt.runtime_flavor() {
+                return tokio::task::block_in_place(f);
+            }
         }
     }
     f()
