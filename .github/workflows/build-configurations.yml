@@ -74,7 +74,7 @@ jobs:
         run: cargo test -p nng-sys --locked --all-targets --no-default-features ${{ matrix.features }}
         env: ${{ matrix.env }}
   linux-nng:
-    name: nng on linux without vendored or bindgen
+    name: nng on linux / not vendored or bindgen
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
@@ -92,7 +92,7 @@ jobs:
         env:
           NNG_NO_VENDOR: "1"
   linux-force-no-vendor:
-    name: nng on linux with NNG_NO_VENDOR
+    name: nng on linux / NNG_NO_VENDOR
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
