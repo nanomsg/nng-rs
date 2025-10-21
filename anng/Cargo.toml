@@ -28,7 +28,8 @@ path = "../nng-sys"
 default-features = false
 
 [features]
-default = ["tokio"]
+default = ["tokio", "vendored"]
+vendored = ["nng-sys/vendored"]
 tokio = ["tokio/rt-multi-thread"]
 
 [dev-dependencies]
