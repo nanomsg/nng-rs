@@ -76,6 +76,7 @@ fn main() {
     // For example, the system-provided library could be a newer or older version.
     // We don't need to check for `compat` or `supplemental` directly here as they imply `bindgen`.
     if cfg!(feature = "bindgen") || !matches!(source, LibrarySource::Vendored) {
+        println!("cargo:warning=running bindgen");
         build_bindgen(&includes);
     }
 
