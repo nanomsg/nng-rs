@@ -46,21 +46,19 @@ fn example() {
 ```
  */
 
+// Don't use std unless we're allowed
+#![cfg_attr(not(feature = "std"), no_std)]
 // Suppress the flurry of warnings caused by using "C" naming conventions
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 // Disable clippy since this is all bindgen generated code
 #![allow(clippy::all)]
-#![cfg_attr(feature = "no_std", no_std)]
 
 // Either bindgen generated source, or the static copy
-#[cfg(feature = "build-bindgen")]
 mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
-#[cfg(not(feature = "build-bindgen"))]
-mod bindings;
 
 #[cfg(try_from)]
 use core::convert::TryFrom;
@@ -102,8 +100,7 @@ impl nng_ctx {
 #[cfg(try_from)]
 pub struct EnumFromIntError(pub i32);
 
-#[cfg(try_from)]
-#[cfg(not(feature = "no_std"))]
+#[cfg(all(try_from, feature = "std"))]
 impl std::fmt::Display for EnumFromIntError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(fmt, "EnumFromIntError({})", self.0)
