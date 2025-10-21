@@ -38,12 +38,12 @@ jobs:
             env:
               CMAKE_GENERATOR: Ninja
           - name: vendored with stats + bundled
-            features: --features vendored-stats
+            features: --features vendored,vendored-stats
             # vendored nng to get stats, bundled bindings
             apt: clang cmake
             env: {}
           - name: vendored with tls + bundled
-            features: --features tls
+            features: --features vendored,tls
             # vendored nng to guarantee we get tls, bundled bindings, need to
             # link against mbedtls.
             apt: clang cmake libmbedtls-dev
