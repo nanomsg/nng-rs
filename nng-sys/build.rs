@@ -85,7 +85,7 @@ fn main() {
             .join("src")
             .join("bindings.rs");
         let imported = PathBuf::from(env::var("OUT_DIR").unwrap()).join("bindings.rs");
-        std::fs::copy(&pregenerated, imported).expect("Unable to update bindings");
+        std::fs::copy(&pregenerated, imported).expect("unable to update bindings");
     }
 
     // 7. Export common rerun-if-changed metadata
@@ -371,7 +371,7 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         .define("NNG_ENABLE_TLS", tls)
         .define("NNG_ENABLE_NNGCAT", "OFF")
         .define("NNG_ENABLE_COVERAGE", "OFF")
-        .define("NNG_ENABLE_COMPAT", compat);
+        .define("NNG_ENABLE_COMPAT", compat)
         .build_target("nng");
 
     // Set BUILD_SHARED_LIBS based on desired linkage
@@ -453,16 +453,16 @@ fn build_bindgen(include_dirs: &[PathBuf]) {
     let out_file = PathBuf::from(env::var("OUT_DIR").unwrap()).join("bindings.rs");
     builder
         .generate()
-        .expect("Unable to generate bindings")
+        .expect("unable to generate bindings")
         .write_to_file(&out_file)
-        .expect("Couldn't write bindings");
+        .expect("couldn't write bindings");
 
     #[cfg(feature = "source-update-bindings")]
     {
         let bindings = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
             .join("src")
             .join("bindings.rs");
-        std::fs::copy(&out_file, bindings).expect("Unable to update bindings");
+        std::fs::copy(&out_file, bindings).expect("unable to update bindings");
     }
 }
 
