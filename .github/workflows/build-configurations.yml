@@ -22,40 +22,40 @@ jobs:
             apt: libnng1 libnng-dev libclang-dev
             env: {}
           - name: vendored + bindgen
-            features: vendored,bindgen
+            features: --features vendored,bindgen
             # vendored nng and clang-dev for bindgen
             apt: clang cmake libclang-dev
             env: {}
           - name: vendored + bundled
-            features: vendored
+            features: --features vendored
             # vendored nng with bundled bindings, default generator (Unix Makefiles)
             apt: clang cmake
             env: {}
           - name: vendored with Ninja + bundled
-            features: vendored
+            features: --features vendored
             # vendored nng with bundled bindings, ninja generator
             apt: clang cmake ninja-build
             env:
               CMAKE_GENERATOR: Ninja
           - name: vendored with stats + bundled
-            features: vendored-stats
+            features: --features vendored-stats
             # vendored nng to get stats, bundled bindings
             apt: clang cmake
             env: {}
           - name: vendored with tls + bundled
-            features: tls
+            features: --features tls
             # vendored nng to guarantee we get tls, bundled bindings, need to
             # link against mbedtls.
             apt: clang cmake libmbedtls-dev
             env: {}
           - name: vendored with compat (bindgen implied)
-            features: compat
+            features: --features compat
             # to generate compat, we need to run bindgen since bundled do not
             # include compat. bindgen feature is implied by compat.
             apt: libnng1 libnng-dev libclang-dev
             env: {}
           - name: vendored with supplemental (bindgen implied)
-            features: nng-supplemental
+            features: --features supplemental
             # ditto for supplemental
             apt: libnng1 libnng-dev libclang-dev
             env: {}
@@ -70,8 +70,8 @@ jobs:
         uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
         with:
           toolchain: stable
-      - name: cargo test -p nng-sys --no-default-features --features ${{ matrix.features }}
-        run: cargo test -p nng-sys --locked --all-targets --no-default-features --features ${{ matrix.features }}
+      - name: cargo test -p nng-sys --no-default-features ${{ matrix.features }}
+        run: cargo test -p nng-sys --locked --all-targets --no-default-features ${{ matrix.features }}
         env: ${{ matrix.env }}
   linux-nng:
     name: nng on linux without vendored or bindgen
