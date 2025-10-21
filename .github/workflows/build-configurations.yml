@@ -10,47 +10,55 @@ concurrency:
 name: build
 jobs:
   linux-sys:
-    name: nng-sys on linux with ${{ matrix.features }}
+    name: nng-sys on linux / ${{ matrix.name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - features: build-bindgen
+          - name: system + bindgen
+            features: build-bindgen
             # system nng, clang-dev for bindgen
             apt: libnng1 libnng-dev libclang-dev
-            env:
-          - features: build-nng,build-bindgen
+            env: {}
+          - name: vendored + bindgen
+            features: build-nng,build-bindgen
             # vendored nng and clang-dev for bindgen
             apt: clang cmake libclang-dev
-            env:
-          - features: build-nng
+            env: {}
+          - name: vendored + bundled
+            features: build-nng
             # vendored nng with bundled bindings, default generator (Unix Makefiles)
             apt: clang cmake
-            env:
-          - features: build-nng
+            env: {}
+          - name: vendored with Ninja + bundled
+            features: build-nng
             # vendored nng with bundled bindings, ninja generator
             apt: clang cmake ninja-build
             env:
               CMAKE_GENERATOR: Ninja
-          - features: nng-stats
+          - name: vendored with stats + bundled
+            features: nng-stats
             # vendored nng to get stats, bundled bindings.
             apt: clang cmake
-            env:
-          - features: nng-tls
+            env: {}
+          - name: vendored with tls + bundled
+            features: nng-tls
             # vendored nng to guarantee we get tls, bundled bindings, need to
             # link against mbedtls.
             apt: clang cmake libmbedtls-dev
-            env:
-          - features: nng-compat
+            env: {}
+          - name: vendored with compat (bindgen implied)
+            features: nng-compat
             # to generate compat, we need to run bindgen since bundled do not
             # include compat. use system nng though.
             apt: libnng1 libnng-dev libclang-dev
-            env:
-          - features: nng-supplemental
+            env: {}
+          - name: vendored with supplemental (bindgen implied)
+            features: nng-supplemental
             # ditto for supplemental
             apt: libnng1 libnng-dev libclang-dev
-            env:
+            env: {}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
         with:
