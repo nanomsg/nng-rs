@@ -113,16 +113,26 @@ jobs:
         env:
           NNG_NO_VENDOR: "1"
   macos-sys:
-    name: nng-sys on macOS ${{ matrix.features }}
+    name: nng-sys on macOS / ${{ matrix.name }}
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - features:
+          - name: brew-provided nng + CFLAGS
+            features:
             brew: nng
-          - features: --features vendored
+            env:
+              CFLAGS: -I/opt/homebrew/include
+              RUSTFLAGS: -L native=/opt/homebrew/lib
+          - name: brew-provided nng
+            features:
+            brew: nng
+            env: {}
+          - name: vendored
+            features: --features vendored
             brew: cmake
+            env: {}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
         with:
@@ -135,11 +145,8 @@ jobs:
         with:
           toolchain: stable
       - name: cargo test -p nng-sys --no-default-features ${{ matrix.features }}
-        run: |
-          env \
-            CFLAGS="-I$(brew --prefix)/include${CFLAGS+ ${CFLAGS}}" \
-            RUSTFLAGS="-L native=$(brew --prefix)/lib" \
-            cargo test -p nng-sys --locked --all-targets --no-default-features ${{ matrix.features }}
+        run: cargo test -p nng-sys --locked --all-targets --no-default-features ${{ matrix.features }}
+        env: ${{ matrix.env }}
   win-sys:
     name: nng-sys on Windows ${{ matrix.features }}
     runs-on: ${{ matrix.os }}

@@ -208,7 +208,24 @@ fn try_platform_specific_paths() -> Option<(LibrarySource, Vec<PathBuf>)> {
         // Success! The system compiler can find NNG without any help.
         // No need to emit link-search or metadata paths.
         println!("cargo:warning=Found NNG via system compiler defaults");
-        return Some((LibrarySource::Manual, vec![]));
+        let mut include_dirs = Vec::new();
+        let cflags = get_env_var("CFLAGS").unwrap_or_default();
+        let mut cflags = cflags.split_whitespace();
+        while let Some(flag) = cflags.next() {
+            if let Some(mut path) = flag.strip_prefix("-I") {
+                if path.is_empty() {
+                    // -I $path
+                    let Some(next_path) = cflags.next() else {
+                        break;
+                    };
+                    path = next_path;
+                } else {
+                    // -I$path
+                }
+                include_dirs.push(path.into());
+            }
+        }
+        return Some((LibrarySource::Manual, include_dirs));
     }
 
     // The basic probe failed. On macOS, try Homebrew and MacPorts locations explicitly
