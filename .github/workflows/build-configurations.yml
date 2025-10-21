@@ -17,45 +17,45 @@ jobs:
       matrix:
         include:
           - name: system + bindgen
-            features: build-bindgen
+            features: # no-default-features, so this won't vendor, and system implies bindgen
             # system nng, clang-dev for bindgen
             apt: libnng1 libnng-dev libclang-dev
             env: {}
           - name: vendored + bindgen
-            features: build-nng,build-bindgen
+            features: --features vendored,bindgen
             # vendored nng and clang-dev for bindgen
             apt: clang cmake libclang-dev
             env: {}
           - name: vendored + bundled
-            features: build-nng
+            features: --features vendored
             # vendored nng with bundled bindings, default generator (Unix Makefiles)
             apt: clang cmake
             env: {}
           - name: vendored with Ninja + bundled
-            features: build-nng
+            features: --features vendored
             # vendored nng with bundled bindings, ninja generator
             apt: clang cmake ninja-build
             env:
               CMAKE_GENERATOR: Ninja
           - name: vendored with stats + bundled
-            features: nng-stats
-            # vendored nng to get stats, bundled bindings.
+            features: --features vendored,vendored-stats
+            # vendored nng to get stats, bundled bindings
             apt: clang cmake
             env: {}
           - name: vendored with tls + bundled
-            features: nng-tls
+            features: --features vendored,tls
             # vendored nng to guarantee we get tls, bundled bindings, need to
             # link against mbedtls.
             apt: clang cmake libmbedtls-dev
             env: {}
           - name: vendored with compat (bindgen implied)
-            features: nng-compat
+            features: --features compat
             # to generate compat, we need to run bindgen since bundled do not
-            # include compat. use system nng though.
+            # include compat. bindgen feature is implied by compat.
             apt: libnng1 libnng-dev libclang-dev
             env: {}
           - name: vendored with supplemental (bindgen implied)
-            features: nng-supplemental
+            features: --features supplemental
             # ditto for supplemental
             apt: libnng1 libnng-dev libclang-dev
             env: {}
@@ -70,11 +70,11 @@ jobs:
         uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
         with:
           toolchain: stable
-      - name: cargo test -p nng-sys --no-default-features --features ${{ matrix.features }}
-        run: cargo test -p nng-sys --locked --all-targets --no-default-features --features ${{ matrix.features }}
+      - name: cargo test -p nng-sys --no-default-features ${{ matrix.features }}
+        run: cargo test -p nng-sys --locked --all-targets --no-default-features ${{ matrix.features }}
         env: ${{ matrix.env }}
   linux-nng:
-    name: nng on linux without build-nng or build-bindgen
+    name: nng on linux / not vendored or bindgen
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
@@ -89,17 +89,50 @@ jobs:
           toolchain: stable
       - name: cargo test -p nng --no-default-features
         run: cargo test -p nng --locked --all-targets --no-default-features
+        env:
+          NNG_NO_VENDOR: "1"
+  linux-force-no-vendor:
+    name: nng on linux / NNG_NO_VENDOR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
+        with:
+          submodules: true
+      # we test this by not installing nng, and checking that building _fails_
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
+        with:
+          toolchain: stable
+      - name: cargo build -p nng-sys --features vendored
+        run: |
+          if cargo build -p nng-sys --locked --features vendored 2>&1; then
+            echo "Build should have failed with NNG_NO_VENDOR=1"
+            exit 1
+          fi
+          echo "Build correctly failed when NNG_NO_VENDOR is set"
+        env:
+          NNG_NO_VENDOR: "1"
   macos-sys:
-    name: nng-sys on macOS ${{ matrix.features }}
+    name: nng-sys on macOS / ${{ matrix.name }}
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - features:
+          - name: brew-provided nng + CFLAGS
+            features:
             brew: nng
-          - features: --features build-nng
+            env:
+              CFLAGS: -I/opt/homebrew/include
+              RUSTFLAGS: -L native=/opt/homebrew/lib
+          - name: brew-provided nng
+            features:
+            brew: nng
+            env: {}
+          - name: vendored
+            features: --features vendored
             brew: cmake
+            env: {}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
         with:
@@ -112,11 +145,8 @@ jobs:
         with:
           toolchain: stable
       - name: cargo test -p nng-sys --no-default-features ${{ matrix.features }}
-        run: |
-          env \
-            CFLAGS="-I$(brew --prefix)/include${CFLAGS+ ${CFLAGS}}" \
-            RUSTFLAGS="-L native=$(brew --prefix)/lib" \
-            cargo test -p nng-sys --locked --all-targets --no-default-features ${{ matrix.features }}
+        run: cargo test -p nng-sys --locked --all-targets --no-default-features ${{ matrix.features }}
+        env: ${{ matrix.env }}
   win-sys:
     name: nng-sys on Windows ${{ matrix.features }}
     runs-on: ${{ matrix.os }}
@@ -129,11 +159,11 @@ jobs:
           #   features:
           #   choco: libnng-dev
           - os: windows-2022
-            features: --features build-nng
+            features: --features vendored
             choco: llvm cmake
           # chocolatey cmake (4.1.2) doesn't have VS2026 yet (landed in 4.2)
           # - os: windows-2025
-          #   features: --features build-nng
+          #   features: --features vendored
           #   choco: llvm cmake
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0

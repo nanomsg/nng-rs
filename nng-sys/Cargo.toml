@@ -18,32 +18,59 @@ rust-version = "1.82.0" # unsafe extern blocks in generated bindings
 links = "nng"
 
 [features]
-default = ["build-nng", "nng-stats"]
+default = ["vendored", "vendored-stats", "std"]
 
-# Whether or not to build the NNG library
-build-nng = ["cmake"]
-# Whether or not to run bindgen
-build-bindgen = ["bindgen"]
+# Build from vendored sources (default)
+vendored = ["dep:cmake"]
+# Force static linking
+static = []
+# Generate bindings at build time
+bindgen = []
+# Generate functionality that requires `std`
+std = []
 
-# NNG Options
-nng-stats = ["build-nng"]
-nng-tls = ["build-nng"]
-nng-compat = ["build-bindgen"]
-nng-supplemental = ["build-bindgen"]
+# NNG features
+# Enabling these will only work if the linked NNG also has them enabled.
+# If using a vendored build, nng-sys will ensure that they get enabled
+# appropriately, but otherwise that will be your responsibility.
 
-no_std = ["cty"]
+# Turns on NNG_ENABLE_STATS.
+#
+# Does not affect the bindings, so this is only relevant when vendored.
+vendored-stats = []
 
-## `source-` features should only be used when working with the source code (as opposed to using a crate)
-# Update `src/bindings.rs`
-source-update-bindings = ["build-bindgen"]
+# Turns on NNG_ENABLE_TLS.
+#
+# Adds a dependency on mbedTLS.
+# Does not affect the bindings.
+# Emits additional cargo directives for linking against mbedtls.
+tls = []
+
+# nanomsg compatibility layer
+# NOTE: this changes (adds to) the bindings as well
+compat = ["bindgen"]
+
+# supplemental utilities
+# NOTE: this changes (adds to) the bindings as well
+supplemental = ["bindgen"]
+
+## Development features (for working with the source code)
+# Update `src/bindings.rs` with all features enabled
+source-update-bindings = ["bindgen"]
 
 [dependencies]
-cty = { version = "0.2", optional = true }
 
 [build-dependencies]
-bindgen = { version = "0.72.1", optional = true }
+bindgen = "0.72.1"
+cc = "1.2.41"
 cmake = { version = "0.1.54", optional = true }
 version_check = "0.9"
+
+[target.'cfg(unix)'.build-dependencies]
+pkg-config = "0.3.32"
+
+[target.'cfg(target_env = "msvc")'.build-dependencies]
+vcpkg = "0.2.15"
 
 [package.metadata.docs.rs]
 all-features = false
