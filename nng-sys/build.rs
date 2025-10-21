@@ -79,7 +79,7 @@ fn main() {
         if !cfg!(feature = "bindgen") {
             println!("cargo:warning=running bindgen when using system-provided NNG");
         }
-        build_bindgen(&includes);
+        generate_bindings(&includes);
     } else {
         let pregenerated = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
             .join("src")
@@ -412,7 +412,7 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
     panic!("vendored feature not enabled but vendored build requested");
 }
 
-fn build_bindgen(include_dirs: &[PathBuf]) {
+fn generate_bindings(include_dirs: &[PathBuf]) {
     let mut builder = bindgen::Builder::default()
         .header("src/wrapper.h")
         // #[derive(Default)]
