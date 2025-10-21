@@ -381,7 +381,7 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
 }
 
 #[cfg(not(feature = "vendored"))]
-fn build_vendored() -> LibrarySource {
+fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
     panic!("vendored feature not enabled but vendored build requested");
 }
 
