@@ -552,6 +552,7 @@ where
     #[cfg(feature = "tokio")]
     {
         use tokio::runtime::RuntimeFlavor;
+        #[allow(clippy::collapsible_if)]
         if let Ok(rt) = tokio::runtime::Handle::try_current() {
             if let RuntimeFlavor::MultiThread = rt.runtime_flavor() {
                 return tokio::task::block_in_place(f);
