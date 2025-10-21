@@ -372,7 +372,9 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         .define("NNG_ENABLE_NNGCAT", "OFF")
         .define("NNG_ENABLE_COVERAGE", "OFF")
         .define("NNG_ENABLE_COMPAT", compat)
-        .build_target("nng");
+        // NOTE: the `cmake` crate sets `CMAKE_INSTALL_PREFIX` to point to `$OUT_DIR/build`, which
+        // is what `.build()` returns (into `dst`) below!
+        .build_target("install");
 
     // Set BUILD_SHARED_LIBS based on desired linkage
     if static_link {
@@ -394,7 +396,7 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         // that holds nng.lib
         dst.join("build/Release")
     } else {
-        dst.clone()
+        dst.join("lib")
     };
 
     let include_dir = dst.join("include");
