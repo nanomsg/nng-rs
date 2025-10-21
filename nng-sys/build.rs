@@ -112,6 +112,45 @@ fn main() {
         let prefixed = format!("{}_{}", target.replace("-", "_").to_uppercase(), var);
         println!("cargo:rerun-if-env-changed={}", prefixed);
     }
+
+    // 8. Finally, discover and export the nng version in use
+    println!("cargo:rerun-if-changed=expando.c");
+    let mut cc = cc::Build::new();
+    cc.includes(&includes);
+    let expanded = cc
+        .file("expando.c")
+        .try_expand()
+        .expect("include and expand nng.h header file");
+    let expanded = String::from_utf8(expanded).unwrap();
+    let mut nng_version = None;
+    for line in expanded.lines() {
+        let line = line.trim();
+
+        let nng_prefix = "RUST_VERSION_";
+        if let Some(version) = line.strip_prefix(nng_prefix) {
+            nng_version = Some(parse_version(version));
+        }
+    }
+    let nng_version = nng_version.expect("could not determine nng version from nng.h");
+    println!(
+        "cargo:version={}.{}.{}",
+        nng_version.0, nng_version.1, nng_version.2
+    );
+    if !matches!(source, LibrarySource::Vendored) {
+        println!(
+            "cargo:warning=binding to NNG v{}.{}.{}",
+            nng_version.0, nng_version.1, nng_version.2
+        );
+    }
+}
+
+fn parse_version(version: &str) -> (u64, u64, u64) {
+    println!("version: {version}");
+    let mut it = version.split('_');
+    let major = it.next().unwrap().parse::<u64>().unwrap();
+    let minor = it.next().unwrap().parse::<u64>().unwrap();
+    let patch = it.next().unwrap().parse::<u64>().unwrap();
+    (major, minor, patch)
 }
 
 fn emit_cfg_directives() {
