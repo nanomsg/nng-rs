@@ -41,7 +41,7 @@ use crate::aio::Aio;
 use crate::{AioError, Socket};
 use core::mem::MaybeUninit;
 use core::{
-    ffi::{CStr, c_int},
+    ffi::{c_int, CStr},
     marker::PhantomData,
 };
 use std::io;

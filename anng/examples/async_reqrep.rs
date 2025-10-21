@@ -17,7 +17,7 @@
 //! cargo run --example async_reqrep client 500 tcp://127.0.0.1:5556
 //! ```
 
-use anng::{Message, protocols::reqrep0};
+use anng::{protocols::reqrep0, Message};
 use lexopt::prelude::*;
 use std::ffi::CString;
 use std::io::Write;

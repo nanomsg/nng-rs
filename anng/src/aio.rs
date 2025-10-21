@@ -6,7 +6,7 @@ use core::{
     ptr::NonNull,
     task::{Poll, Waker},
 };
-use std::io;
+use std::{future::Future, io};
 use tokio::sync::Notify;
 
 /// Note that dropping this type will lead to any associated asynchronous operation to be

@@ -16,7 +16,7 @@
 //! cargo run --example reqrep_date client tcp://127.0.0.1:5555
 //! ```
 
-use anng::{Message, protocols::reqrep0};
+use anng::{protocols::reqrep0, Message};
 use std::ffi::CString;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};

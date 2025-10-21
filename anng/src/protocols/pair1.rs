@@ -108,8 +108,8 @@
 //! # }
 //! ```
 
-use crate::{Socket, aio::AioError, message::Message};
-use core::ffi::{CStr, c_char};
+use crate::{aio::AioError, message::Message, Socket};
+use core::ffi::{c_char, CStr};
 use std::io;
 
 /// Pair socket type for one-to-one communication.

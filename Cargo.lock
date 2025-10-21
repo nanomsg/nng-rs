@@ -16,6 +16,7 @@ name = "anng"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "lazy_static",
  "lexopt",
  "nng-sys",
  "tokio",

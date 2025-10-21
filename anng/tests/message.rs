@@ -1,4 +1,4 @@
-use anng::{Message, pipes::Addr};
+use anng::{pipes::Addr, Message};
 use std::{
     ffi::CString,
     io::Write,

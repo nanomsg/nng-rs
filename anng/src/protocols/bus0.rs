@@ -111,7 +111,7 @@
 //! # }
 //! ```
 
-use crate::{Socket, aio::AioError, message::Message};
+use crate::{aio::AioError, message::Message, Socket};
 use core::ffi::CStr;
 use std::io;
 

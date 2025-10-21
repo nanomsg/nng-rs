@@ -91,9 +91,9 @@
 //! ```
 
 use super::SupportsContext;
-use crate::{ContextfulSocket, Socket, aio::AioError, message::Message};
+use crate::{aio::AioError, message::Message, ContextfulSocket, Socket};
 use core::ffi::CStr;
-use std::io;
+use std::{future::Future, io};
 
 /// Request socket type for the client side of Request/Reply communication.
 ///
