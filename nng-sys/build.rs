@@ -76,8 +76,16 @@ fn main() {
     // For example, the system-provided library could be a newer or older version.
     // We don't need to check for `compat` or `supplemental` directly here as they imply `bindgen`.
     if cfg!(feature = "bindgen") || !matches!(source, LibrarySource::Vendored) {
-        println!("cargo:warning=running bindgen");
+        if !cfg!(feature = "bindgen") {
+            println!("cargo:warning=running bindgen when using system-provided NNG");
+        }
         build_bindgen(&includes);
+    } else {
+        let pregenerated = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join("src")
+            .join("bindings.rs");
+        let imported = PathBuf::from(env::var("OUT_DIR").unwrap()).join("bindings.rs");
+        std::fs::copy(&pregenerated, imported).expect("Unable to update bindings");
     }
 
     // 7. Export common rerun-if-changed metadata

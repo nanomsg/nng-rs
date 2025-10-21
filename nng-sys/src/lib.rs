@@ -56,12 +56,9 @@ fn example() {
 #![allow(clippy::all)]
 
 // Either bindgen generated source, or the static copy
-#[cfg(feature = "bindgen")]
 mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
-#[cfg(not(feature = "bindgen"))]
-mod bindings;
 
 #[cfg(try_from)]
 use core::convert::TryFrom;
