@@ -1,5 +1,6 @@
 use anng::Message;
 use std::io::Write;
+use std::time::Duration;
 use tracing::Instrument;
 
 #[tokio::test]
@@ -263,6 +264,7 @@ async fn send_cancellation_safety() {
             }
         }
     });
+    tokio::time::sleep(Duration::from_millis(200)).await;
 
     // 1. Try to cancel send (though it might complete immediately for bus protocol)
     let mut msg1 = Message::with_capacity(30);
@@ -289,37 +291,41 @@ async fn send_cancellation_safety() {
     // 3. Try to receive - should get at least the post-cancel message
     let received1 = received.recv().await.unwrap();
 
-    if received1.as_slice() == b"Cancelled send message" {
-        // The cancelled send actually completed, so we should also get the post-cancel message
-        let received2 = received.recv().await.unwrap();
-        assert_eq!(received2.as_slice(), b"Post-cancel message");
+    match received1.as_slice() {
+        b"Cancelled send message" => {
+            // The cancelled send actually completed, so we should also get the post-cancel message
+            let received2 = received.recv().await.unwrap();
+            assert_eq!(received2.as_slice(), b"Post-cancel message");
 
-        // Verify we got exactly both messages and no more
-        tokio::select! {
-            result = received.recv() => {
-                panic!("Should not receive any more messages, but got: {:?}",
-                       std::str::from_utf8(result.unwrap().as_slice()));
-            }
-            _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {
-                // Good - no more messages available
+            // Verify we got exactly both messages and no more
+            tokio::select! {
+                result = received.recv() => {
+                    panic!("Should not receive any more messages, but got: {:?}",
+                           std::str::from_utf8(result.unwrap().as_slice()));
+                }
+                _ = tokio::time::sleep(std::time::Duration::from_millis(200)) => {
+                    // Good - no more messages available
+                }
             }
         }
-    } else {
-        // If the send succeeded, we _should_ have gotten that send's message first!
-        assert!(!send_succeeded);
+        b"Post-cancel message" => {
+            // We got the post-cancel message first, which means the cancelled send didn't complete
+            // If the send succeeded, we _should_ have gotten that send's message first!
+            assert!(!send_succeeded);
 
-        // We got the post-cancel message first, which means the cancelled send didn't complete
-        assert_eq!(received1.as_slice(), b"Post-cancel message");
-
-        // Verify we don't get the cancelled message
-        tokio::select! {
-            result = received.recv() => {
-                panic!("Should not receive cancelled message, but got: {:?}",
-                       std::str::from_utf8(result.unwrap().as_slice()));
+            // Verify we don't get the cancelled message
+            tokio::select! {
+                result = received.recv() => {
+                    panic!("Should not receive cancelled message, but got: {:?}",
+                           std::str::from_utf8(result.unwrap().as_slice()));
+                }
+                _ = tokio::time::sleep(std::time::Duration::from_millis(200)) => {
+                    // Good - the cancelled message was not sent
+                }
             }
-            _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => {
-                // Good - the cancelled message was not sent
-            }
+        }
+        _ => {
+            unreachable!("Unexpected message {received1:x?}")
         }
     }
 }
