@@ -10,40 +10,55 @@ concurrency:
 name: build
 jobs:
   linux-sys:
-    name: nng-sys on linux with ${{ matrix.features }}
+    name: nng-sys on linux / ${{ matrix.name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - features: build-bindgen
+          - name: system + bindgen
+            features: build-bindgen
             # system nng, clang-dev for bindgen
             apt: libnng1 libnng-dev libclang-dev
-          - features: build-nng,build-bindgen
+            env: {}
+          - name: vendored + bindgen
+            features: build-nng,build-bindgen
             # vendored nng and clang-dev for bindgen
             apt: clang cmake libclang-dev
-          - features: cmake-unix
-            # vendored nng (implied by cmake-* features), so need clang + cmake
-            # + make (which is already installed). bundled bindings, so
-            # shouldn't need anything else.
+            env: {}
+          - name: vendored + bundled
+            features: build-nng
+            # vendored nng with bundled bindings, default generator (Unix Makefiles)
             apt: clang cmake
-          - features: cmake-ninja
-            # vendored nng, bundled bindings, build with ninja, so need that.
+            env: {}
+          - name: vendored with Ninja + bundled
+            features: build-nng
+            # vendored nng with bundled bindings, ninja generator
             apt: clang cmake ninja-build
-          - features: nng-stats
+            env:
+              CMAKE_GENERATOR: Ninja
+          - name: vendored with stats + bundled
+            features: nng-stats
             # vendored nng to get stats, bundled bindings.
             apt: clang cmake
-          - features: nng-tls
+            env: {}
+          - name: vendored with tls + bundled
+            features: nng-tls
             # vendored nng to guarantee we get tls, bundled bindings, need to
             # link against mbedtls.
             apt: clang cmake libmbedtls-dev
-          - features: nng-compat
+            env: {}
+          - name: vendored with compat (bindgen implied)
+            features: nng-compat
             # to generate compat, we need to run bindgen since bundled do not
             # include compat. use system nng though.
             apt: libnng1 libnng-dev libclang-dev
-          - features: nng-supplemental
+            env: {}
+          - name: vendored with supplemental (bindgen implied)
+            features: nng-supplemental
             # ditto for supplemental
             apt: libnng1 libnng-dev libclang-dev
+            env: {}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
         with:
@@ -57,6 +72,7 @@ jobs:
           toolchain: stable
       - name: cargo test -p nng-sys --no-default-features --features ${{ matrix.features }}
         run: cargo test -p nng-sys --locked --all-targets --no-default-features --features ${{ matrix.features }}
+        env: ${{ matrix.env }}
   linux-nng:
     name: nng on linux without build-nng or build-bindgen
     runs-on: ubuntu-latest
@@ -82,7 +98,7 @@ jobs:
         include:
           - features:
             brew: nng
-          - features: --features cmake-unix
+          - features: --features build-nng
             brew: cmake
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
@@ -112,13 +128,12 @@ jobs:
           # - os: windows-latest
           #   features:
           #   choco: libnng-dev
-          # there are no runners with VS2017 or VS2019, so can't test those
           - os: windows-2022
-            features: --features cmake-vs2022
+            features: --features build-nng
             choco: llvm cmake
           # chocolatey cmake (4.1.2) doesn't have VS2026 yet (landed in 4.2)
           # - os: windows-2025
-          #   features: --features cmake-vs2026
+          #   features: --features build-nng
           #   choco: llvm cmake
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0

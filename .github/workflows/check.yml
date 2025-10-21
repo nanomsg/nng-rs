@@ -118,15 +118,13 @@ jobs:
         with:
           tool: cargo-hack
       # since we're trying every combination here, we need to ensure we have
-      # all the various tools installed already. since we're on unix, we skip
-      # the cmake-vs* features, because we have to draw the line somewhere in
-      # CI complexity.
+      # all the various tools installed already.
       - name: install tools
         run: sudo apt-get install -y libclang-dev libnng1 libnng-dev clang cmake ninja-build libmbedtls-dev
       # intentionally no target specifier; see https://github.com/jonhoo/rust-ci-conf/pull/4
       # --feature-powerset runs for every combination of features
       - name: cargo hack
-        run: cargo hack --feature-powerset check --skip cmake-vs2017-win64,cmake-vs2017,cmake-vs2019,cmake-vs2022,cmake-vs2026,source-update-bindings
+        run: cargo hack --feature-powerset check --skip source-update-bindings
   msrv:
     # check that we can build using the minimal rust version that is specified by this crate
     runs-on: ubuntu-latest

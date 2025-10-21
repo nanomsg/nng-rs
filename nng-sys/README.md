@@ -25,6 +25,7 @@ Requirements:
 - [cmake](https://cmake.org/) v3.13 or newer in `PATH`
     - On Linux/macOS: default generator is "Unix Makefiles"
     - On Windows: default generator is generally latest version of Visual Studio installed
+    - To use a different generator, set the `CMAKE_GENERATOR` environment variable
 - _Optional_ libclang needed if using `build-bindgen` feature to run [bindgen](https://rust-lang.github.io/rust-bindgen/requirements.html)
 
 ## Versioning Scheme
@@ -53,10 +54,6 @@ This crate uses the format `<crate version>+<nng version>` following [Semantic V
 
 - `build-nng`: use cmake to build NNG from source (enabled by default)
 - `build-bindgen`: run bindgen to re-generate Rust FFI bindings to C
-- `cmake-unix`: use cmake generator "Unix Makefiles" (default on Linux/macOS)
-- `cmake-ninja`: use cmake generator "Ninja"
-- `cmake-vs2017`: use cmake generator "Visual Studio 15 2017"
-- `cmake-vs2019`: use cmake generator "Visual Studio 16 2019"
 - `nng-stats`: enable NNG stats `NNG_ENABLE_STATS` (enabled by default)
 - `nng-tls`: enable TLS `NNG_ENABLE_TLS` (requires mbedTLS)
 - `nng-supplemental`: generate bindings to NNG's supplemental functions
@@ -68,12 +65,12 @@ _Example_) Re-generate FFI bindings with bindgen:
 nng-sys = { version = "0.3.0", features = ["build-bindgen"] }
 ```
 
-_Example_) Disable stats and use Ninja cmake generator:
+_Example_) Disable stats and build from source:
 ```toml
 [dependencies.nng-sys]
 version = "0.3.0"
 default-features = false
-features = ["cmake-ninja"]
+features = ["build-nng"]
 ```
 
 ## Examples

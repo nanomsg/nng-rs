@@ -15,31 +15,6 @@ fn cfg() {
 
 #[cfg(feature = "build-nng")]
 fn link_nng() {
-    struct Generator(&'static str);
-    const UNIX_MAKEFILES: Generator = Generator("Unix Makefiles");
-    const NINJA: Generator = Generator("Ninja");
-    const VS2017: Generator = Generator("Visual Studio 15 2017");
-    const VS2019: Generator = Generator("Visual Studio 16 2019");
-    const VS2022: Generator = Generator("Visual Studio 17 2022");
-    const VS2026: Generator = Generator("Visual Studio 18 2026");
-
-    // Compile time settings
-    let generator = if cfg!(feature = "cmake-unix") {
-        Some(UNIX_MAKEFILES)
-    } else if cfg!(feature = "cmake-ninja") {
-        Some(NINJA)
-    } else if cfg!(feature = "cmake-vs2017") || cfg!(feature = "cmake-vs2017-win64") {
-        Some(VS2017)
-    } else if cfg!(feature = "cmake-vs2019") {
-        Some(VS2019)
-    } else if cfg!(feature = "cmake-vs2022") {
-        Some(VS2022)
-    } else if cfg!(feature = "cmake-vs2026") {
-        Some(VS2026)
-    } else {
-        None
-    };
-
     let stats = if cfg!(feature = "nng-stats") {
         "ON"
     } else {
@@ -68,10 +43,6 @@ fn link_nng() {
         // version, we get linker errors. Thus, always build nng in Release to match that of Rust
         // here (by default, cmake will match the current `OPT_LEVEL`).
         config.profile("Release");
-    }
-
-    if let Some(generator) = generator {
-        config.generator(generator.0);
     }
 
     let dst = config.build();
