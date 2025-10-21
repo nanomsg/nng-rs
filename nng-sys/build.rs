@@ -372,6 +372,7 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         .define("NNG_ENABLE_NNGCAT", "OFF")
         .define("NNG_ENABLE_COVERAGE", "OFF")
         .define("NNG_ENABLE_COMPAT", compat);
+        .build_target("nng");
 
     // Set BUILD_SHARED_LIBS based on desired linkage
     if static_link {
