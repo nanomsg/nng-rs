@@ -7,6 +7,7 @@ authors = [
     "Jon Gjengset <jon.gjengset@helsing.ai>",
     "Felix Obenhuber <felix.obenhuber@helsing.ai>",
 ]
+rust-version = "1.85.0" # Waker::noop
 
 description = "Safe, async bindings to nanomsg next-generation (NNG)"
 keywords = ["nanomsg", "nng", "transport"]
