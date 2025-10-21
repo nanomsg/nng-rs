@@ -36,6 +36,7 @@
 //!     }
 //!     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 //! });
+//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 //!
 //! // Client side
 //! let socket = reqrep0::Req0::dial(c"inproc://quick-start").await?;
@@ -72,6 +73,7 @@
 //!     }
 //!     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 //! });
+//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 //!
 //! // Subscriber
 //! let socket = pubsub0::Sub0::dial(c"inproc://pubsub").await?;
