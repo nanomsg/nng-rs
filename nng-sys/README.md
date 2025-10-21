@@ -12,13 +12,14 @@ Rust FFI bindings to [NNG](https://github.com/nanomsg/nng):
 
 ## Usage
 
-Version of this crate tracks NNG: `<NNG_version>-rc.<crate_version>` (e.g. `1.11.0-rc.0`).
+To use the latest version of this crate, add the following to your `Cargo.toml`:
 
-To use the __latest crate__ for the most recent __stable version of NNG__ (1.4.x), in `Cargo.toml`:  
 ```toml
 [dependencies]
-nng-sys = "1.4.0-rc.0"
+nng-sys = "0.3.0"
 ```
+
+**Note:** `nng-sys` comes with a vendored version of NNG. See the [Versioning Scheme](#versioning-scheme) section for details on how to identify the exact version. The vendored NNG sources are used if the feature `build-nng` is enabled. If a custom version of NNG is needed, enable the `build-bindgen` feature (*and* disable `build-nng`) to generate bindings from NNG headers installed on the system. The [build script](./build.rs) will search default paths for the NNG headers and add `nng` as a dynamically linked library.
 
 Requirements:
 - [cmake](https://cmake.org/) v3.13 or newer in `PATH`
@@ -26,6 +27,28 @@ Requirements:
     - On Windows: default generator is generally latest version of Visual Studio installed
     - To use a different generator, set the `CMAKE_GENERATOR` environment variable
 - _Optional_ libclang needed if using `build-bindgen` feature to run [bindgen](https://rust-lang.github.io/rust-bindgen/requirements.html)
+
+## Versioning Scheme
+
+This crate uses the format `<crate version>+<nng version>` following [Semantic Versioning 2.0.0](https://semver.org/#spec-item-10).
+
+**Example:** `0.3.0+1.11.0`
+
+- `0.3.0` - The crate's own semantic version, indicating API compatibility
+- `+1.11.0` - Build metadata showing the wrapped NNG library version
+
+### How Versions Change
+
+| Scenario                    | Example Version | Explanation                                                                                |
+| --------------------------- | --------------- | ------------------------------------------------------------------------------------------ |
+| Patch fix in crate bindings | `0.3.1+1.11.0`  | Bug fixes, no API changes                                                                  |
+| Update to newer NNG version | `0.3.2+1.12.0`  | Compatible update to the NNG library                                                       |
+| Breaking change in bindings | `0.4.0+1.12.0`  | Breaking API changes introduced by e.g. a `bindgen` upgrade (pre-1.0, minor acts as major) |
+| NNG mayor version update    | `0.5.0+2.0.0`   | A backwards-incompatible NNG release also results in a major version bump                                      |
+
+**Note:** Cargo ignores the `+<nng version>` build metadata suffix when resolving dependencies, so version `0.3.0+1.11.0` and `0.3.0+1.12.0` are considered equivalent by Cargo and cannot coexist.
+
+**Note:** Versions of this crate prior to `0.3.0` used a different scheme (`<NNG_version>-rc.<crate_version>`). This legacy format has been replaced to allow for proper semantic versioning of the crate's API.
 
 ## Features
 
@@ -39,13 +62,13 @@ Requirements:
 _Example_) Re-generate FFI bindings with bindgen:
 ```toml
 [dependencies]
-nng-sys = { version = "1.11.0-rc.0", features = ["build-bindgen"] }
+nng-sys = { version = "0.3.0", features = ["build-bindgen"] }
 ```
 
 _Example_) Disable stats and build from source:
 ```toml
 [dependencies.nng-sys]
-version = "1.11.0-rc.0"
+version = "0.3.0"
 default-features = false
 features = ["build-nng"]
 ```
