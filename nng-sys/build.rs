@@ -151,7 +151,7 @@ fn try_find_system_library() -> Option<(LibrarySource, Vec<PathBuf>)> {
         if !path.exists() {
             panic!("NNG_DIR points to non-existent directory: {}", dir);
         }
-        println!("cargo:warning=Using NNG from NNG_DIR: {}", dir);
+        println!("cargo:warning=using NNG from NNG_DIR: {}", dir);
 
         let lib_dir = path.join("lib");
         let include_dir = path.join("include");
@@ -180,7 +180,7 @@ fn try_find_system_library() -> Option<(LibrarySource, Vec<PathBuf>)> {
             );
         }
 
-        println!("cargo:warning=Using NNG from NNG_LIB_DIR/NNG_INCLUDE_DIR");
+        println!("cargo:warning=using NNG from NNG_LIB_DIR/NNG_INCLUDE_DIR");
         println!("cargo:rustc-link-search=native={}", lib_path.display());
         println!("cargo:include={}", inc_path.display());
 
@@ -208,7 +208,7 @@ fn try_platform_specific_paths() -> Option<(LibrarySource, Vec<PathBuf>)> {
     if try_compile_probe_without_paths() {
         // Success! The system compiler can find NNG without any help.
         // No need to emit link-search or metadata paths.
-        println!("cargo:warning=Found NNG via system compiler defaults");
+        println!("cargo:warning=found NNG via system compiler defaults");
         let mut include_dirs = Vec::new();
         let cflags = get_env_var("CFLAGS").unwrap_or_default();
         let mut cflags = cflags.split_whitespace();
@@ -239,7 +239,7 @@ fn try_platform_specific_paths() -> Option<(LibrarySource, Vec<PathBuf>)> {
             let include_path = Path::new(prefix).join("include/nng/nng.h");
 
             if include_path.exists() {
-                println!("cargo:warning=Found NNG in Homebrew location: {}", prefix);
+                println!("cargo:warning=found NNG in Homebrew location: {}", prefix);
 
                 let include_dir = Path::new(prefix).join("include");
 
@@ -278,7 +278,7 @@ fn try_pkg_config() -> Option<(LibrarySource, Vec<PathBuf>)> {
             .atleast_version("1.0.0")
             .probe("nng")
         {
-            println!("cargo:warning=Found NNG via pkg-config");
+            println!("cargo:warning=found NNG via pkg-config");
 
             // pkg-config::probe() already emitted cargo:rustc-link-search and
             // cargo:rustc-link-lib directives for ALL found paths.
@@ -295,7 +295,7 @@ fn try_vcpkg() -> Option<(LibrarySource, Vec<PathBuf>)> {
     {
         // vcpkg is commonly used on Windows MSVC for C/C++ dependencies
         if let Ok(lib) = vcpkg::find_package("nng") {
-            println!("cargo:warning=Found NNG via vcpkg");
+            println!("cargo:warning=found NNG via vcpkg");
 
             // vcpkg::find_package() already emitted cargo:rustc-link-search and
             // cargo:rustc-link-lib directives for ALL found paths.
@@ -326,7 +326,7 @@ fn check_vendored_source() {
                 .status()
             {
                 if status.success() {
-                    println!("cargo:warning=Successfully initialized nng submodule");
+                    println!("cargo:warning=initialized nng submodule");
                     return;
                 }
             }
