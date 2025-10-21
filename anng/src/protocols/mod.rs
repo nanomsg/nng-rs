@@ -49,9 +49,14 @@ use std::io;
 pub mod bus0;
 pub mod pair1;
 pub mod pipeline0;
-pub mod pubsub0;
 pub mod reqrep0;
 pub mod survey0;
+
+// PUBSUB0 is supported prior to 1.10, but it was using a now-deprecated options-based API for
+// setting the subscriptions which we don't want to write the code for (unless someone specifically
+// requests and contributes it).
+#[cfg(nng_110)]
+pub mod pubsub0;
 
 /// Creates a new socket for the given protocol.
 ///

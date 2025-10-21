@@ -367,7 +367,7 @@ mod tests {
 
     #[tokio::test]
     async fn listen_tcp_local_addr() {
-        let socket = crate::protocols::pubsub0::Pub0::socket().unwrap();
+        let socket = crate::protocols::reqrep0::Rep0::socket().unwrap();
         let listener = socket
             .listen_tcp(
                 std::net::SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),

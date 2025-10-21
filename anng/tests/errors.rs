@@ -151,7 +151,9 @@ async fn test_cross_protocol_consistency() {
 
     test_protocol!("REQ0", reqrep0::Req0::dial(invalid_addr));
     test_protocol!("REP0", reqrep0::Rep0::dial(invalid_addr));
+    #[cfg(nng_110)]
     test_protocol!("PUB0", pubsub0::Pub0::dial(invalid_addr));
+    #[cfg(nng_110)]
     test_protocol!("SUB0", pubsub0::Sub0::dial(invalid_addr));
     test_protocol!("PUSH0", pipeline0::Push0::dial(invalid_addr));
     test_protocol!("PULL0", pipeline0::Pull0::dial(invalid_addr));
