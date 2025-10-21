@@ -31,6 +31,9 @@ Vendoring is enabled through the `vendored` feature and is on by default.
 This is mainly because NNG isn't generally going to be installed on users' systems,
 unlike more widely used libraries like openssl or zlib.
 
+**For most users, the default set of features (so a vendored build) is what you'll want.**
+Just ensure you have `cmake` and a C compiler installed, and you're good to go.
+
 If you do not want to use a vendored build, disable the `vendored` feature (or set `NNG_NO_VENDOR`).
 This will make NNG instead search for a system-provided NNG install to link with.
 Note that when using a system-provided NNG instead,
