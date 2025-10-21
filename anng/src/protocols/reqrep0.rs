@@ -91,7 +91,7 @@
 //! ```
 
 use super::SupportsContext;
-use crate::{aio::AioError, message::Message, ContextfulSocket, Socket};
+use crate::{ContextfulSocket, Socket, aio::AioError, message::Message};
 use core::ffi::CStr;
 use std::{future::Future, io};
 

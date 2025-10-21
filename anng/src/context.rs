@@ -1,7 +1,7 @@
 use crate::{
+    ContextfulSocket, Socket,
     aio::{Aio, AioError, ImplicationOnMessage},
     message::Message,
-    ContextfulSocket, Socket,
 };
 use core::{fmt, mem::MaybeUninit, num::NonZeroU32, ptr::NonNull};
 

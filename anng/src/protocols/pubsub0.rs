@@ -95,8 +95,8 @@
 //! ```
 
 use super::SupportsContext;
-use crate::{aio::AioError, message::Message, ContextfulSocket, Socket};
-use core::ffi::{c_char, c_void, CStr};
+use crate::{ContextfulSocket, Socket, aio::AioError, message::Message};
+use core::ffi::{CStr, c_char, c_void};
 use std::io;
 
 /// Subscribe socket type for receiving filtered messages from publishers.

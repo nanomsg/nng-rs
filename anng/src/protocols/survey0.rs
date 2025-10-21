@@ -76,9 +76,9 @@
 //! ```
 
 use super::SupportsContext;
-use crate::{aio::AioError, message::Message, ContextfulSocket, Socket};
+use crate::{ContextfulSocket, Socket, aio::AioError, message::Message};
 use core::{
-    ffi::{c_char, c_int, CStr},
+    ffi::{CStr, c_char, c_int},
     time::Duration,
 };
 use std::io;

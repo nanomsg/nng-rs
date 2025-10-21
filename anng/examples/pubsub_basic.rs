@@ -19,7 +19,7 @@
 //! cargo run --example pubsub_basic subscriber tcp://127.0.0.1:5557 ""
 //! ```
 
-use anng::{protocols::pubsub0, Message};
+use anng::{Message, protocols::pubsub0};
 use std::ffi::CString;
 use std::io::Write;
 

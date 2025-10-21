@@ -27,7 +27,7 @@
 //! - **Time-bounded**: Surveys have configurable timeouts for timely results
 //! - **Asynchronous collection**: Process responses as they arrive
 
-use anng::{protocols::survey0, Message};
+use anng::{Message, protocols::survey0};
 use std::ffi::CString;
 use std::io::Write;
 use std::time::Duration;

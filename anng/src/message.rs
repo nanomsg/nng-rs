@@ -1,4 +1,4 @@
-use crate::{pipes::Addr, AioError};
+use crate::{AioError, pipes::Addr};
 use bytes::{Buf, BufMut};
 use core::{
     cmp::max,
@@ -1310,8 +1310,8 @@ mod tests {
 
         // Write one more byte to exceed 2048
         msg.write_all(&[3u8]).unwrap(); // Now at 2049 bytes
-                                        // required_capacity = 2049, next_power_of_two(2048) = 2048
-                                        // new_capacity = max(2049, 2048) = 2049
+        // required_capacity = 2049, next_power_of_two(2048) = 2048
+        // new_capacity = max(2049, 2048) = 2049
         assert_eq!(msg.capacity(), 2049);
     }
 

@@ -90,9 +90,9 @@
 //! # }
 //! ```
 
-use crate::{aio::AioError, message::Message, Socket};
-use core::ffi::c_char;
+use crate::{Socket, aio::AioError, message::Message};
 use core::ffi::CStr;
+use core::ffi::c_char;
 use std::io;
 
 /// Pull socket type for receiving work from push sockets.

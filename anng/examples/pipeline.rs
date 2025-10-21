@@ -25,7 +25,7 @@
 //! - **Natural backpressure**: Slow workers receive fewer tasks automatically
 //! - **Horizontal scaling**: Add workers dynamically without configuration changes
 
-use anng::{protocols::pipeline0, Message};
+use anng::{Message, protocols::pipeline0};
 use std::ffi::CString;
 use std::io::Write;
 use std::time::Duration;

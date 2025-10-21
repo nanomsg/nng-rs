@@ -1,7 +1,7 @@
 use crate::Socket;
+use core::ffi::CStr;
 use core::ffi::c_char;
 use core::ffi::c_int;
-use core::ffi::CStr;
 use core::fmt;
 use core::mem::MaybeUninit;
 use core::net::Ipv4Addr;
