@@ -394,7 +394,7 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         // that holds nng.lib
         dst.join("build/Release")
     } else {
-        dst.join("lib")
+        dst.clone()
     };
 
     let include_dir = dst.join("include");
