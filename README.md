@@ -24,4 +24,9 @@ building higher-level wrappers like `nng`. For more details, please see the
 
 ## `anng`
 
-This crate provides safe, async Rust bindings for NNG.
+Safe, async Rust bindings for NNG focused on native integration with
+NNG's asynchronous API mechanisms (i.e., the `_aio_` style functions).
+Primarily uses synchronization mechanisms from `tokio`, and once [this
+lands](https://github.com/nanomsg/nng/pull/2163) will be usable without
+the rest of `tokio` (crucially, the runtime bits). For more details,
+please see the [`anng` crate's README](./anng/README.md).
