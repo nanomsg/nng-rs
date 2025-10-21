@@ -32,11 +32,11 @@ fn main() {
 
     // 3. Find and link library
     // Prefer vendored when feature is enabled (unless NNG_NO_VENDOR is set)
-    let source = if cfg!(feature = "vendored") && !force_system {
+    let (source, includes) = if cfg!(feature = "vendored") && !force_system {
         check_vendored_source();
         build_vendored()
-    } else if let Some(source) = try_find_system_library() {
-        source
+    } else if let Some((source, includes)) = try_find_system_library() {
+        (source, includes)
     } else if force_system {
         panic!("NNG_NO_VENDOR is set but no system NNG library was found");
     } else {
@@ -76,7 +76,7 @@ fn main() {
     // For example, the system-provided library could be a newer or older version.
     // We don't need to check for `compat` or `supplemental` directly here as they imply `bindgen`.
     if cfg!(feature = "bindgen") || !matches!(source, LibrarySource::Vendored) {
-        build_bindgen();
+        build_bindgen(&includes);
     }
 
     // 7. Export common rerun-if-changed metadata
@@ -143,7 +143,7 @@ fn get_env_var(name: &str) -> Option<String> {
 /// Attempt to find system-installed NNG library.
 /// Emits cargo:rustc-link-search and metadata directives directly.
 /// Returns the library source if found.
-fn try_find_system_library() -> Option<LibrarySource> {
+fn try_find_system_library() -> Option<(LibrarySource, Vec<PathBuf>)> {
     // 1. Explicit environment variables (highest priority)
     if let Some(dir) = get_env_var("NNG_DIR") {
         let path = PathBuf::from(&dir);
@@ -159,7 +159,7 @@ fn try_find_system_library() -> Option<LibrarySource> {
         println!("cargo:include={}", include_dir.display());
         println!("cargo:root={}", path.display());
 
-        return Some(LibrarySource::Manual);
+        return Some((LibrarySource::Manual, vec![include_dir]));
     }
 
     if let Some(lib_dir) = get_env_var("NNG_LIB_DIR") {
@@ -183,32 +183,32 @@ fn try_find_system_library() -> Option<LibrarySource> {
         println!("cargo:rustc-link-search=native={}", lib_path.display());
         println!("cargo:include={}", inc_path.display());
 
-        return Some(LibrarySource::Manual);
+        return Some((LibrarySource::Manual, vec![inc_path]));
     }
 
     // 2. pkg-config (standard package manager on Unix)
     // See: https://github.com/nanomsg/nng/issues/926
-    if let Some(source) = try_pkg_config() {
-        return Some(source);
+    if let Some((source, inc)) = try_pkg_config() {
+        return Some((source, inc));
     }
 
     // 3. vcpkg (standard package manager on Windows MSVC)
-    if let Some(source) = try_vcpkg() {
-        return Some(source);
+    if let Some((source, inc)) = try_vcpkg() {
+        return Some((source, inc));
     }
 
     // 4. Platform-specific paths (fallback)
     try_platform_specific_paths()
 }
 
-fn try_platform_specific_paths() -> Option<LibrarySource> {
+fn try_platform_specific_paths() -> Option<(LibrarySource, Vec<PathBuf>)> {
     // Try to compile without explicit paths, letting cc use system defaults.
     // This picks up CFLAGS, LDFLAGS, and other environment configuration.
     if try_compile_probe_without_paths() {
         // Success! The system compiler can find NNG without any help.
         // No need to emit link-search or metadata paths.
         println!("cargo:warning=Found NNG via system compiler defaults");
-        return Some(LibrarySource::Manual);
+        return Some((LibrarySource::Manual, vec![]));
     }
 
     // The basic probe failed. On macOS, try Homebrew and MacPorts locations explicitly
@@ -229,7 +229,7 @@ fn try_platform_specific_paths() -> Option<LibrarySource> {
                 println!("cargo:include={}", include_dir.display());
                 println!("cargo:root={}", prefix);
 
-                return Some(LibrarySource::Manual);
+                return Some((LibrarySource::Manual, vec![include_dir]));
             }
         }
     }
@@ -253,37 +253,36 @@ fn try_compile_probe_without_paths() -> bool {
         .is_ok()
 }
 
-fn try_pkg_config() -> Option<LibrarySource> {
+fn try_pkg_config() -> Option<(LibrarySource, Vec<PathBuf>)> {
     #[cfg(unix)]
     {
-        if pkg_config::Config::new()
+        if let Ok(lib) = pkg_config::Config::new()
             .atleast_version("1.0.0")
             .probe("nng")
-            .is_ok()
         {
             println!("cargo:warning=Found NNG via pkg-config");
 
             // pkg-config::probe() already emitted cargo:rustc-link-search and
             // cargo:rustc-link-lib directives for ALL found paths.
 
-            return Some(LibrarySource::PkgConfig);
+            return Some((LibrarySource::PkgConfig, lib.include_paths));
         }
     }
 
     None
 }
 
-fn try_vcpkg() -> Option<LibrarySource> {
+fn try_vcpkg() -> Option<(LibrarySource, Vec<PathBuf>)> {
     #[cfg(target_env = "msvc")]
     {
         // vcpkg is commonly used on Windows MSVC for C/C++ dependencies
-        if vcpkg::find_package("nng").is_ok() {
+        if let Ok(lib) = vcpkg::find_package("nng") {
             println!("cargo:warning=Found NNG via vcpkg");
 
             // vcpkg::find_package() already emitted cargo:rustc-link-search and
             // cargo:rustc-link-lib directives for ALL found paths.
 
-            return Some(LibrarySource::Vcpkg);
+            return Some((LibrarySource::Vcpkg, lib.include_paths));
         }
     }
 
@@ -321,7 +320,7 @@ fn check_vendored_source() {
 }
 
 #[cfg(feature = "vendored")]
-fn build_vendored() -> LibrarySource {
+fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
     let stats = if cfg!(feature = "vendored-stats") {
         "ON"
     } else {
@@ -378,7 +377,7 @@ fn build_vendored() -> LibrarySource {
     println!("cargo:root={}", dst.display());
     println!("cargo:vendored=1");
 
-    LibrarySource::Vendored
+    (LibrarySource::Vendored, vec![include_dir])
 }
 
 #[cfg(not(feature = "vendored"))]
@@ -386,7 +385,7 @@ fn build_vendored() -> LibrarySource {
     panic!("vendored feature not enabled but vendored build requested");
 }
 
-fn build_bindgen() {
+fn build_bindgen(include_dirs: &[PathBuf]) {
     let mut builder = bindgen::Builder::default()
         .header("src/wrapper.h")
         // #[derive(Default)]
@@ -413,14 +412,9 @@ fn build_bindgen() {
         .layout_tests(!cfg!(feature = "source-update-bindings"));
 
     // Add include path for nng headers
-    // When vendored: use nng/include/
-    // When system: bindgen needs to find headers somewhere (either system paths or we'd need to pass NNG_INCLUDE_DIR)
-    if cfg!(feature = "vendored") {
-        builder = builder.clang_arg("-Inng/include/");
-    } else if let Some(inc_dir) = get_env_var("NNG_INCLUDE_DIR") {
-        builder = builder.clang_arg(format!("-I{}", inc_dir));
+    for include_dir in include_dirs {
+        builder = builder.clang_arg(format!("-I{}", include_dir.display()));
     }
-    // If neither, bindgen will search system paths
 
     if cfg!(feature = "compat") {
         builder = builder.header("src/compat.h");
