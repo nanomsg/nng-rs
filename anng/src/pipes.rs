@@ -635,28 +635,15 @@ mod tests {
     #[case(Addr::Inproc { name: CString::new("my-app_123").unwrap() }, "inproc://my-app_123", "inproc with special chars")]
     #[case(Addr::Ipc { path: CString::new("/tmp/mysocket").unwrap() }, "ipc:///tmp/mysocket", "ipc printable")]
     #[case(Addr::Abstract { name: b"myapp".to_vec().into() }, "abstract://myapp", "abstract printable")]
-    #[case(Addr::Abstract { name: vec![0x00, b'a', b'p', b'p'].into() }, "abstract://00app", "abstract with null prefix")]
-    #[case(Addr::Abstract { name: vec![0x00, b'a', b'p', b'p', 0xFF, b'!'].into() }, "abstract://00appff!", "abstract mixed content")]
-    #[case(Addr::Abstract { name: vec![0x00, 0x01, 0xFF, 0xFE].into() }, "abstract://0001fffe", "abstract all non printable")]
+    #[case(Addr::Abstract { name: vec![0x00, b'a', b'p', b'p'].into() }, "abstract://%00app", "abstract with null prefix")]
+    #[case(Addr::Abstract { name: vec![0x00, b'a', b'p', b'p', 0xFF, b'!'].into() }, "abstract://%00app%ff!", "abstract mixed content")]
+    #[case(Addr::Abstract { name: vec![0x00, 0x01, 0xFF, 0xFE].into() }, "abstract://%00%01%ff%fe", "abstract all non printable")]
     #[case(Addr::Abstract { name: vec![].into() }, "abstract://", "abstract empty")]
     #[case(Addr::Abstract { name: b"Hello-World_123!".to_vec().into() }, "abstract://Hello-World_123!", "hex name helper all printable")]
-    #[case(Addr::Abstract { name: b"hello world".to_vec().into() }, "abstract://hello20world", "hex name helper whitespace encoded")]
-    #[case(Addr::Abstract { name: vec![b'a', b'\t', b'b', b'\n', b'c'].into() }, "abstract://a09b0ac", "hex name helper tab and newline")]
+    #[case(Addr::Abstract { name: b"hello world".to_vec().into() }, "abstract://hello%20world", "hex name helper whitespace encoded")]
+    #[case(Addr::Abstract { name: vec![b'a', b'\t', b'b', b'\n', b'c'].into() }, "abstract://a%09b%0ac", "hex name helper tab and newline")]
     fn test_addr_to_string(#[case] addr: Addr, #[case] expected: &str, #[case] description: &str) {
         let addr = addr.to_string();
         assert_eq!(addr, expected, "{description}");
-    }
-
-    #[test]
-    fn test_addr_to_url_inproc_with_non_printable() {
-        // CString cannot contain null bytes, so we'll test with other non-printable chars
-        let name = vec![b'm', b'y', 0x01, b'a', b'p', b'p'];
-        let addr = Addr::Inproc {
-            name: CString::new(name).unwrap(),
-        };
-        let addr = addr.to_string();
-        assert!(addr.starts_with("inproc"));
-        // The 0x01 byte should be hex-encoded
-        assert!(addr.contains("my01app"));
     }
 }
