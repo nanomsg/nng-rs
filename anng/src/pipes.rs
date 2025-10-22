@@ -239,7 +239,7 @@ impl fmt::Display for Addr {
                 write_hex(f, name.as_ref())
             }
             // format in URI scheme for consistency with the other variants
-            Addr::Zt => write!(f, "zt://"),
+            Addr::Zt => write!(f, "zt://<todo>"),
         }
     }
 }
