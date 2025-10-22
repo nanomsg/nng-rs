@@ -207,6 +207,43 @@ impl Addr {
     }
 }
 
+impl fmt::Display for Addr {
+    /// Format trait for an empty format, `{}`.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Addr::Inproc { name } => {
+                // inproc addresses are guaranteed to be a text string according
+                // to https://nng.nanomsg.org/man/v1.10.0/nng_inproc.7.html
+                write!(f, "inproc://{}", name.to_string_lossy())
+            }
+            Addr::Ipc { path } => {
+                // abstract addresses are handled in the `Addr::Abstract` variant.
+                // see the `Socket Address` section of
+                // https://nng.nanomsg.org/man/v1.10.0/nng_ipc.7.html
+                // so these are always simple paths
+                write!(f, "ipc://{}", path.to_string_lossy())
+            }
+            Addr::Inet(addr) => write!(f, "tcp://{addr}"),
+            Addr::Inet6(addr) => write!(f, "tcp://{addr}"),
+            Addr::Abstract { name } => {
+                write!(f, "abstract://")?;
+                for b in name.as_ref() {
+                    if b.is_ascii_graphic() {
+                        write!(f, "{}", *b as char)?;
+                    } else {
+                        // conform to https://nng.nanomsg.org/man/v1.10.0/nng_ipc.7.html
+                        // and prefix the hex value with `%`
+                        write!(f, "%{:02x}", b)?;
+                    }
+                }
+                Ok(())
+            }
+            // format in URI scheme for consistency with the other variants
+            Addr::Zt => write!(f, "zt://<todo>"),
+        }
+    }
+}
+
 impl<Protocol> TcpListener<'_, Protocol> {
     /// Retrieve the local address that this TCP listener is listening on.
     // NOTE(jon): this is entirely just a convenience wrapper to give `SocketAddr` (and to validate
@@ -244,7 +281,7 @@ impl<Protocol> TcpListener<'_, Protocol> {
             }
             addr => {
                 unreachable!(
-                    "tcp:// listeners should always be associated with INET family, not {addr:?}",
+                    "tcp:// listeners should always be associated with INET family, not {addr}",
                 )
             }
         }
@@ -363,7 +400,9 @@ impl Default for TcpOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4};
+    use rstest::rstest;
+    use std::ffi::CString;
+    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
 
     #[tokio::test]
     async fn listen_tcp_local_addr() {
@@ -566,5 +605,42 @@ mod tests {
         };
 
         assert_eq!(name_box.len(), 0);
+    }
+
+    #[rstest]
+    #[case(
+        Addr::Inet(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 8080)),
+        "tcp://127.0.0.1:8080",
+        "inet localhost"
+    )]
+    #[case(
+        Addr::Inet(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 8080)),
+        "tcp://0.0.0.0:8080",
+        "inet any"
+    )]
+    #[case(
+        Addr::Inet6(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 8080, 0, 0)),
+        "tcp://[::1]:8080",
+        "inet6 localhost"
+    )]
+    #[case(
+        Addr::Inet6(SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 8080, 0, 0)),
+        "tcp://[::]:8080",
+        "inet6 any"
+    )]
+    #[case(Addr::Inproc { name: CString::new("myapp").unwrap() }, "inproc://myapp", "inproc printable")]
+    #[case(Addr::Inproc { name: CString::new("my-app_123").unwrap() }, "inproc://my-app_123", "inproc with special chars")]
+    #[case(Addr::Ipc { path: CString::new("/tmp/mysocket").unwrap() }, "ipc:///tmp/mysocket", "ipc printable")]
+    #[case(Addr::Abstract { name: b"myapp".to_vec().into() }, "abstract://myapp", "abstract printable")]
+    #[case(Addr::Abstract { name: vec![0x00, b'a', b'p', b'p'].into() }, "abstract://%00app", "abstract with null prefix")]
+    #[case(Addr::Abstract { name: vec![0x00, b'a', b'p', b'p', 0xFF, b'!'].into() }, "abstract://%00app%ff!", "abstract mixed content")]
+    #[case(Addr::Abstract { name: vec![0x00, 0x01, 0xFF, 0xFE].into() }, "abstract://%00%01%ff%fe", "abstract all non printable")]
+    #[case(Addr::Abstract { name: vec![].into() }, "abstract://", "abstract empty")]
+    #[case(Addr::Abstract { name: b"Hello-World_123!".to_vec().into() }, "abstract://Hello-World_123!", "hex name helper all printable")]
+    #[case(Addr::Abstract { name: b"hello world".to_vec().into() }, "abstract://hello%20world", "hex name helper whitespace encoded")]
+    #[case(Addr::Abstract { name: vec![b'a', b'\t', b'b', b'\n', b'c'].into() }, "abstract://a%09b%0ac", "hex name helper tab and newline")]
+    fn test_addr_to_string(#[case] addr: Addr, #[case] expected: &str, #[case] description: &str) {
+        let addr = addr.to_string();
+        assert_eq!(addr, expected, "{description}");
     }
 }
