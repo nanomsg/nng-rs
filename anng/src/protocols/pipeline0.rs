@@ -46,6 +46,7 @@
 //! push_socket.push(task).await.unwrap();
 //! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 //! # });
+//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 //!
 //! // Puller (worker), in another task
 //! let mut pull_socket = pipeline0::Pull0::dial(c"inproc://work-queue").await?;
