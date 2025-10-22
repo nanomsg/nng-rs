@@ -11,7 +11,6 @@ use core::net::SocketAddrV4;
 use core::net::SocketAddrV6;
 use core::ops::Deref;
 use std::ffi::CString;
-use std::fmt::Write;
 use std::io;
 
 /// A handle to a just-started NNG dialer.
@@ -210,36 +209,37 @@ impl Addr {
 
 impl fmt::Display for Addr {
     /// Format trait for an empty format, `{}`.
-    ///
-    /// Note that this is liable to change.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        /// Converts a byte sequence to a human-readable string.
-        ///
-        /// ASCII graphic characters (printable, non-whitespace) are preserved as-is,
-        /// while non-printable bytes are hex-encoded as two lowercase hexadecimal digits.
-        fn hex_name(value: impl AsRef<[u8]>) -> Result<String, fmt::Error> {
-            // preallocate twice the size of the input value in order to avoid
-            // reallocations even when matching the worst case of all chars need
-            // to be formatted as their byte representation.
-            let mut result = String::with_capacity(value.as_ref().len() * 2);
+        // Write `value` to f and replace non ascii graphic chars to their byte
+        // representation
+        fn write_hex(f: &mut fmt::Formatter, value: impl AsRef<[u8]>) -> fmt::Result {
             for b in value.as_ref() {
                 if b.is_ascii_graphic() {
-                    result.push(*b as char);
+                    write!(f, "{}", *b as char)?;
                 } else {
-                    write!(&mut result, "{:02x}", b)?;
+                    write!(f, "{:02x}", b)?;
                 }
             }
-            Ok(result)
+            Ok(())
         }
 
         match self {
-            Addr::Inproc { name } => write!(f, "inproc://{}", hex_name(name.as_bytes())?),
-            Addr::Ipc { path } => write!(f, "ipc://{}", hex_name(path.as_bytes())?),
+            Addr::Inproc { name } => {
+                write!(f, "inproc://")?;
+                write_hex(f, name.as_bytes())
+            }
+            Addr::Ipc { path } => {
+                write!(f, "ipc://")?;
+                write_hex(f, path.as_bytes())
+            }
             Addr::Inet(addr) => write!(f, "tcp://{addr}"),
             Addr::Inet6(addr) => write!(f, "tcp://{addr}"),
-            Addr::Abstract { name } => write!(f, "abstract://{}", hex_name(name.as_ref())?),
+            Addr::Abstract { name } => {
+                write!(f, "abstract://")?;
+                write_hex(f, name.as_ref())
+            }
             // format in URI scheme for consistency with the other variants
-            Addr::Zt => write!(f, "zerotier://"),
+            Addr::Zt => write!(f, "zt://"),
         }
     }
 }
