@@ -227,8 +227,9 @@ impl fmt::Display for Addr {
 
         match self {
             Addr::Inproc { name } => {
-                write!(f, "inproc://")?;
-                write_hex(f, name.as_bytes())
+                // inproc addresses are guaranteed to be a text string according
+                // to https://nng.nanomsg.org/man/v1.10.0/nng_inproc.7.html
+                write!(f, "inproc://{}", name.to_string_lossy())
             }
             Addr::Ipc { path } => {
                 write!(f, "ipc://")?;
