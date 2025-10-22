@@ -220,6 +220,7 @@ impl fmt::Display for Addr {
                 // abstract addresses are handled in the `Addr::Abstract` variant.
                 // see the `Socket Address` section of
                 // https://nng.nanomsg.org/man/v1.10.0/nng_ipc.7.html
+                // so these are always simple paths
                 write!(f, "ipc://{}", path.to_string_lossy())
             }
             Addr::Inet(addr) => write!(f, "tcp://{addr}"),
