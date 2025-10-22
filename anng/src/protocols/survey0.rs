@@ -58,6 +58,7 @@
 //! }
 //! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 //! # });
+//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 //!
 //! // Respondent, in another task
 //! let socket = survey0::Respondent0::dial(c"inproc://survey").await?;
@@ -437,6 +438,7 @@ impl SurveyResponses<'_, '_> {
 /// #     }
 /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 /// # });
+/// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 /// // Connect to surveyor
 /// let socket = Respondent0::dial(c"inproc://respondent0-usage-doctest").await?;
 /// let mut ctx = socket.context();
@@ -531,6 +533,7 @@ impl<'socket> ContextfulSocket<'socket, Respondent0> {
     /// #     }
     /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     /// # });
+    /// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     /// let socket = survey0::Respondent0::dial(c"inproc://service-discovery").await?;
     /// let mut ctx = socket.context();
     ///
@@ -638,6 +641,7 @@ impl SurveyResponder<'_, '_> {
     /// #     }
     /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     /// # });
+    /// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     /// let socket = survey0::Respondent0::dial(c"inproc://status").await?;
     /// let mut ctx = socket.context();
     ///

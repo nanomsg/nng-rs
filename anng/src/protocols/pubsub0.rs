@@ -44,6 +44,7 @@
 //! # }
 //! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 //! # });
+//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 //!
 //! // Subscriber, in another task
 //! let sub_socket = pubsub0::Sub0::dial(c"inproc://news").await?;
@@ -74,6 +75,7 @@
 //! # }
 //! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 //! # });
+//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 //! let sub_socket = pubsub0::Sub0::dial(c"inproc://pubsub-topic-filter-demo").await?;
 //! let mut sub = sub_socket.context();
 //!
@@ -136,6 +138,7 @@ use std::io;
 /// #     }
 /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 /// # });
+/// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 /// // Connect to publisher
 /// let socket = Sub0::dial(c"inproc://sub0-usage-doctest").await?;
 /// let mut ctx = socket.context();
@@ -225,6 +228,7 @@ impl<'socket> ContextfulSocket<'socket, Sub0> {
     /// #     }
     /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     /// # });
+    /// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     /// let socket = pubsub0::Sub0::dial(c"inproc://next-doctest-feed").await?;
     /// let mut sub = socket.context();
     ///
@@ -319,6 +323,7 @@ impl<'socket> ContextfulSocket<'socket, Sub0> {
     /// #     }
     /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     /// # });
+    /// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     /// let socket = pubsub0::Sub0::dial(c"inproc://sub0-disable-filtering-demo").await?;
     /// let mut sub = socket.context();
     ///
