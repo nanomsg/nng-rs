@@ -210,21 +210,6 @@ impl Addr {
 impl fmt::Display for Addr {
     /// Format trait for an empty format, `{}`.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // Write `value` to f and replace non ascii graphic chars to their byte
-        // representation
-        fn write_hex(f: &mut fmt::Formatter, value: impl AsRef<[u8]>) -> fmt::Result {
-            for b in value.as_ref() {
-                if b.is_ascii_graphic() {
-                    write!(f, "{}", *b as char)?;
-                } else {
-                    // conform to https://nng.nanomsg.org/man/v1.10.0/nng_ipc.7.html
-                    // and prefix the hex value with `%`
-                    write!(f, "%{:02x}", b)?;
-                }
-            }
-            Ok(())
-        }
-
         match self {
             Addr::Inproc { name } => {
                 // inproc addresses are guaranteed to be a text string according
@@ -232,14 +217,25 @@ impl fmt::Display for Addr {
                 write!(f, "inproc://{}", name.to_string_lossy())
             }
             Addr::Ipc { path } => {
-                write!(f, "ipc://")?;
-                write_hex(f, path.as_bytes())
+                // abstract addresses are handled in the `Addr::Abstract` variant.
+                // see the `Socket Address` section of
+                // https://nng.nanomsg.org/man/v1.10.0/nng_ipc.7.html
+                write!(f, "ipc://{}", path.to_string_lossy())
             }
             Addr::Inet(addr) => write!(f, "tcp://{addr}"),
             Addr::Inet6(addr) => write!(f, "tcp://{addr}"),
             Addr::Abstract { name } => {
                 write!(f, "abstract://")?;
-                write_hex(f, name.as_ref())
+                for b in name.as_ref() {
+                    if b.is_ascii_graphic() {
+                        write!(f, "{}", *b as char)?;
+                    } else {
+                        // conform to https://nng.nanomsg.org/man/v1.10.0/nng_ipc.7.html
+                        // and prefix the hex value with `%`
+                        write!(f, "%{:02x}", b)?;
+                    }
+                }
+                Ok(())
             }
             // format in URI scheme for consistency with the other variants
             Addr::Zt => write!(f, "zt://<todo>"),
