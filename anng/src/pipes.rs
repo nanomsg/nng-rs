@@ -217,7 +217,9 @@ impl fmt::Display for Addr {
                 if b.is_ascii_graphic() {
                     write!(f, "{}", *b as char)?;
                 } else {
-                    write!(f, "{:02x}", b)?;
+                    // conform to https://nng.nanomsg.org/man/v1.10.0/nng_ipc.7.html
+                    // and prefix the hex value with `%`
+                    write!(f, "%{:02x}", b)?;
                 }
             }
             Ok(())
