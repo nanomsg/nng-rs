@@ -32,7 +32,7 @@ async fn remote_addr_tcp() {
         // Check remote address - should be inet with localhost
         let addr = msg.remote_addr().unwrap();
         let Addr::Inet(v4) = addr else {
-            panic!("Expected inet address, got: {addr:?}");
+            panic!("Expected inet address, got: {addr}");
         };
 
         assert_eq!(v4.ip(), &Ipv4Addr::LOCALHOST);
@@ -55,7 +55,7 @@ async fn remote_addr_tcp() {
         // Check remote address of the reply - should be inet with the listener address
         let addr = reply_msg.remote_addr().unwrap();
         let Addr::Inet(v4) = addr else {
-            panic!("Expected inet address, got: {addr:?}");
+            panic!("Expected inet address, got: {addr}");
         };
 
         assert_eq!(v4.ip(), &Ipv4Addr::LOCALHOST);
@@ -84,7 +84,7 @@ async fn remote_addr_inproc() {
         // Check remote address - should be inproc with the connection name
         let addr = msg.remote_addr().unwrap();
         let Addr::Inproc { name } = addr else {
-            panic!("Expected inproc address, got: {addr:?}");
+            panic!("Expected inproc address, got: {addr}");
         };
 
         assert_eq!(name, CString::new("inproc://test_remote_addr").unwrap());
@@ -103,7 +103,7 @@ async fn remote_addr_inproc() {
         // Check remote address of the reply - should be inproc with the connection name
         let addr = reply_msg.remote_addr().unwrap();
         let Addr::Inproc { name } = addr else {
-            panic!("Expected inproc address, got: {addr:?}");
+            panic!("Expected inproc address, got: {addr}");
         };
 
         assert_eq!(name, CString::new("inproc://test_remote_addr").unwrap());

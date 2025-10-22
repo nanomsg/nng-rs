@@ -11,6 +11,7 @@ use core::net::SocketAddrV4;
 use core::net::SocketAddrV6;
 use core::ops::Deref;
 use std::ffi::CString;
+use std::fmt::Write;
 use std::io;
 
 /// A handle to a just-started NNG dialer.
@@ -207,6 +208,42 @@ impl Addr {
     }
 }
 
+impl fmt::Display for Addr {
+    /// Format trait for an empty format, `{}`.
+    ///
+    /// Note that this is liable to change.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        /// Converts a byte sequence to a human-readable string.
+        ///
+        /// ASCII graphic characters (printable, non-whitespace) are preserved as-is,
+        /// while non-printable bytes are hex-encoded as two lowercase hexadecimal digits.
+        fn hex_name(value: impl AsRef<[u8]>) -> Result<String, fmt::Error> {
+            // preallocate twice the size of the input value in order to avoid
+            // reallocations even when matching the worst case of all chars need
+            // to be formatted as their byte representation.
+            let mut result = String::with_capacity(value.as_ref().len() * 2);
+            for b in value.as_ref() {
+                if b.is_ascii_graphic() {
+                    result.push(*b as char);
+                } else {
+                    write!(&mut result, "{:02x}", b)?;
+                }
+            }
+            Ok(result)
+        }
+
+        match self {
+            Addr::Inproc { name } => write!(f, "inproc://{}", hex_name(name.as_bytes())?),
+            Addr::Ipc { path } => write!(f, "ipc://{}", hex_name(path.as_bytes())?),
+            Addr::Inet(addr) => write!(f, "tcp://{addr}"),
+            Addr::Inet6(addr) => write!(f, "tcp://{addr}"),
+            Addr::Abstract { name } => write!(f, "abstract://{}", hex_name(name.as_ref())?),
+            // format in URI scheme for consistency with the other variants
+            Addr::Zt => write!(f, "zerotier://"),
+        }
+    }
+}
+
 impl<Protocol> TcpListener<'_, Protocol> {
     /// Retrieve the local address that this TCP listener is listening on.
     // NOTE(jon): this is entirely just a convenience wrapper to give `SocketAddr` (and to validate
@@ -244,7 +281,7 @@ impl<Protocol> TcpListener<'_, Protocol> {
             }
             addr => {
                 unreachable!(
-                    "tcp:// listeners should always be associated with INET family, not {addr:?}",
+                    "tcp:// listeners should always be associated with INET family, not {addr}",
                 )
             }
         }
@@ -363,7 +400,9 @@ impl Default for TcpOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4};
+    use rstest::rstest;
+    use std::ffi::CString;
+    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
 
     #[tokio::test]
     async fn listen_tcp_local_addr() {
@@ -566,5 +605,55 @@ mod tests {
         };
 
         assert_eq!(name_box.len(), 0);
+    }
+
+    #[rstest]
+    #[case(
+        Addr::Inet(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 8080)),
+        "tcp://127.0.0.1:8080",
+        "inet localhost"
+    )]
+    #[case(
+        Addr::Inet(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 8080)),
+        "tcp://0.0.0.0:8080",
+        "inet any"
+    )]
+    #[case(
+        Addr::Inet6(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 8080, 0, 0)),
+        "tcp://[::1]:8080",
+        "inet6 localhost"
+    )]
+    #[case(
+        Addr::Inet6(SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 8080, 0, 0)),
+        "tcp://[::]:8080",
+        "inet6 any"
+    )]
+    #[case(Addr::Inproc { name: CString::new("myapp").unwrap() }, "inproc://myapp", "inproc printable")]
+    #[case(Addr::Inproc { name: CString::new("my-app_123").unwrap() }, "inproc://my-app_123", "inproc with special chars")]
+    #[case(Addr::Ipc { path: CString::new("/tmp/mysocket").unwrap() }, "ipc:///tmp/mysocket", "ipc printable")]
+    #[case(Addr::Abstract { name: b"myapp".to_vec().into() }, "abstract://myapp", "abstract printable")]
+    #[case(Addr::Abstract { name: vec![0x00, b'a', b'p', b'p'].into() }, "abstract://00app", "abstract with null prefix")]
+    #[case(Addr::Abstract { name: vec![0x00, b'a', b'p', b'p', 0xFF, b'!'].into() }, "abstract://00appff!", "abstract mixed content")]
+    #[case(Addr::Abstract { name: vec![0x00, 0x01, 0xFF, 0xFE].into() }, "abstract://0001fffe", "abstract all non printable")]
+    #[case(Addr::Abstract { name: vec![].into() }, "abstract://", "abstract empty")]
+    #[case(Addr::Abstract { name: b"Hello-World_123!".to_vec().into() }, "abstract://Hello-World_123!", "hex name helper all printable")]
+    #[case(Addr::Abstract { name: b"hello world".to_vec().into() }, "abstract://hello20world", "hex name helper whitespace encoded")]
+    #[case(Addr::Abstract { name: vec![b'a', b'\t', b'b', b'\n', b'c'].into() }, "abstract://a09b0ac", "hex name helper tab and newline")]
+    fn test_addr_to_string(#[case] addr: Addr, #[case] expected: &str, #[case] description: &str) {
+        let addr = addr.to_string();
+        assert_eq!(addr, expected, "{description}");
+    }
+
+    #[test]
+    fn test_addr_to_url_inproc_with_non_printable() {
+        // CString cannot contain null bytes, so we'll test with other non-printable chars
+        let name = vec![b'm', b'y', 0x01, b'a', b'p', b'p'];
+        let addr = Addr::Inproc {
+            name: CString::new(name).unwrap(),
+        };
+        let addr = addr.to_string();
+        assert!(addr.starts_with("inproc"));
+        // The 0x01 byte should be hex-encoded
+        assert!(addr.contains("my01app"));
     }
 }
