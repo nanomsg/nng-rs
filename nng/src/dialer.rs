@@ -83,7 +83,7 @@ impl Dialer {
             nng_sys::nng_dial(
                 socket.handle(),
                 addr.as_ptr(),
-                &mut handle as *mut _,
+                &raw mut handle,
                 flags as i32,
             )
         };
@@ -238,9 +238,8 @@ impl DialerBuilder {
         // work with.
         let addr = CString::new(url).map_err(|_| Error::AddressInvalid)?;
         let mut handle = nng_sys::nng_dialer::NNG_DIALER_INITIALIZER;
-        let rv = unsafe {
-            nng_sys::nng_dialer_create(&mut handle as *mut _, socket.handle(), addr.as_ptr())
-        };
+        let rv =
+            unsafe { nng_sys::nng_dialer_create(&raw mut handle, socket.handle(), addr.as_ptr()) };
 
         rv2res!(rv, DialerBuilder { handle })
     }

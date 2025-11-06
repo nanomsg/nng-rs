@@ -56,17 +56,17 @@ impl Socket {
         // Try to open a socket of the specified type
         let rv = unsafe {
             match t {
-                Protocol::Bus0 => nng_sys::nng_bus0_open(&mut socket as *mut _),
-                Protocol::Pair0 => nng_sys::nng_pair0_open(&mut socket as *mut _),
-                Protocol::Pair1 => nng_sys::nng_pair1_open(&mut socket as *mut _),
-                Protocol::Pub0 => nng_sys::nng_pub0_open(&mut socket as *mut _),
-                Protocol::Pull0 => nng_sys::nng_pull0_open(&mut socket as *mut _),
-                Protocol::Push0 => nng_sys::nng_push0_open(&mut socket as *mut _),
-                Protocol::Rep0 => nng_sys::nng_rep0_open(&mut socket as *mut _),
-                Protocol::Req0 => nng_sys::nng_req0_open(&mut socket as *mut _),
-                Protocol::Respondent0 => nng_sys::nng_respondent0_open(&mut socket as *mut _),
-                Protocol::Sub0 => nng_sys::nng_sub0_open(&mut socket as *mut _),
-                Protocol::Surveyor0 => nng_sys::nng_surveyor0_open(&mut socket as *mut _),
+                Protocol::Bus0 => nng_sys::nng_bus0_open(&raw mut socket),
+                Protocol::Pair0 => nng_sys::nng_pair0_open(&raw mut socket),
+                Protocol::Pair1 => nng_sys::nng_pair1_open(&raw mut socket),
+                Protocol::Pub0 => nng_sys::nng_pub0_open(&raw mut socket),
+                Protocol::Pull0 => nng_sys::nng_pull0_open(&raw mut socket),
+                Protocol::Push0 => nng_sys::nng_push0_open(&raw mut socket),
+                Protocol::Rep0 => nng_sys::nng_rep0_open(&raw mut socket),
+                Protocol::Req0 => nng_sys::nng_req0_open(&raw mut socket),
+                Protocol::Respondent0 => nng_sys::nng_respondent0_open(&raw mut socket),
+                Protocol::Sub0 => nng_sys::nng_sub0_open(&raw mut socket),
+                Protocol::Surveyor0 => nng_sys::nng_surveyor0_open(&raw mut socket),
             }
         };
 
@@ -243,7 +243,8 @@ impl Socket {
     /// [`TimedOut`]: enum.Error.html#variant.TimedOut
     pub fn recv(&self) -> Result<Message> {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
-        let rv = unsafe { nng_sys::nng_recvmsg(self.inner.handle, &mut msgp as _, 0) };
+        let rv =
+            unsafe { nng_sys::nng_recvmsg(self.inner.handle, std::ptr::from_mut(&mut msgp), 0) };
 
         let msgp = validate_ptr(rv, msgp)?;
         Ok(Message::from_ptr(msgp))
@@ -319,7 +320,9 @@ impl Socket {
     pub fn try_recv(&self) -> Result<Message> {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
         let flags = nng_sys::NNG_FLAG_NONBLOCK as c_int;
-        let rv = unsafe { nng_sys::nng_recvmsg(self.inner.handle, &mut msgp as _, flags) };
+        let rv = unsafe {
+            nng_sys::nng_recvmsg(self.inner.handle, std::ptr::from_mut(&mut msgp), flags)
+        };
 
         let msgp = validate_ptr(rv, msgp)?;
         Ok(Message::from_ptr(msgp))
@@ -446,7 +449,7 @@ impl Socket {
                     self.inner.handle,
                     ev,
                     Some(Self::trampoline),
-                    &*self.inner as *const _ as _,
+                    &raw const *self.inner as _,
                 )
             })
             .map(|rv| rv2res!(rv))
@@ -475,7 +478,7 @@ impl Socket {
     /// This function will be called automatically when all handles have been
     /// dropped.
     pub fn close(&self) {
-        self.inner.close()
+        self.inner.close();
     }
 
     /// Returns the underlying `nng_socket`.
@@ -500,7 +503,7 @@ impl Socket {
                 !arg.is_null(),
                 "Null pointer passed as argument to trampoline"
             );
-            let inner = &*(arg as *const _ as *const Inner);
+            let inner = &*(arg.cast_const() as *const Inner);
 
             // There are three alternatives to holding this lock during the callback:
             //
@@ -653,7 +656,7 @@ impl fmt::Debug for Inner {
 
 impl Drop for Inner {
     fn drop(&mut self) {
-        self.close()
+        self.close();
     }
 }
 
@@ -698,17 +701,17 @@ impl RawSocket {
         let mut socket = nng_sys::nng_socket::NNG_SOCKET_INITIALIZER;
         let rv = unsafe {
             match t {
-                Protocol::Bus0 => nng_sys::nng_bus0_open_raw(&mut socket as *mut _),
-                Protocol::Pair0 => nng_sys::nng_pair0_open_raw(&mut socket as *mut _),
-                Protocol::Pair1 => nng_sys::nng_pair1_open_raw(&mut socket as *mut _),
-                Protocol::Pub0 => nng_sys::nng_pub0_open_raw(&mut socket as *mut _),
-                Protocol::Pull0 => nng_sys::nng_pull0_open_raw(&mut socket as *mut _),
-                Protocol::Push0 => nng_sys::nng_push0_open_raw(&mut socket as *mut _),
-                Protocol::Rep0 => nng_sys::nng_rep0_open_raw(&mut socket as *mut _),
-                Protocol::Req0 => nng_sys::nng_req0_open_raw(&mut socket as *mut _),
-                Protocol::Respondent0 => nng_sys::nng_respondent0_open_raw(&mut socket as *mut _),
-                Protocol::Sub0 => nng_sys::nng_sub0_open_raw(&mut socket as *mut _),
-                Protocol::Surveyor0 => nng_sys::nng_surveyor0_open_raw(&mut socket as *mut _),
+                Protocol::Bus0 => nng_sys::nng_bus0_open_raw(&raw mut socket),
+                Protocol::Pair0 => nng_sys::nng_pair0_open_raw(&raw mut socket),
+                Protocol::Pair1 => nng_sys::nng_pair1_open_raw(&raw mut socket),
+                Protocol::Pub0 => nng_sys::nng_pub0_open_raw(&raw mut socket),
+                Protocol::Pull0 => nng_sys::nng_pull0_open_raw(&raw mut socket),
+                Protocol::Push0 => nng_sys::nng_push0_open_raw(&raw mut socket),
+                Protocol::Rep0 => nng_sys::nng_rep0_open_raw(&raw mut socket),
+                Protocol::Req0 => nng_sys::nng_req0_open_raw(&raw mut socket),
+                Protocol::Respondent0 => nng_sys::nng_respondent0_open_raw(&raw mut socket),
+                Protocol::Sub0 => nng_sys::nng_sub0_open_raw(&raw mut socket),
+                Protocol::Surveyor0 => nng_sys::nng_surveyor0_open_raw(&raw mut socket),
             }
         };
 
@@ -755,7 +758,7 @@ impl fmt::Display for CookedSocketError {
 }
 
 impl error::Error for CookedSocketError {
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Socket is in \"cooked\" (not \"raw\") mode"
     }
 }

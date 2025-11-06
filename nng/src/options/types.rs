@@ -17,13 +17,13 @@ create_option! {
     ///     * TLS
     /// * Pipes can read from this on the following transports:
     ///     * IPC
-    ///     * InProc
+    ///     * `InProc`
     ///     * TCP
-    ///     * ZeroTier
+    ///     * `ZeroTier`
     ///     * WebSocket
     ///     * TLS
     LocalAddr -> SocketAddr:
-    Get s = s.getopt_sockaddr(nng_sys::NNG_OPT_LOCADDR as *const _ as _);
+    Get s = s.getopt_sockaddr(std::ptr::from_ref(nng_sys::NNG_OPT_LOCADDR) as _);
 }
 
 create_option! {
@@ -35,13 +35,13 @@ create_option! {
     ///
     /// * Pipes can read from this on the following transports:
     ///     * IPC
-    ///     * InProc
+    ///     * `InProc`
     ///     * TCP
-    ///     * ZeroTier
+    ///     * `ZeroTier`
     ///     * WebSocket
     ///     * TLS
     RemAddr -> SocketAddr:
-    Get s = s.getopt_sockaddr(nng_sys::NNG_OPT_REMADDR as *const _ as _);
+    Get s = s.getopt_sockaddr(std::ptr::from_ref(nng_sys::NNG_OPT_REMADDR) as _);
 }
 
 create_option! {
@@ -62,7 +62,7 @@ create_option! {
     ///
     /// [1]: https://nanomsg.github.io/nng/man/v1.2.2/nng.7.html#raw_mode
     Raw -> bool:
-    Get s = s.getopt_bool(nng_sys::NNG_OPT_RAW as *const _ as _);
+    Get s = s.getopt_bool(std::ptr::from_ref(nng_sys::NNG_OPT_RAW) as _);
 }
 
 create_option! {
@@ -77,8 +77,8 @@ create_option! {
     /// * Dialers can use this option.
     /// * Sockets can use this option to create a new default value.
     ReconnectMinTime -> Option<Duration>:
-    Get s = s.getopt_ms(nng_sys::NNG_OPT_RECONNMINT as *const _ as _);
-    Set s val = s.setopt_ms(nng_sys::NNG_OPT_RECONNMINT as *const _ as _, val);
+    Get s = s.getopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_RECONNMINT) as _);
+    Set s val = s.setopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_RECONNMINT) as _, val);
 }
 
 create_option! {
@@ -97,8 +97,8 @@ create_option! {
     /// * Dialers can use this option.
     /// * Sockets can use this option to create a new default value.
     ReconnectMaxTime -> Option<Duration>:
-    Get s = s.getopt_ms(nng_sys::NNG_OPT_RECONNMAXT as *const _ as _);
-    Set s val = s.setopt_ms(nng_sys::NNG_OPT_RECONNMAXT as *const _ as _, val);
+    Get s = s.getopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_RECONNMAXT) as _);
+    Set s val = s.setopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_RECONNMAXT) as _, val);
 }
 
 create_option! {
@@ -112,8 +112,8 @@ create_option! {
     /// * Sockets can read and write this option.
     /// * Dialers and Listeners can retrieve it from their owning Socket.
     RecvBufferSize -> i32:
-    Get s = s.getopt_int(nng_sys::NNG_OPT_RECVBUF as *const _ as _);
-    Set s val = s.setopt_int(nng_sys::NNG_OPT_RECVBUF as *const _ as _, val);
+    Get s = s.getopt_int(std::ptr::from_ref(nng_sys::NNG_OPT_RECVBUF) as _);
+    Set s val = s.setopt_int(std::ptr::from_ref(nng_sys::NNG_OPT_RECVBUF) as _, val);
 }
 
 #[cfg(unix)]
@@ -134,7 +134,7 @@ create_option! {
     ///
     /// * All sockets.
     RecvFd -> RawFd:
-    Get s = s.getopt_int(nng_sys::NNG_OPT_RECVFD as *const _ as _);
+    Get s = s.getopt_int(std::ptr::from_ref(nng_sys::NNG_OPT_RECVFD) as _);
 }
 
 create_option! {
@@ -162,8 +162,8 @@ create_option! {
     ///     * ZeroTier
     /// * Sockets can utilize this to set a new default value.
     RecvMaxSize -> usize:
-    Get s = s.getopt_size(nng_sys::NNG_OPT_RECVMAXSZ as *const _ as _);
-    Set s val = s.setopt_size(nng_sys::NNG_OPT_RECVMAXSZ as *const _ as _, val);
+    Get s = s.getopt_size(std::ptr::from_ref(nng_sys::NNG_OPT_RECVMAXSZ) as _);
+    Set s val = s.setopt_size(std::ptr::from_ref(nng_sys::NNG_OPT_RECVMAXSZ) as _, val);
 }
 
 create_option! {
@@ -177,8 +177,8 @@ create_option! {
     /// * Sockets can utilize this value.
     /// * Dialers and Listeners can retrieve it from their owning Socket.
     RecvTimeout -> Option<Duration>:
-    Get s = s.getopt_ms(nng_sys::NNG_OPT_RECVTIMEO as *const _ as _);
-    Set s val = s.setopt_ms(nng_sys::NNG_OPT_RECVTIMEO as *const _ as _, val);
+    Get s = s.getopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_RECVTIMEO) as _);
+    Set s val = s.setopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_RECVTIMEO) as _, val);
 }
 
 create_option! {
@@ -193,8 +193,8 @@ create_option! {
     /// * Sockets can utilize this value.
     /// * Dialers and Listeners can retrieve it from their owning Socket.
     SendBufferSize -> i32:
-    Get s = s.getopt_int(nng_sys::NNG_OPT_SENDBUF as *const _ as _);
-    Set s val = s.setopt_int(nng_sys::NNG_OPT_SENDBUF as *const _ as _, val);
+    Get s = s.getopt_int(std::ptr::from_ref(nng_sys::NNG_OPT_SENDBUF) as _);
+    Set s val = s.setopt_int(std::ptr::from_ref(nng_sys::NNG_OPT_SENDBUF) as _, val);
 }
 
 #[cfg(unix)]
@@ -215,7 +215,7 @@ create_option! {
     ///
     /// * All sockets.
     SendFd -> RawFd:
-    Get s = s.getopt_int(nng_sys::NNG_OPT_SENDFD as *const _ as _);
+    Get s = s.getopt_int(std::ptr::from_ref(nng_sys::NNG_OPT_SENDFD) as _);
 }
 
 create_option! {
@@ -230,8 +230,8 @@ create_option! {
     /// * Sockets can utilize this value.
     /// * Dialers and Listeners can retrieve it from their owning Socket.
     SendTimeout -> Option<Duration>:
-    Get s = s.getopt_ms(nng_sys::NNG_OPT_SENDTIMEO as *const _ as _);
-    Set s val = s.setopt_ms(nng_sys::NNG_OPT_SENDTIMEO as *const _ as _, val);
+    Get s = s.getopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_SENDTIMEO) as _);
+    Set s val = s.setopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_SENDTIMEO) as _, val);
 }
 
 create_option! {
@@ -246,8 +246,8 @@ create_option! {
     /// * Sockets can utilize this value.
     /// * Dialers and Listeners can retrieve it from their owning Socket.
     SocketName -> String:
-    Get s = s.getopt_string(nng_sys::NNG_OPT_SOCKNAME as *const _ as _);
-    Set s val = s.setopt_string(nng_sys::NNG_OPT_SOCKNAME as *const _ as _, &val);
+    Get s = s.getopt_string(std::ptr::from_ref(nng_sys::NNG_OPT_SOCKNAME) as _);
+    Set s val = s.setopt_string(std::ptr::from_ref(nng_sys::NNG_OPT_SOCKNAME) as _, &val);
 }
 
 create_option! {
@@ -274,8 +274,8 @@ create_option! {
     ///
     /// [1]: https://nanomsg.github.io/nng/man/v1.2.2/nng_device.3.html
     MaxTtl -> u8:
-    Get s = s.getopt_int(nng_sys::NNG_OPT_MAXTTL as *const _ as _).map(|v| v as u8);
-    Set s val = s.setopt_int(nng_sys::NNG_OPT_MAXTTL as *const _ as _, val.into());
+    Get s = s.getopt_int(std::ptr::from_ref(nng_sys::NNG_OPT_MAXTTL) as _).map(|v| v as u8);
+    Set s val = s.setopt_int(std::ptr::from_ref(nng_sys::NNG_OPT_MAXTTL) as _, val.into());
 }
 
 create_option! {
@@ -288,7 +288,7 @@ create_option! {
     ///
     /// * Dialers and Listeners can read this value.
     Url -> String:
-    Get s = s.getopt_string(nng_sys::NNG_OPT_URL as *const _ as _);
+    Get s = s.getopt_string(std::ptr::from_ref(nng_sys::NNG_OPT_URL) as _);
 }
 
 /// Options relating to the socket protocol.
@@ -320,8 +320,8 @@ pub mod protocol {
             #[doc(hidden)]
             #[deprecated(since = "1.0.0", note = "Polyamorous mode will be removed from Pair1 eventually")]
             Polyamorous -> bool:
-            Get s = s.getopt_bool(nng_sys::NNG_OPT_PAIR1_POLY as *const _ as _);
-            Set s v = s.setopt_bool(nng_sys::NNG_OPT_PAIR1_POLY as *const _ as _, v);
+            Get s = s.getopt_bool(std::ptr::from_ref(nng_sys::NNG_OPT_PAIR1_POLY) as _);
+            Set s v = s.setopt_bool(std::ptr::from_ref(nng_sys::NNG_OPT_PAIR1_POLY) as _, v);
         }
     }
 
@@ -344,7 +344,7 @@ pub mod protocol {
             ///
             /// * Sockets can set this option when using the Sub v0 protocol.
             Subscribe -> Vec<u8>:
-            Set s val = s.setopt(nng_sys::NNG_OPT_SUB_SUBSCRIBE as *const _ as _, &val);
+            Set s val = s.setopt(std::ptr::from_ref(nng_sys::NNG_OPT_SUB_SUBSCRIBE) as _, &val);
         }
 
         create_option! {
@@ -358,7 +358,7 @@ pub mod protocol {
             ///
             /// * Sockets can set this option when using the Sub v0 protocol.
             Unsubscribe -> Vec<u8>:
-            Set s val = s.setopt(nng_sys::NNG_OPT_SUB_UNSUBSCRIBE as *const _ as _, &val);
+            Set s val = s.setopt(std::ptr::from_ref(nng_sys::NNG_OPT_SUB_UNSUBSCRIBE) as _, &val);
         }
     }
 
@@ -382,8 +382,8 @@ pub mod protocol {
             ///     * Req v0
             /// * Dialers and Listeners can retrieve it from their owning Socket, if applicable.
             ResendTime -> Option<Duration>:
-            Get s = s.getopt_ms(nng_sys::NNG_OPT_REQ_RESENDTIME as *const _ as _);
-            Set s val = s.setopt_ms(nng_sys::NNG_OPT_REQ_RESENDTIME as *const _ as _, val);
+            Get s = s.getopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_REQ_RESENDTIME) as _);
+            Set s val = s.setopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_REQ_RESENDTIME) as _, val);
         }
     }
 
@@ -407,8 +407,8 @@ pub mod protocol {
             ///     * Surveyor v0
             /// * Dialers and Listeners can retrieve it from their owning Socket, if applicable.
             SurveyTime -> Option<Duration>:
-            Get s = s.getopt_ms(nng_sys::NNG_OPT_SURVEYOR_SURVEYTIME as *const _ as _);
-            Set s val = s.setopt_ms(nng_sys::NNG_OPT_SURVEYOR_SURVEYTIME as *const _ as _, val);
+            Get s = s.getopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_SURVEYOR_SURVEYTIME) as _);
+            Set s val = s.setopt_ms(std::ptr::from_ref(nng_sys::NNG_OPT_SURVEYOR_SURVEYTIME) as _, val);
         }
     }
 }
@@ -439,7 +439,7 @@ pub mod transport {
             ///
             /// * Listeners that are using the IPC protocol.
             Permissions -> u32:
-            Set s val = s.setopt_int(nng_sys::NNG_OPT_IPC_PERMISSIONS as *const _ as _, val as _);
+            Set s val = s.setopt_int(std::ptr::from_ref(nng_sys::NNG_OPT_IPC_PERMISSIONS) as _, val as _);
         }
 
         #[cfg(unix)]
@@ -453,7 +453,7 @@ pub mod transport {
             ///
             /// * Pipes that are using the IPC protocol.
             PeerUid -> u64:
-            Get s = s.getopt_uint64(nng_sys::NNG_OPT_IPC_PEER_UID as *const _ as _);
+            Get s = s.getopt_uint64(std::ptr::from_ref(nng_sys::NNG_OPT_IPC_PEER_UID) as _);
         }
 
         #[cfg(unix)]
@@ -467,7 +467,7 @@ pub mod transport {
             ///
             /// * Pipes that are using the IPC protocol.
             PeerGid -> u64:
-            Get s = s.getopt_uint64(nng_sys::NNG_OPT_IPC_PEER_GID as *const _ as _);
+            Get s = s.getopt_uint64(std::ptr::from_ref(nng_sys::NNG_OPT_IPC_PEER_GID) as _);
         }
 
         create_option! {
@@ -482,7 +482,7 @@ pub mod transport {
             ///
             /// * Pipes that are using the IPC protocol.
             PeerPid -> u64:
-            Get s = s.getopt_uint64(nng_sys::NNG_OPT_IPC_PEER_PID as *const _ as _);
+            Get s = s.getopt_uint64(std::ptr::from_ref(nng_sys::NNG_OPT_IPC_PEER_PID) as _);
         }
     }
 
@@ -509,8 +509,8 @@ pub mod transport {
             ///     * TLS
             /// * Sockets can use this to set a default value.
             NoDelay -> bool:
-            Get s = s.getopt_bool(nng_sys::NNG_OPT_TCP_NODELAY as *const _ as _);
-            Set s val = s.setopt_bool(nng_sys::NNG_OPT_TCP_NODELAY as *const _ as _, val);
+            Get s = s.getopt_bool(std::ptr::from_ref(nng_sys::NNG_OPT_TCP_NODELAY) as _);
+            Set s val = s.setopt_bool(std::ptr::from_ref(nng_sys::NNG_OPT_TCP_NODELAY) as _, val);
         }
 
         create_option! {
@@ -538,8 +538,8 @@ pub mod transport {
             ///     * TLS
             /// * Sockets can use this to set a default value.
             KeepAlive -> bool:
-            Get s = s.getopt_bool(nng_sys::NNG_OPT_TCP_KEEPALIVE as *const _ as _);
-            Set s val = s.setopt_bool(nng_sys::NNG_OPT_TCP_KEEPALIVE as *const _ as _, val);
+            Get s = s.getopt_bool(std::ptr::from_ref(nng_sys::NNG_OPT_TCP_KEEPALIVE) as _);
+            Set s val = s.setopt_bool(std::ptr::from_ref(nng_sys::NNG_OPT_TCP_KEEPALIVE) as _, val);
         }
 
         create_option! {
@@ -553,7 +553,7 @@ pub mod transport {
             ///
             /// * Listeners using the TCP or TLS transports.
             BoundPort -> u16:
-            Get s = s.getopt_int(nng_sys::NNG_OPT_TCP_BOUND_PORT as *const _ as _).map(|v| v as u16);
+            Get s = s.getopt_int(std::ptr::from_ref(nng_sys::NNG_OPT_TCP_BOUND_PORT) as _).map(|v| v as u16);
         }
     }
 
@@ -574,7 +574,7 @@ pub mod transport {
             ///
             /// [1]: https://nanomsg.github.io/nng/man/v1.2.2/nng_tls.7.html
             CaFile -> String:
-            Set s val = s.setopt_string(nng_sys::NNG_OPT_TLS_CA_FILE as *const _ as _, &val);
+            Set s val = s.setopt_string(std::ptr::from_ref(nng_sys::NNG_OPT_TLS_CA_FILE) as _, &val);
         }
 
         create_option! {
@@ -593,7 +593,7 @@ pub mod transport {
             ///
             /// [1]: https://nanomsg.github.io/nng/man/v1.2.2/nng_tls.7.html
             CertKeyFile -> String:
-            Set s val = s.setopt_string(nng_sys::NNG_OPT_TLS_CERT_KEY_FILE as *const _ as _, &val);
+            Set s val = s.setopt_string(std::ptr::from_ref(nng_sys::NNG_OPT_TLS_CERT_KEY_FILE) as _, &val);
         }
 
         create_option! {
@@ -610,7 +610,7 @@ pub mod transport {
             ///
             /// [1]: https://nanomsg.github.io/nng/man/v1.2.2/nng_tls.7.html
             Verified -> bool:
-            Get s = s.getopt_bool(nng_sys::NNG_OPT_TLS_VERIFIED as *const _ as _);
+            Get s = s.getopt_bool(std::ptr::from_ref(nng_sys::NNG_OPT_TLS_VERIFIED) as _);
         }
     }
 
@@ -626,8 +626,8 @@ pub mod transport {
             /// * Pipes can read this value when using the WebSocket transport.
             /// * Sockets can set this to set a default value.
             RequestHeaders -> String:
-            Get s = s.getopt_string(nng_sys::NNG_OPT_WS_REQUEST_HEADERS as *const _ as _);
-            Set s val = s.setopt_string(nng_sys::NNG_OPT_WS_REQUEST_HEADERS as *const _ as _, &val);
+            Get s = s.getopt_string(std::ptr::from_ref(nng_sys::NNG_OPT_WS_REQUEST_HEADERS) as _);
+            Set s val = s.setopt_string(std::ptr::from_ref(nng_sys::NNG_OPT_WS_REQUEST_HEADERS) as _, &val);
         }
 
         create_option! {
@@ -640,8 +640,8 @@ pub mod transport {
             /// * Pipes can read this when using the WebSocket transport.
             /// * Sockets can set this to set a default value.
             ResponseHeaders -> String:
-            Get s = s.getopt_string(nng_sys::NNG_OPT_WS_RESPONSE_HEADERS as *const _ as _);
-            Set s val = s.setopt_string(nng_sys::NNG_OPT_WS_RESPONSE_HEADERS as *const _ as _, &val);
+            Get s = s.getopt_string(std::ptr::from_ref(nng_sys::NNG_OPT_WS_RESPONSE_HEADERS) as _);
+            Set s val = s.setopt_string(std::ptr::from_ref(nng_sys::NNG_OPT_WS_RESPONSE_HEADERS) as _, &val);
         }
 
         create_option! {
@@ -651,8 +651,8 @@ pub mod transport {
             ///
             /// * Listeners and dialers can get/set this when using the WebSocket protocol.
             Protocol -> String:
-            Get s = s.getopt_string(nng_sys::NNG_OPT_WS_PROTOCOL as *const _ as _);
-            Set s val = s.setopt_string(nng_sys::NNG_OPT_WS_PROTOCOL as *const _ as _, &val);
+            Get s = s.getopt_string(std::ptr::from_ref(nng_sys::NNG_OPT_WS_PROTOCOL) as _);
+            Set s val = s.setopt_string(std::ptr::from_ref(nng_sys::NNG_OPT_WS_PROTOCOL) as _, &val);
         }
     }
 }

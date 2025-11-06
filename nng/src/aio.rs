@@ -506,7 +506,7 @@ struct Inner {
 }
 
 impl Drop for Inner {
-    #[allow(clippy::let_underscore_drop)]
+    #[allow(let_underscore_drop)]
     fn drop(&mut self) {
         // It is possible for this to be dropping while the pointer is null. The
         // Inner struct is created before the pointer is allocated and it will be
@@ -561,7 +561,7 @@ impl From<AioResult> for Result<Option<Message>> {
 
         match aio_res {
             Recv(Ok(m)) => Ok(Some(m)),
-            Send(Ok(_)) | Sleep(Ok(_)) => Ok(None),
+            Send(Ok(())) | Sleep(Ok(())) => Ok(None),
             Send(Err((_, e))) | Recv(Err(e)) | Sleep(Err(e)) => Err(e),
         }
     }

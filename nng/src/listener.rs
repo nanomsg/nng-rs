@@ -63,9 +63,7 @@ impl Listener {
         let addr = CString::new(url).map_err(|_| Error::AddressInvalid)?;
         let mut handle = nng_sys::nng_listener::NNG_LISTENER_INITIALIZER;
 
-        let rv = unsafe {
-            nng_sys::nng_listen(socket.handle(), addr.as_ptr(), &mut handle as *mut _, 0)
-        };
+        let rv = unsafe { nng_sys::nng_listen(socket.handle(), addr.as_ptr(), &raw mut handle, 0) };
 
         rv2res!(rv, Listener { handle })
     }
@@ -218,7 +216,7 @@ impl ListenerBuilder {
         let addr = CString::new(url).map_err(|_| Error::AddressInvalid)?;
         let mut handle = nng_sys::nng_listener::NNG_LISTENER_INITIALIZER;
         let rv = unsafe {
-            nng_sys::nng_listener_create(&mut handle as *mut _, socket.handle(), addr.as_ptr())
+            nng_sys::nng_listener_create(&raw mut handle, socket.handle(), addr.as_ptr())
         };
 
         rv2res!(rv, ListenerBuilder { handle })

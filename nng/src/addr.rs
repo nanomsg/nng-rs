@@ -40,11 +40,11 @@ impl fmt::Display for SocketAddr {
     /// URL originally provided to NNG.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SocketAddr::InProc(s) => write!(f, "inproc://{}", s),
+            SocketAddr::InProc(s) => write!(f, "inproc://{s}"),
             SocketAddr::Ipc(s) => write!(f, "ipc://{}", s.to_string_lossy()),
-            SocketAddr::Inet(s) => write!(f, "tcp://{}", s),
-            SocketAddr::Inet6(s) => write!(f, "tcp://{}", s),
-            SocketAddr::ZeroTier(s) => write!(f, "zt://{}", s),
+            SocketAddr::Inet(s) => write!(f, "tcp://{s}"),
+            SocketAddr::Inet6(s) => write!(f, "tcp://{s}"),
+            SocketAddr::ZeroTier(s) => write!(f, "zt://{s}"),
             SocketAddr::Abstract(s) => {
                 write!(f, "abstract://")?;
                 // Quick-and-dirty URI-encoding:
@@ -89,7 +89,7 @@ impl From<nng_sys::nng_sockaddr> for SocketAddr {
                     Box::from(&addr.s_abstract.sa_name[..usize::from(addr.s_abstract.sa_len)]),
                 ),
                 // Note that we treat unknown new families also as unspecified
-                Some(nng_sys::nng_sockaddr_family::NNG_AF_UNSPEC) | Some(_) | None => {
+                Some(nng_sys::nng_sockaddr_family::NNG_AF_UNSPEC | _) | None => {
                     SocketAddr::Unspecified
                 }
             }
@@ -145,7 +145,7 @@ unsafe fn buf_to_string(buf: &[c_char]) -> String {
     use std::slice;
 
     let len = buf.len();
-    let buf = slice::from_raw_parts(&buf[0] as *const c_char as _, len);
+    let buf = slice::from_raw_parts(&raw const buf[0] as _, len);
     let null_byte = buf.iter().position(|&b| b == 0).unwrap_or(len);
     String::from_utf8_lossy(&buf[..null_byte]).into_owned()
 }

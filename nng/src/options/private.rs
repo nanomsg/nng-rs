@@ -82,7 +82,7 @@ pub trait HasOpts: Sized {
     /// Get the boolean option.
     fn getopt_bool(&self, opt: *const c_char) -> Result<bool> {
         let mut raw = false;
-        let rv = unsafe { (Self::GETOPT_BOOL)(self.handle(), opt, &mut raw as _) };
+        let rv = unsafe { (Self::GETOPT_BOOL)(self.handle(), opt, std::ptr::from_mut(&mut raw)) };
 
         rv2res!(rv, raw)
     }
@@ -90,7 +90,7 @@ pub trait HasOpts: Sized {
     /// Get an integer option.
     fn getopt_int(&self, opt: *const c_char) -> Result<i32> {
         let mut res = 0;
-        let rv = unsafe { (Self::GETOPT_INT)(self.handle(), opt, &mut res as _) };
+        let rv = unsafe { (Self::GETOPT_INT)(self.handle(), opt, std::ptr::from_mut(&mut res)) };
 
         rv2res!(rv, res)
     }
@@ -98,7 +98,7 @@ pub trait HasOpts: Sized {
     /// Get the duration from the option.
     fn getopt_ms(&self, opt: *const c_char) -> Result<Option<Duration>> {
         let mut dur: nng_sys::nng_duration = 0;
-        let rv = unsafe { (Self::GETOPT_MS)(self.handle(), opt, &mut dur as _) };
+        let rv = unsafe { (Self::GETOPT_MS)(self.handle(), opt, std::ptr::from_mut(&mut dur)) };
 
         rv2res!(rv, crate::util::nng_to_duration(dur))
     }
@@ -106,7 +106,7 @@ pub trait HasOpts: Sized {
     /// Get the `size_t` option.
     fn getopt_size(&self, opt: *const c_char) -> Result<usize> {
         let mut sz = 0;
-        let rv = unsafe { (Self::GETOPT_SIZE)(self.handle(), opt, &mut sz as _) };
+        let rv = unsafe { (Self::GETOPT_SIZE)(self.handle(), opt, std::ptr::from_mut(&mut sz)) };
 
         rv2res!(rv, sz)
     }
@@ -125,7 +125,7 @@ pub trait HasOpts: Sized {
     fn getopt_string(&self, opt: *const c_char) -> Result<String> {
         unsafe {
             let mut ptr: *mut c_char = ptr::null_mut();
-            let rv = (Self::GETOPT_STRING)(self.handle(), opt, &mut ptr as *mut _);
+            let rv = (Self::GETOPT_STRING)(self.handle(), opt, &raw mut ptr);
             let ptr = validate_ptr(rv, ptr)?;
 
             let name = CStr::from_ptr(ptr.as_ptr()).to_string_lossy().into_owned();
@@ -138,7 +138,7 @@ pub trait HasOpts: Sized {
     /// The the `u64` option.
     fn getopt_uint64(&self, opt: *const c_char) -> Result<u64> {
         let mut res = 0;
-        let rv = unsafe { (Self::GETOPT_UINT64)(self.handle(), opt, &mut res as _) };
+        let rv = unsafe { (Self::GETOPT_UINT64)(self.handle(), opt, std::ptr::from_mut(&mut res)) };
 
         rv2res!(rv, res)
     }
