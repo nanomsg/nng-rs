@@ -243,8 +243,7 @@ impl Socket {
     /// [`TimedOut`]: enum.Error.html#variant.TimedOut
     pub fn recv(&self) -> Result<Message> {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
-        let rv =
-            unsafe { nng_sys::nng_recvmsg(self.inner.handle, std::ptr::from_mut(&mut msgp), 0) };
+        let rv = unsafe { nng_sys::nng_recvmsg(self.inner.handle, ptr::from_mut(&mut msgp), 0) };
 
         let msgp = validate_ptr(rv, msgp)?;
         Ok(Message::from_ptr(msgp))
@@ -320,9 +319,8 @@ impl Socket {
     pub fn try_recv(&self) -> Result<Message> {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
         let flags = nng_sys::NNG_FLAG_NONBLOCK as c_int;
-        let rv = unsafe {
-            nng_sys::nng_recvmsg(self.inner.handle, std::ptr::from_mut(&mut msgp), flags)
-        };
+        let rv =
+            unsafe { nng_sys::nng_recvmsg(self.inner.handle, ptr::from_mut(&mut msgp), flags) };
 
         let msgp = validate_ptr(rv, msgp)?;
         Ok(Message::from_ptr(msgp))

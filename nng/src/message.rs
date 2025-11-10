@@ -49,7 +49,7 @@ impl Message {
     /// Panics if memory allocation fails.
     pub fn new() -> Self {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
-        let rv = unsafe { nng_sys::nng_msg_alloc(std::ptr::from_mut(&mut msgp), 0) };
+        let rv = unsafe { nng_sys::nng_msg_alloc(ptr::from_mut(&mut msgp), 0) };
 
         let msgp = validate_ptr(rv, msgp).expect(ALLOC_FAIL_MSG);
         Message::from_ptr(msgp)
@@ -65,7 +65,7 @@ impl Message {
     /// Panics if memory allocation fails.
     pub fn with_capacity(cap: usize) -> Self {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
-        let rv = unsafe { nng_sys::nng_msg_alloc(std::ptr::from_mut(&mut msgp), cap) };
+        let rv = unsafe { nng_sys::nng_msg_alloc(ptr::from_mut(&mut msgp), cap) };
         let msgp = validate_ptr(rv, msgp).expect(ALLOC_FAIL_MSG);
 
         // When NNG allocates a message, it fills the body and sets the size to
@@ -84,7 +84,7 @@ impl Message {
     /// Panics if memory allocation fails.
     pub fn with_zeros(size: usize) -> Self {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
-        let rv = unsafe { nng_sys::nng_msg_alloc(std::ptr::from_mut(&mut msgp), size) };
+        let rv = unsafe { nng_sys::nng_msg_alloc(ptr::from_mut(&mut msgp), size) };
 
         let msgp = validate_ptr(rv, msgp).expect(ALLOC_FAIL_MSG);
         Message::from_ptr(msgp)
@@ -252,7 +252,7 @@ impl Clone for Message {
     fn clone(&self) -> Self {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
 
-        let rv = unsafe { nng_sys::nng_msg_dup(std::ptr::from_mut(&mut msgp), self.msgp.as_ptr()) };
+        let rv = unsafe { nng_sys::nng_msg_dup(ptr::from_mut(&mut msgp), self.msgp.as_ptr()) };
 
         let msgp = validate_ptr(rv, msgp).expect(ALLOC_FAIL_MSG);
         Message::from_ptr(msgp)
@@ -268,7 +268,7 @@ impl Default for Message {
 impl From<&[u8]> for Message {
     fn from(s: &[u8]) -> Message {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
-        let rv = unsafe { nng_sys::nng_msg_alloc(std::ptr::from_mut(&mut msgp), s.len()) };
+        let rv = unsafe { nng_sys::nng_msg_alloc(ptr::from_mut(&mut msgp), s.len()) };
 
         let msgp = validate_ptr(rv, msgp).expect(ALLOC_FAIL_MSG);
 

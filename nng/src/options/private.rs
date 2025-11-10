@@ -82,7 +82,7 @@ pub trait HasOpts: Sized {
     /// Get the boolean option.
     fn getopt_bool(&self, opt: *const c_char) -> Result<bool> {
         let mut raw = false;
-        let rv = unsafe { (Self::GETOPT_BOOL)(self.handle(), opt, std::ptr::from_mut(&mut raw)) };
+        let rv = unsafe { (Self::GETOPT_BOOL)(self.handle(), opt, ptr::from_mut(&mut raw)) };
 
         rv2res!(rv, raw)
     }
@@ -90,7 +90,7 @@ pub trait HasOpts: Sized {
     /// Get an integer option.
     fn getopt_int(&self, opt: *const c_char) -> Result<i32> {
         let mut res = 0;
-        let rv = unsafe { (Self::GETOPT_INT)(self.handle(), opt, std::ptr::from_mut(&mut res)) };
+        let rv = unsafe { (Self::GETOPT_INT)(self.handle(), opt, ptr::from_mut(&mut res)) };
 
         rv2res!(rv, res)
     }
@@ -98,7 +98,7 @@ pub trait HasOpts: Sized {
     /// Get the duration from the option.
     fn getopt_ms(&self, opt: *const c_char) -> Result<Option<Duration>> {
         let mut dur: nng_sys::nng_duration = 0;
-        let rv = unsafe { (Self::GETOPT_MS)(self.handle(), opt, std::ptr::from_mut(&mut dur)) };
+        let rv = unsafe { (Self::GETOPT_MS)(self.handle(), opt, ptr::from_mut(&mut dur)) };
 
         rv2res!(rv, crate::util::nng_to_duration(dur))
     }
@@ -106,7 +106,7 @@ pub trait HasOpts: Sized {
     /// Get the `size_t` option.
     fn getopt_size(&self, opt: *const c_char) -> Result<usize> {
         let mut sz = 0;
-        let rv = unsafe { (Self::GETOPT_SIZE)(self.handle(), opt, std::ptr::from_mut(&mut sz)) };
+        let rv = unsafe { (Self::GETOPT_SIZE)(self.handle(), opt, ptr::from_mut(&mut sz)) };
 
         rv2res!(rv, sz)
     }
@@ -138,7 +138,7 @@ pub trait HasOpts: Sized {
     /// The the `u64` option.
     fn getopt_uint64(&self, opt: *const c_char) -> Result<u64> {
         let mut res = 0;
-        let rv = unsafe { (Self::GETOPT_UINT64)(self.handle(), opt, std::ptr::from_mut(&mut res)) };
+        let rv = unsafe { (Self::GETOPT_UINT64)(self.handle(), opt, ptr::from_mut(&mut res)) };
 
         rv2res!(rv, res)
     }

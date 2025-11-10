@@ -1,6 +1,7 @@
 use std::{
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
     hash::{Hash, Hasher},
+    ptr,
     sync::Arc,
 };
 
@@ -49,7 +50,7 @@ impl Context {
     /// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
     pub fn new(socket: &Socket) -> Result<Context> {
         let mut ctx = nng_sys::nng_ctx::NNG_CTX_INITIALIZER;
-        let rv = unsafe { nng_sys::nng_ctx_open(std::ptr::from_mut(&mut ctx), socket.handle()) };
+        let rv = unsafe { nng_sys::nng_ctx_open(ptr::from_mut(&mut ctx), socket.handle()) };
 
         rv2res!(
             rv,
