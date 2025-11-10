@@ -473,7 +473,7 @@ fn generate_bindings(include_dirs: &[PathBuf]) {
         .constified_enum("nng_errno_enum")
         .constified_enum("nng_pipe_ev")
         .use_core()
-        .parse_callbacks(Box::new(BindgenCallbacks::default()))
+        .parse_callbacks(Box::new(BindgenCallbacks))
         .size_t_is_usize(true)
         // Layout tests are non-portable; 64-bit tests fail on 32-bit
         // Don't output tests if we're regenerating `src/bindings.rs`

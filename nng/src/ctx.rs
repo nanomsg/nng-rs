@@ -1,6 +1,7 @@
 use std::{
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
     hash::{Hash, Hasher},
+    ptr,
     sync::Arc,
 };
 
@@ -49,7 +50,7 @@ impl Context {
     /// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
     pub fn new(socket: &Socket) -> Result<Context> {
         let mut ctx = nng_sys::nng_ctx::NNG_CTX_INITIALIZER;
-        let rv = unsafe { nng_sys::nng_ctx_open(&mut ctx as _, socket.handle()) };
+        let rv = unsafe { nng_sys::nng_ctx_open(ptr::from_mut(&mut ctx), socket.handle()) };
 
         rv2res!(
             rv,
@@ -96,7 +97,7 @@ impl Context {
     /// Closing the owning socket also closes this context. Additionally, the
     /// context is closed once all handles have been dropped.
     pub fn close(&self) {
-        self.inner.close()
+        self.inner.close();
     }
 
     /// Returns the inner `nng_ctx` object.
@@ -188,6 +189,6 @@ impl Inner {
 
 impl Drop for Inner {
     fn drop(&mut self) {
-        self.close()
+        self.close();
     }
 }

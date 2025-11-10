@@ -43,9 +43,13 @@ pub struct Message {
 }
 impl Message {
     /// Create an empty message.
+    ///
+    /// # Panics
+    ///
+    /// Panics if memory allocation fails.
     pub fn new() -> Self {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
-        let rv = unsafe { nng_sys::nng_msg_alloc(&mut msgp as _, 0) };
+        let rv = unsafe { nng_sys::nng_msg_alloc(ptr::from_mut(&mut msgp), 0) };
 
         let msgp = validate_ptr(rv, msgp).expect(ALLOC_FAIL_MSG);
         Message::from_ptr(msgp)
@@ -55,9 +59,13 @@ impl Message {
     ///
     /// The returned buffer will have a capacity equal to `cap` but a length of
     /// zero. To get a `Message` with a specified length, use `Message::zeros`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if memory allocation fails.
     pub fn with_capacity(cap: usize) -> Self {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
-        let rv = unsafe { nng_sys::nng_msg_alloc(&mut msgp as _, cap) };
+        let rv = unsafe { nng_sys::nng_msg_alloc(ptr::from_mut(&mut msgp), cap) };
         let msgp = validate_ptr(rv, msgp).expect(ALLOC_FAIL_MSG);
 
         // When NNG allocates a message, it fills the body and sets the size to
@@ -70,9 +78,13 @@ impl Message {
     }
 
     /// Create a message that is filled to `size` with zeros.
+    ///
+    /// # Panics
+    ///
+    /// Panics if memory allocation fails.
     pub fn with_zeros(size: usize) -> Self {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
-        let rv = unsafe { nng_sys::nng_msg_alloc(&mut msgp as _, size) };
+        let rv = unsafe { nng_sys::nng_msg_alloc(ptr::from_mut(&mut msgp), size) };
 
         let msgp = validate_ptr(rv, msgp).expect(ALLOC_FAIL_MSG);
         Message::from_ptr(msgp)
@@ -240,7 +252,7 @@ impl Clone for Message {
     fn clone(&self) -> Self {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
 
-        let rv = unsafe { nng_sys::nng_msg_dup(&mut msgp as _, self.msgp.as_ptr()) };
+        let rv = unsafe { nng_sys::nng_msg_dup(ptr::from_mut(&mut msgp), self.msgp.as_ptr()) };
 
         let msgp = validate_ptr(rv, msgp).expect(ALLOC_FAIL_MSG);
         Message::from_ptr(msgp)
@@ -253,10 +265,10 @@ impl Default for Message {
     }
 }
 
-impl<'a> From<&'a [u8]> for Message {
+impl From<&[u8]> for Message {
     fn from(s: &[u8]) -> Message {
         let mut msgp: *mut nng_sys::nng_msg = ptr::null_mut();
-        let rv = unsafe { nng_sys::nng_msg_alloc(&mut msgp as _, s.len()) };
+        let rv = unsafe { nng_sys::nng_msg_alloc(ptr::from_mut(&mut msgp), s.len()) };
 
         let msgp = validate_ptr(rv, msgp).expect(ALLOC_FAIL_MSG);
 
@@ -274,7 +286,7 @@ impl<'a> From<&'a [u8]> for Message {
     }
 }
 
-impl<'a> From<&'a Vec<u8>> for Message {
+impl From<&Vec<u8>> for Message {
     fn from(s: &Vec<u8>) -> Message {
         s.as_slice().into()
     }

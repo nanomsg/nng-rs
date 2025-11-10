@@ -207,7 +207,7 @@ impl PipeEvent {
             nng_sys::NNG_PIPE_EV_ADD_PRE => PipeEvent::AddPre,
             nng_sys::NNG_PIPE_EV_ADD_POST => PipeEvent::AddPost,
             nng_sys::NNG_PIPE_EV_REM_POST => PipeEvent::RemovePost,
-            _ => PipeEvent::Unknown(event as u32),
+            _ => PipeEvent::Unknown(event),
         }
     }
 }

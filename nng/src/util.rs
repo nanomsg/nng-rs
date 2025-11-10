@@ -175,13 +175,11 @@ pub fn duration_to_nng(dur: Option<Duration>) -> nng_sys::nng_duration {
     // The subsecond milliseconds is guaranteed to be less than 1000, which
     // means converting from `u32` to `i32` is safe. The only other
     // potential issue is converting the `u64` of seconds to an `i32`.
-    use std::i32::MAX;
-
     match dur {
         None => nng_sys::NNG_DURATION_INFINITE,
         Some(d) => {
-            let secs = if d.as_secs() > MAX as u64 {
-                MAX
+            let secs = if d.as_secs() > i32::MAX as u64 {
+                i32::MAX
             } else {
                 d.as_secs() as i32
             };

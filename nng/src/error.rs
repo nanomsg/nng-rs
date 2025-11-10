@@ -255,8 +255,8 @@ impl fmt::Display for Error {
 			Error::ConnectionShutdown => write!(f, "Connection shutdown"),
 			Error::Internal           => write!(f, "Internal error detected"),
 			Error::SystemErr(c)       => write!(f, "{}", io::Error::from_raw_os_error(c as i32)),
-			Error::TransportErr(c)    => write!(f, "Transport error #{}", c),
-			Error::Unknown(c)         => write!(f, "Unknown error code #{}", c),
+			Error::TransportErr(c)    => write!(f, "Transport error #{c}"),
+			Error::Unknown(c)         => write!(f, "Unknown error code #{c}"),
 		}
 	}
 }

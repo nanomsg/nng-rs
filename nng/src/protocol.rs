@@ -137,6 +137,6 @@ pub enum Protocol {
 #[allow(clippy::use_debug)]
 impl fmt::Display for Protocol {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
