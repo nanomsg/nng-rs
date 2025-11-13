@@ -70,7 +70,7 @@ async fn remote_addr_tcp() {
     // in the message
     drop(req0);
 
-    assert!(req_msg.remote_addr().is_none());
+    assert_eq!(req_msg.remote_addr(), None);
 }
 
 #[tokio::test]
