@@ -60,10 +60,17 @@ async fn remote_addr_tcp() {
 
         assert_eq!(v4.ip(), &Ipv4Addr::LOCALHOST);
         assert_eq!(v4.port(), listener_addr.port()); // Should be the listener port
+        reply_msg
     }
     .instrument(tracing::info_span!("req0"));
 
-    tokio::join!(rep_task, req_task);
+    let (_, req_msg) = tokio::join!(rep_task, req_task);
+
+    // Explicitly close the connection which invalidates the pipe referenced
+    // in the message
+    drop(req0);
+
+    assert_eq!(req_msg.remote_addr(), None);
 }
 
 #[tokio::test]

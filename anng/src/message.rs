@@ -403,6 +403,10 @@ impl Message {
                     tracing::warn!("Message pipe does not support REMADDR");
                     return None;
                 }
+                nng_sys::NNG_ENOENT => {
+                    tracing::warn!("Message does not have a pipe");
+                    return None;
+                }
                 errno => {
                     unreachable!(
                         "nng_pipe_get_addr documentation claims errno {errno} is never returned"
