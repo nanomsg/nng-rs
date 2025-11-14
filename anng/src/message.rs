@@ -407,6 +407,13 @@ impl Message {
                     tracing::warn!("Message does not have a pipe");
                     return None;
                 }
+                errno if (errno & nng_sys::NNG_ESYSERR) != 0 => {
+                    tracing::warn!(
+                        "nng_pipe_get_addr returned a system error: {}",
+                        errno & !nng_sys::NNG_ESYSERR
+                    );
+                    return None;
+                }
                 errno => {
                     unreachable!(
                         "nng_pipe_get_addr documentation claims errno {errno} is never returned"
