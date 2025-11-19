@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Handle system errors from `nng_pipe_get_addr`
+  ([#26](https://github.com/nanomsg/nng-rs/pull/26)).
+
 ### Security
 
 ## [0.1.2]
