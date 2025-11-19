@@ -17,10 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Security
+
+## [0.1.3]
+
+### Fixed
+
 - Handle system errors from `nng_pipe_get_addr`
   ([#26](https://github.com/nanomsg/nng-rs/pull/26)).
-
-### Security
 
 ## [0.1.2]
 
@@ -45,7 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial public release.
 
-[unreleased]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.2...HEAD
+[unreleased]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.3...HEAD
+[0.1.3]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.2...anng-v0.1.3
 [0.1.2]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.1...anng-v0.1.2
 [0.1.1]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.0...anng-v0.1.1
 [0.1.0]: https://github.com/nanomsg/nng-rs/releases/tag/anng-v0.1.0
