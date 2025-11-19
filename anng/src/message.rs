@@ -410,7 +410,7 @@ impl Message {
                 errno if (errno & nng_sys::NNG_ESYSERR) != 0 => {
                     tracing::warn!(
                         "nng_pipe_get_addr returned a system error: {}",
-                        errno & !nng_sys::NNG_ESYSERR
+                        io::Error::from_raw_os_error((errno & !nng_sys::NNG_ESYSERR) as i32)
                     );
                     return None;
                 }
