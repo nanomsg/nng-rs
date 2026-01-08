@@ -18,7 +18,7 @@ dependencies = [
  "bytes",
  "lazy_static",
  "lexopt",
- "nng-sys",
+ "nng-sys 0.3.0+1.11.0",
  "rstest",
  "tokio",
  "tracing",
@@ -200,12 +200,26 @@ name = "nng"
 version = "1.0.1"
 dependencies = [
  "log",
- "nng-sys",
+ "nng-sys 0.3.0+1.11.0",
 ]
 
 [[package]]
 name = "nng-sys"
 version = "0.3.0+1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a704f444070c59b169a15d18d8503f474a873b1d49b50ddb183ac576f302a657"
+dependencies = [
+ "bindgen",
+ "cc",
+ "cmake",
+ "pkg-config",
+ "vcpkg",
+ "version_check",
+]
+
+[[package]]
+name = "nng-sys"
+version = "0.4.0+v2.0.0-alpha.6"
 dependencies = [
  "bindgen",
  "cc",

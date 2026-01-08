@@ -99,8 +99,6 @@ fn main() {
 
     if cfg!(feature = "bindgen") {
         println!("cargo:rerun-if-changed=src/wrapper.h");
-        println!("cargo:rerun-if-changed=src/compat.h");
-        println!("cargo:rerun-if-changed=src/supplemental.h");
     }
 
     // Rerun if any environment variables change
@@ -322,7 +320,7 @@ fn try_pkg_config() -> Option<(LibrarySource, Vec<PathBuf>)> {
     #[cfg(unix)]
     {
         if let Ok(lib) = pkg_config::Config::new()
-            .atleast_version("1.0.0")
+            .atleast_version("2.0.0")
             .probe("nng")
         {
             println!("cargo:warning=found NNG via pkg-config");
@@ -392,11 +390,6 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         "OFF"
     };
     let tls = if cfg!(feature = "tls") { "ON" } else { "OFF" };
-    let compat = if cfg!(feature = "compat") {
-        "ON"
-    } else {
-        "OFF"
-    };
 
     // Determine link type
     let static_link = should_link_static(true);
@@ -410,7 +403,6 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         .define("NNG_ENABLE_TLS", tls)
         .define("NNG_ENABLE_NNGCAT", "OFF")
         .define("NNG_ENABLE_COVERAGE", "OFF")
-        .define("NNG_ENABLE_COMPAT", compat)
         // NOTE: the `cmake` crate sets `CMAKE_INSTALL_PREFIX` to point to `$OUT_DIR/build`, which
         // is what `.build()` returns (into `dst`) below!
         .build_target("install");
@@ -482,13 +474,6 @@ fn generate_bindings(include_dirs: &[PathBuf]) {
     // Add include path for nng headers
     for include_dir in include_dirs {
         builder = builder.clang_arg(format!("-I{}", include_dir.display()));
-    }
-
-    if cfg!(feature = "compat") {
-        builder = builder.header("src/compat.h");
-    }
-    if cfg!(feature = "supplemental") {
-        builder = builder.header("src/supplemental.h");
     }
 
     let out_file = PathBuf::from(env::var("OUT_DIR").unwrap()).join("bindings.rs");

@@ -1,6 +1,6 @@
 [package]
 name = "nng-sys"
-version = "0.3.0+1.11.0"
+version = "0.4.0+v2.0.0-alpha.6"
 authors = [
     "Nathan Kent <nate@nkent.net>",
     "Jake W <jeikabu@gmail.com>",
@@ -14,8 +14,11 @@ license = "MIT"
 repository = "https://github.com/nanomsg/nng-rs"
 readme = "README.md"
 edition = "2018"
-rust-version = "1.82.0" # unsafe extern blocks in generated bindings
-links = "nng"
+rust-version = "1.82.0" # for unsafe extern blocks in generated bindings
+# TODO(flxo): temporary comment the `links` attribute because `anng` and `nng`
+# are not yet upgraded to nng-sys v0.4.0. cargo doesn't allow multiple crates in
+# the ws dependency tree that link the same lib.
+#links = "nng"
 
 [features]
 default = ["vendored", "vendored-stats", "std"]
@@ -45,14 +48,6 @@ vendored-stats = []
 # Does not affect the bindings.
 # Emits additional cargo directives for linking against mbedtls.
 tls = []
-
-# nanomsg compatibility layer
-# NOTE: this changes (adds to) the bindings as well
-compat = ["bindgen"]
-
-# supplemental utilities
-# NOTE: this changes (adds to) the bindings as well
-supplemental = ["bindgen"]
 
 ## Development features (for working with the source code)
 # Update `src/bindings.rs` with all features enabled

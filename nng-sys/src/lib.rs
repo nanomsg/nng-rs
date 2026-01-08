@@ -8,6 +8,8 @@ use std::{ffi::CString, os::raw::c_char, ptr::null_mut};
 
 fn example() {
     unsafe {
+        nng_init(null_mut());
+
         let url = CString::new("inproc://nng_sys/tests/example").unwrap();
         let url = url.as_bytes_with_nul().as_ptr() as *const c_char;
 
@@ -39,8 +41,8 @@ fn example() {
         // Can't do this because nng uses network order (big-endian)
         //assert_eq!(val, *(nng_msg_body(recv_msg) as *const u32));
 
-        nng_close(req_socket);
-        nng_close(rep_socket);
+        nng_socket_close(req_socket);
+        nng_socket_close(rep_socket);
     }
 }
 ```
@@ -163,7 +165,7 @@ impl nng_sockaddr_family {
             value if value == NNG_AF_IPC as i32 => Some(NNG_AF_IPC),
             value if value == NNG_AF_INET as i32 => Some(NNG_AF_INET),
             value if value == NNG_AF_INET6 as i32 => Some(NNG_AF_INET6),
-            value if value == NNG_AF_ZT as i32 => Some(NNG_AF_ZT),
+            value if value == NNG_AF_ABSTRACT as i32 => Some(NNG_AF_ABSTRACT),
             _ => None,
         }
     }
