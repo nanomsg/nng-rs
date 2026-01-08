@@ -60,7 +60,7 @@ jobs:
             apt: libnng1 libnng-dev libclang-dev
             env: {}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # tag=v6.0.1
         with:
           submodules: true
       - name: Install dependencies
@@ -77,7 +77,7 @@ jobs:
     name: nng on linux / not vendored or bindgen
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # tag=v6.0.1
         with:
           submodules: true
       - name: Install dependencies
@@ -95,7 +95,7 @@ jobs:
     name: nng on linux / NNG_NO_VENDOR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # tag=v6.0.1
         with:
           submodules: true
       # we test this by not installing nng, and checking that building _fails_
@@ -134,7 +134,7 @@ jobs:
             brew: cmake
             env: {}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # tag=v6.0.1
         with:
           submodules: true
       - name: Install dependencies
@@ -166,7 +166,7 @@ jobs:
           #   features: --features vendored
           #   choco: llvm cmake
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # tag=v5.0.0
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # tag=v6.0.1
         with:
           submodules: true
       - name: Install dependencies
