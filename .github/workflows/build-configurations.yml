@@ -18,46 +18,41 @@ jobs:
         include:
           - name: system + bindgen
             features: # no-default-features, so this won't vendor, and system implies bindgen
-            # system nng, clang-dev for bindgen
-            apt: libnng1 libnng-dev libclang-dev
+            # build NNG from submodule, clang-dev for bindgen
+            apt: clang cmake libclang-dev
+            build_nng: true
             env: {}
           - name: vendored + bindgen
             features: --features vendored,bindgen
             # vendored nng and clang-dev for bindgen
             apt: clang cmake libclang-dev
+            build_nng: false
             env: {}
           - name: vendored + bundled
             features: --features vendored
             # vendored nng with bundled bindings, default generator (Unix Makefiles)
             apt: clang cmake
+            build_nng: false
             env: {}
           - name: vendored with Ninja + bundled
             features: --features vendored
             # vendored nng with bundled bindings, ninja generator
             apt: clang cmake ninja-build
+            build_nng: false
             env:
               CMAKE_GENERATOR: Ninja
           - name: vendored with stats + bundled
             features: --features vendored,vendored-stats
             # vendored nng to get stats, bundled bindings
             apt: clang cmake
+            build_nng: false
             env: {}
           - name: vendored with tls + bundled
             features: --features vendored,tls
             # vendored nng to guarantee we get tls, bundled bindings, need to
             # link against mbedtls.
             apt: clang cmake libmbedtls-dev
-            env: {}
-          - name: vendored with compat (bindgen implied)
-            features: --features compat
-            # to generate compat, we need to run bindgen since bundled do not
-            # include compat. bindgen feature is implied by compat.
-            apt: libnng1 libnng-dev libclang-dev
-            env: {}
-          - name: vendored with supplemental (bindgen implied)
-            features: --features supplemental
-            # ditto for supplemental
-            apt: libnng1 libnng-dev libclang-dev
+            build_nng: false
             env: {}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # tag=v6.0.1
@@ -66,6 +61,16 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get install -y ${{ matrix.apt }}
+      - name: Build and install NNG from submodule
+        if: matrix.build_nng
+        run: |
+          cd nng-sys/nng
+          mkdir build && cd build
+          cmake -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_SHARED_LIBS=ON \
+                -DNNG_TESTS=OFF -DNNG_TOOLS=OFF ..
+          make -j$(nproc)
+          sudo make install
+          sudo ldconfig
       - name: Install stable
         uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
         with:
@@ -119,19 +124,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: brew-provided nng + CFLAGS
+          - name: system nng (from submodule)
             features:
-            brew: nng
-            env:
-              CFLAGS: -I/opt/homebrew/include
-              RUSTFLAGS: -L native=/opt/homebrew/lib
-          - name: brew-provided nng
-            features:
-            brew: nng
+            brew: cmake
+            build_nng: true
             env: {}
           - name: vendored
             features: --features vendored
             brew: cmake
+            build_nng: false
             env: {}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # tag=v6.0.1
@@ -140,6 +141,15 @@ jobs:
       - name: Install dependencies
         run: |
           brew install ${{ matrix.brew }}
+      - name: Build and install NNG from submodule
+        if: matrix.build_nng
+        run: |
+          cd nng-sys/nng
+          mkdir build && cd build
+          cmake -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON \
+                -DNNG_TESTS=OFF -DNNG_TOOLS=OFF ..
+          make -j$(sysctl -n hw.ncpu)
+          sudo make install
       - name: Install stable
         uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
         with:
