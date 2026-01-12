@@ -128,7 +128,9 @@ jobs:
             features:
             brew: cmake
             build_nng: true
-            env: {}
+            # /usr/local/lib is not in the default library search path on macOS
+            env:
+              RUSTFLAGS: -L native=/usr/local/lib
           - name: vendored
             features: --features vendored
             brew: cmake
