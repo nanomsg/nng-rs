@@ -18,7 +18,7 @@ jobs:
         include:
           - name: system + bindgen
             features: # no-default-features, so this won't vendor, and system implies bindgen
-            # build NNG from submodule, clang-dev for bindgen
+            # build NNG from nng-sys submodule, clang-dev for bindgen
             apt: clang cmake libclang-dev
             build_nng: true
             env: {}
@@ -61,16 +61,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get install -y ${{ matrix.apt }}
-      - name: Build and install NNG from submodule
+      - name: Build and install NNG from nng-sys submodule
         if: matrix.build_nng
-        run: |
-          cd nng-sys/nng
-          mkdir build && cd build
-          cmake -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_SHARED_LIBS=ON \
-                -DNNG_TESTS=OFF -DNNG_TOOLS=OFF ..
-          make -j$(nproc)
-          sudo make install
-          sudo ldconfig
+        run: .github/scripts/build-nng.sh
       - name: Install stable
         uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
         with:
@@ -124,7 +117,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: system nng (from submodule)
+          - name: system nng (from nng-sys submodule)
             features:
             brew: cmake
             build_nng: true
@@ -143,15 +136,9 @@ jobs:
       - name: Install dependencies
         run: |
           brew install ${{ matrix.brew }}
-      - name: Build and install NNG from submodule
+      - name: Build and install NNG from nng-sys submodule
         if: matrix.build_nng
-        run: |
-          cd nng-sys/nng
-          mkdir build && cd build
-          cmake -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON \
-                -DNNG_TESTS=OFF -DNNG_TOOLS=OFF ..
-          make -j$(sysctl -n hw.ncpu)
-          sudo make install
+        run: .github/scripts/build-nng.sh
       - name: Install stable
         uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
         with:
