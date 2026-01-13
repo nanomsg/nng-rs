@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build and install NNG from the submodule source.
+# Build and install NNG from the nng-sys/nng submodule source.
 # This script handles OS-specific differences between Linux and macOS.
 set -ex
 
