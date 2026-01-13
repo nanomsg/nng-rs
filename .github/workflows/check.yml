@@ -120,7 +120,9 @@ jobs:
       # since we're trying every combination here, we need to ensure we have
       # all the various tools installed already.
       - name: install tools
-        run: sudo apt-get install -y libclang-dev libnng1 libnng-dev clang cmake ninja-build libmbedtls-dev
+        run: sudo apt-get install -y libclang-dev clang cmake ninja-build libmbedtls-dev
+      - name: build and install NNG
+        run: .github/scripts/install-nng.sh
       # intentionally no target specifier; see https://github.com/jonhoo/rust-ci-conf/pull/4
       # --feature-powerset runs for every combination of features
       - name: cargo hack
