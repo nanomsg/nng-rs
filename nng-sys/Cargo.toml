@@ -14,11 +14,19 @@ license = "MIT"
 repository = "https://github.com/nanomsg/nng-rs"
 readme = "README.md"
 edition = "2018"
-rust-version = "1.82.0" # unsafe extern blocks in generated bindings
+rust-version = "1.82.0"                                                # unsafe extern blocks in generated bindings
 # TODO(flxo): temporary comment the `links` attribute because `anng` and `nng`
 # are not yet upgraded to nng-sys v0.4.0. cargo doesn't allow multiple crates in
-# the ws dependency tree that link the same lib.
-#links = "nng"
+# the ws dependency tree that link the same lib:
+#
+# error: failed to select a version for `nng-sys`.
+#     ... required by package `anng v0.1.3 (.../nng-rs/anng)`
+# versions that meet the requirements `^0.3.0` (locked to 0.3.0+1.11.0) are: 0.3.0+1.11.0
+# 
+# package `nng-sys` links to the native library `nng`, but it conflicts with a previous package which links to `nng` as well:
+# package `nng-sys v0.4.0+v2.0.0-alpha.6 (.../nng-rs/nng-sys)`
+# Only one package in the dependency graph may specify the same links value. This helps ensure that only one copy of a native library is linked in the final binary. Try to adjust your dependencies so that only one package uses the `links = "nng"` value. For more information, see https://doc.rust-lang.org/cargo/reference/resolver.html#links.
+# links = "nng"
 
 [features]
 default = ["vendored", "vendored-stats", "std"]
