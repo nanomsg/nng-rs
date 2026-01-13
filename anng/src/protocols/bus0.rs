@@ -42,29 +42,23 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//! // Node 1 (listener)
-//! # tokio::spawn(async {
+//! // Node 1 (listener) - must start first
 //! let mut node1 = bus0::Bus0::listen(c"inproc://bus-example").await?;
 //!
-//! // Send a message to all connected peers
-//! let mut announcement = Message::with_capacity(100);
-//! write!(&mut announcement, "Node 1 is online")?;
-//! // TODO: In production, handle error and retry with returned message
-//! node1.send(announcement).await.unwrap();
-//!
-//! // Receive messages from other nodes
-//! let msg = node1.receive().await?;
-//! println!("Node 1 received: {:?}", std::str::from_utf8(msg.as_slice())?);
-//! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
-//! # });
-//!
-//! // Node 2 (dialer)
+//! // Node 2 (dialer) - connects after listener is ready
+//! # tokio::spawn(async {
 //! let mut node2 = bus0::Bus0::dial(c"inproc://bus-example").await?;
 //!
 //! let mut greeting = Message::with_capacity(100);
 //! write!(&mut greeting, "Hello from Node 2")?;
 //! // TODO: In production, handle error and retry with returned message
 //! node2.send(greeting).await.unwrap();
+//! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+//! # });
+//!
+//! // Receive messages from other nodes
+//! let msg = node1.receive().await?;
+//! println!("Node 1 received: {:?}", std::str::from_utf8(msg.as_slice())?);
 //! # Ok(())
 //! # }
 //! ```
