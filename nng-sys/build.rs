@@ -388,7 +388,7 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
     // WORKAROUND: MSVC doesn't allow empty structs in C (error C2016), and NNG has a bug
     // where nng/src/core/stats.h defines an empty `nni_stat_item` struct when stats are
     // disabled. Until this is fixed upstream, we must always enable stats on MSVC.
-    // See: https://github.com/nanomsg/nng/issues/XXXX (TODO: report upstream)
+    // See: https://github.com/nanomsg/nng/issues/2217
     let stats = if cfg!(feature = "vendored-stats") || cfg!(target_env = "msvc") {
         "ON"
     } else {
