@@ -28,4 +28,6 @@ log = "0.4.28"
 
 [dependencies.nng-sys]
 version = "0.3.0"
+# TODO(flxo): use path dependency once nng is updated to use nng-sys v0.4
+# path = "../nng-sys"
 default-features = false
