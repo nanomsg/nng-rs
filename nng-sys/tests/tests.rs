@@ -99,8 +99,6 @@ mod tests {
                 .skip_while(|c| c.is_ascii_digit())
                 .collect();
 
-            dbg!(&runtime_suffix);
-
             assert_eq!(
                 runtime_major, NNG_MAJOR_VERSION,
                 "runtime major version doesn't match constant"
