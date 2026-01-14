@@ -303,6 +303,13 @@ impl Req0Raw {
         socket.dial(url.as_ref()).await?;
         Ok(socket)
     }
+
+    /// Creates a Raw REQ0 socket and listens on the specified URL.
+    pub async fn listen(url: impl AsRef<CStr>) -> io::Result<Socket<Req0Raw>> {
+        let socket = Self::socket()?;
+        socket.listen(url.as_ref()).await?;
+        Ok(socket)
+    }
 }
 
 impl Socket<Req0Raw> {
@@ -653,6 +660,13 @@ impl Rep0Raw {
     pub async fn listen(url: impl AsRef<CStr>) -> io::Result<Socket<Rep0Raw>> {
         let socket = Self::socket()?;
         socket.listen(url.as_ref()).await?;
+        Ok(socket)
+    }
+
+    /// Creates a Raw REP0 socket and connects to the specified URL.
+    pub async fn dial(url: impl AsRef<CStr>) -> io::Result<Socket<Rep0Raw>> {
+        let socket = Self::socket()?;
+        socket.dial(url.as_ref()).await?;
         Ok(socket)
     }
 }
