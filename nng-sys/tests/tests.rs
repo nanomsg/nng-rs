@@ -88,16 +88,13 @@ mod tests {
 
             let runtime_major: u32 = parts[0].parse().expect("a valid major version");
             let runtime_minor: u32 = parts[1].parse().expect("a valid minor version");
-            // The patch part may contain a suffix like "0dev", so extract only the numeric prefix
-            let patch_numeric: String = parts[2]
-                .chars()
-                .take_while(|c| c.is_ascii_digit())
-                .collect();
+            // The patch part may contain a suffix like "0dev", so split at the first non-digit
+            let (patch_numeric, runtime_suffix) = match parts[2].find(|c: char| !c.is_ascii_digit())
+            {
+                Some(pos) => parts[2].split_at(pos),
+                None => (parts[2], ""),
+            };
             let runtime_patch: u32 = patch_numeric.parse().expect("a valid patch version");
-            let runtime_suffix: String = parts[2]
-                .chars()
-                .skip_while(|c| c.is_ascii_digit())
-                .collect();
 
             assert_eq!(
                 runtime_major, NNG_MAJOR_VERSION,
