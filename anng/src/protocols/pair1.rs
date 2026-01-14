@@ -156,6 +156,40 @@ impl Pair1 {
         socket.listen(url.as_ref()).await?;
         Ok(socket)
     }
+
+    /// Creates a PAIR1 socket and listens on the specified URL with polyamorous mode.
+    ///
+    /// This enables the `NNG_OPT_PAIR1_POLY` option on the listener, allowing it to accept
+    /// multiple connections.
+    pub async fn listen_polyamorous(url: impl AsRef<CStr>) -> io::Result<Socket<Pair1>> {
+        let socket = Self::socket()?;
+
+        // Enable polyamorous mode
+        // SAFETY: socket is valid and option name/value are correct types.
+        let errno = unsafe {
+            nng_sys::nng_socket_set_bool(
+                socket.inner.socket,
+                nng_sys::NNG_OPT_PAIR1_POLY as *const _ as *const c_char,
+                true,
+            )
+        };
+        match u32::try_from(errno).expect("errno is never negative") {
+            0 => {}
+            nng_sys::NNG_ENOTSUP => {
+                // This might happen if the socket type doesn't support the option (shouldn't happen for Pair1)
+                return Err(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "polyamorous mode not supported",
+                ));
+            }
+            errno => {
+                panic!("unexpected error setting polyamorous option: {errno}");
+            }
+        }
+
+        socket.listen(url.as_ref()).await?;
+        Ok(socket)
+    }
 }
 
 impl Socket<Pair1> {
@@ -256,7 +290,7 @@ impl Socket<Pair1> {
 
         let errno = unsafe {
             nng_sys::nng_socket_set_int(
-                self.socket,
+                self.inner.socket,
                 c"ttl-max".as_ptr() as *const c_char,
                 i32::from(ttl),
             )

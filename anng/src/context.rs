@@ -23,7 +23,7 @@ impl<Protocol: crate::protocols::SupportsContext> Socket<Protocol> {
         let mut context = MaybeUninit::<nng_sys::nng_ctx>::uninit();
         // SAFETY: context pointer is valid for writing, and
         //         socket is valid and not closed (socket is live until `self` drops).
-        let errno = unsafe { nng_sys::nng_ctx_open(context.as_mut_ptr(), self.socket) };
+        let errno = unsafe { nng_sys::nng_ctx_open(context.as_mut_ptr(), self.inner.socket) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
             nng_sys::NNG_ENOMEM => {

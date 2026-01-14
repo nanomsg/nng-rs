@@ -310,7 +310,7 @@ impl<Protocol> Socket<Protocol> {
         // the Display impl of SocketAddr prints 1.2.3.4:5 or [ab:cd:ef]:5,
         // which matches what NNG expects.
         let url = CString::new(format!("tcp://{addr}")).expect("no null bytes in addr");
-        let listener = crate::protocols::add_listener_to_socket(self.socket, &url, |listener| {
+        let listener = crate::protocols::add_listener_to_socket(self.inner.socket, &url, |listener| {
             let &TcpOptions {
                 no_delay,
                 keep_alive,

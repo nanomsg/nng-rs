@@ -118,6 +118,19 @@ pub mod protocols;
 pub use aio::AioError;
 pub use message::Message;
 
+use std::sync::Arc;
+
+pub(crate) struct InnerSocket {
+    pub(crate) socket: nng_sys::nng_socket,
+}
+
+impl Drop for InnerSocket {
+    fn drop(&mut self) {
+        // SAFETY: socket is valid and not already closed (socket is live until `self` drops).
+        crate::block_in_place(|| unsafe { nng_sys::nng_close(self.socket) });
+    }
+}
+
 /// A type-safe NNG socket with compile-time protocol verification.
 ///
 /// The `Socket` type uses phantom types to ensure protocol correctness at compile time:
@@ -192,17 +205,28 @@ pub use message::Message;
 /// # }
 /// ```
 pub struct Socket<Protocol> {
-    socket: nng_sys::nng_socket,
+    inner: Arc<InnerSocket>,
     pub(crate) aio: Aio,
     recovered_msg: Option<Message>,
     protocol: PhantomData<Protocol>,
+}
+
+impl<Protocol> Clone for Socket<Protocol> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            aio: Aio::new(),
+            recovered_msg: None,
+            protocol: PhantomData,
+        }
+    }
 }
 
 // manual impl to avoid Protocol: Debug bound
 impl<Protocol> fmt::Debug for Socket<Protocol> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Socket")
-            .field("socket", &self.socket)
+            .field("socket", &self.inner.socket)
             .field("aio", &self.aio)
             .field("recovered_msg", &self.recovered_msg)
             .field("protocol", &self.protocol)
@@ -261,8 +285,7 @@ impl<Protocol> fmt::Debug for ContextfulSocket<'_, Protocol> {
 
 impl<Protocol> Drop for Socket<Protocol> {
     fn drop(&mut self) {
-        // SAFETY: socket is valid and not already closed (socket is live until `self` drops).
-        crate::block_in_place(|| unsafe { nng_sys::nng_close(self.socket) });
+        // No-op: InnerSocket handles cleanup
     }
 }
 
@@ -271,7 +294,7 @@ impl<Protocol> Socket<Protocol> {
     ///
     /// This is primarily used internally for setting socket options.
     pub(crate) fn id(&self) -> nng_sys::nng_socket {
-        self.socket
+        self.inner.socket
     }
 
     /// Sends a message using this socket.
@@ -288,7 +311,7 @@ impl<Protocol> Socket<Protocol> {
         // SAFETY: socket is valid and not closed (socket is live until `self` drops),
         //         AIO is valid and not busy (per `Aio` busy state invariant), and
         //         message has been set on AIO (just above).
-        unsafe { nng_sys::nng_send_aio(self.socket, self.aio.as_ptr()) };
+        unsafe { nng_sys::nng_send_aio(self.inner.socket, self.aio.as_ptr()) };
         // the above started an async operation (makes AIO busy).
         // we call wait() to preserve the Aio busy invariant.
         match self.aio.wait(ImplicationOnMessage::Sent).await {
@@ -317,7 +340,7 @@ impl<Protocol> Socket<Protocol> {
         // SAFETY: socket is valid and not closed (socket is live until `self` drops), and
         //         msg pointer pointer is valid.
         let errno = unsafe {
-            nng_sys::nng_recvmsg(self.socket, &mut msg, nng_sys::NNG_FLAG_NONBLOCK as i32)
+            nng_sys::nng_recvmsg(self.inner.socket, &mut msg, nng_sys::NNG_FLAG_NONBLOCK as i32)
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {
@@ -370,7 +393,7 @@ impl<Protocol> Socket<Protocol> {
 
         // SAFETY: socket is valid and not closed (socket is live until `self` drops), and
         //         AIO is valid and not busy (per `Aio` busy state invariant).
-        unsafe { nng_sys::nng_recv_aio(self.socket, self.aio.as_ptr()) };
+        unsafe { nng_sys::nng_recv_aio(self.inner.socket, self.aio.as_ptr()) };
         // the above started an async operation (which makes the AIO busy), so we must eventually
         // call wait() later to preserve the Aio busy invariant.
         //
@@ -454,7 +477,7 @@ impl<Protocol> Socket<Protocol> {
         url: impl AsRef<CStr>,
         options: &pipes::PipeOptions,
     ) -> io::Result<pipes::Dialer<'socket, Protocol>> {
-        let dialer = crate::protocols::add_dialer_to_socket(self.socket, url.as_ref(), |_dialer| {
+        let dialer = crate::protocols::add_dialer_to_socket(self.inner.socket, url.as_ref(), |_dialer| {
             let pipes::PipeOptions {} = options;
             Ok(())
         })
@@ -506,7 +529,7 @@ impl<Protocol> Socket<Protocol> {
         options: &pipes::PipeOptions,
     ) -> io::Result<pipes::Listener<'socket, Protocol>> {
         let listener =
-            crate::protocols::add_listener_to_socket(self.socket, url.as_ref(), |_listener| {
+            crate::protocols::add_listener_to_socket(self.inner.socket, url.as_ref(), |_listener| {
                 let pipes::PipeOptions {} = options;
                 Ok(())
             })
