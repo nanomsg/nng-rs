@@ -278,15 +278,14 @@ impl<'socket> ContextfulSocket<'socket, Req0> {
     }
 }
 
-/// Raw Request socket type (Dealer pattern).
+/// Raw Request socket type
 ///
 /// This is the raw version of the REQ0 protocol. It bypasses the strict
 /// Request-Reply state machine, allowing full asynchronous processing.
 ///
 /// In Raw mode:
 /// - You can send multiple requests without waiting for replies.
-/// - You must handle message headers manually if needed (though typically Dealer
-///   sockets initiate requests so headers are handled by the Router).
+/// - You must handle message headers manually if needed.
 /// - Useful for load balancing requests to multiple Router sockets.
 #[derive(Debug, Clone, Copy)]
 pub struct Req0Raw;
@@ -630,7 +629,7 @@ impl Responder<'_, '_> {
     }
 }
 
-/// Raw Reply socket type (Router pattern).
+/// Raw Reply socket type
 ///
 /// This is the raw version of the REP0 protocol. It bypasses the strict
 /// Request-Reply state machine, allowing full asynchronous processing.
