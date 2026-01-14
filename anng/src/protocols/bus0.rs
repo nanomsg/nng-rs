@@ -49,6 +49,8 @@
 //! # tokio::spawn(async {
 //! let mut node2 = bus0::Bus0::dial(c"inproc://bus-example").await?;
 //!
+//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+//!
 //! let mut greeting = Message::with_capacity(100);
 //! write!(&mut greeting, "Hello from Node 2")?;
 //! // TODO: In production, handle error and retry with returned message
