@@ -14,7 +14,7 @@ license = "MIT"
 repository = "https://github.com/nanomsg/nng-rs"
 readme = "README.md"
 edition = "2018"
-rust-version = "1.82.0"                                                # unsafe extern blocks in generated bindings
+rust-version = "1.82.0" # unsafe extern blocks in generated bindings
 # TODO(flxo): temporary comment the `links` attribute because `anng` and `nng`
 # are not yet upgraded to nng-sys v0.4.0. cargo doesn't allow multiple crates in
 # the ws dependency tree that link the same lib:
