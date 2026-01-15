@@ -73,7 +73,7 @@ This crate uses the format `<crate version>+<nng version>` following [Semantic V
 **Example:** `0.3.0+1.11.0`
 
 - `0.3.0` - The crate's own semantic version, indicating API compatibility
-- `+v1.11.0` - Build metadata showing the wrapped NNG library version
+- `+1.11.0` - Build metadata showing the wrapped NNG library version
 
 ### How Versions Change
 
