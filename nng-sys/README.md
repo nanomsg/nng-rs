@@ -85,7 +85,7 @@ This crate uses the format `<crate version>+<nng version>` following [Semantic V
 | NNG major version update    | `0.5.0+2.0.0`   | A backwards-incompatible NNG release also results in a major version bump                  |
 
 **Note:** Cargo ignores the `+<nng version>` build metadata suffix when resolving dependencies,
-so version `0.4.0+v2.0.0-alpha.6` and `0.4.0+v2.0.0` are considered equivalent by Cargo and cannot coexist.
+so version `0.3.0+1.11.0` and `0.3.0+1.12.0` are considered equivalent by Cargo and cannot coexist.
 
 **Note:** Versions of this crate prior to `0.3.0` used a different scheme (`<NNG_version>-rc.<crate_version>`).
 This legacy format has been replaced to allow for proper semantic versioning of the crate's API.
