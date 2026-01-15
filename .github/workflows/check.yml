@@ -134,10 +134,6 @@ jobs:
       #
       # intentionally no target specifier; see https://github.com/jonhoo/rust-ci-conf/pull/4
       # --feature-powerset runs for every combination of features
-      #
-      # nng-sys (v0.4/NNG v2): Install NNG v2 from submodule and point NNG_DIR to it
-      # nng and anng (nng-sys v0.3/NNG v1): Use vendored NNG v1 from crates.io nng-sys.
-      # The vendored feature builds NNG from source, so no NNG_DIR needed.
       - name: cargo hack nng
         run: cargo hack -p nng --feature-powerset check
       - name: cargo hack anng
