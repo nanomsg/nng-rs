@@ -18,9 +18,9 @@ jobs:
         include:
           - name: system + bindgen
             features: # no-default-features, so this won't vendor, and system implies bindgen
-            # build NNG from nng-sys submodule, clang-dev for bindgen
+            # clang and cmake for installing NNG, clang-dev for bindgen
             apt: clang cmake libclang-dev
-            # until nng v2 is available via apt we need to manually install nng
+            # until nng v2 is available via apt, we need to manually install nng
             # for the checks that expect nng to be installed in the system
             #
             # TODO(flxo): remove the manual installation of nng and replace with
@@ -62,7 +62,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get install -y ${{ matrix.apt }}
-      - name: Build and install NNG from nng-sys submodule
+      - name: Build and install NNG
         if: matrix.install_nng
         run: .github/scripts/install-nng.sh
       - name: Install stable
@@ -119,7 +119,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: system nng (from nng-sys submodule)
+          - name: system nng
             features:
             brew: cmake
             install_nng: true
@@ -137,7 +137,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew install ${{ matrix.brew }}
-      - name: Build and install NNG from nng-sys submodule
+      - name: Build and install NNG
         if: matrix.install_nng
         run: .github/scripts/install-nng.sh
       - name: Install stable
