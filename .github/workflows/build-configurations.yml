@@ -66,7 +66,7 @@ jobs:
         if: matrix.install_nng
         run: .github/scripts/install-nng.sh
       - name: Install stable
-        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
+        uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # branch=master
         with:
           toolchain: stable
       - name: cargo test -p nng-sys --no-default-features ${{ matrix.features }}
@@ -84,7 +84,7 @@ jobs:
         run: |
           sudo apt-get install -y libnng1 libnng-dev
       - name: Install stable
-        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
+        uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # branch=master
         with:
           toolchain: stable
       - name: cargo test -p nng --no-default-features
@@ -100,7 +100,7 @@ jobs:
           submodules: true
       # we test this by not installing nng, and checking that building _fails_
       - name: Install stable
-        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
+        uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # branch=master
         with:
           toolchain: stable
       - name: cargo build -p nng-sys --features vendored
@@ -143,7 +143,7 @@ jobs:
         if: matrix.install_nng
         run: .github/scripts/install-nng.sh
       - name: Install stable
-        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
+        uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # branch=master
         with:
           toolchain: stable
       - name: cargo test -p nng-sys --no-default-features ${{ matrix.features }}
@@ -176,7 +176,7 @@ jobs:
         run: |
           choco install ${{ matrix.choco }}
       - name: Install stable
-        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
+        uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # branch=master
         with:
           toolchain: stable
       - name: cargo test -p nng-sys --no-default-features ${{ matrix.features }}
