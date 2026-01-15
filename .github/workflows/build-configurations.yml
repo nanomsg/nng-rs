@@ -22,10 +22,10 @@ jobs:
             apt: clang cmake libclang-dev
             # until nng v2 is available via apt, we need to manually install nng
             # for the checks that expect nng to be installed in the system
-            #
+            # 
             # TODO(flxo): remove the manual installation of nng and replace with
-            # a `apt install libnng2 libnng-dev` one the apt packages are
-            # available
+            # a `apt install libnng2 libnng-dev` or similar, once the apt
+            # packages are available. Same applies for `brew` and others.
             install_nng: true
             env: {}
           - name: vendored + bindgen
