@@ -123,8 +123,10 @@ jobs:
             features:
             brew: cmake
             install_nng: true
-            # /usr/local/lib is not in the default library search path on macOS
             env:
+              # /usr/local/include is not a standard C compiler search path
+              CFLAGS: -I/usr/local/include
+              # /usr/local/lib is not in the default library search path on macOS
               RUSTFLAGS: -L native=/usr/local/lib
           - name: vendored
             features: --features vendored
