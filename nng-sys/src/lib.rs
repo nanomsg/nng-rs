@@ -165,7 +165,6 @@ impl nng_sockaddr_family {
             value if value == NNG_AF_IPC as i32 => Some(NNG_AF_IPC),
             value if value == NNG_AF_INET as i32 => Some(NNG_AF_INET),
             value if value == NNG_AF_INET6 as i32 => Some(NNG_AF_INET6),
-            value if value == NNG_AF_ABSTRACT as i32 => Some(NNG_AF_ABSTRACT),
             _ => None,
         }
     }
