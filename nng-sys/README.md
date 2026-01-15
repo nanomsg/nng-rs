@@ -33,7 +33,7 @@ If you need TLS support:
 nng-sys = { version = "0.4.0", features = ["tls"] }
 ```
 
-This will bundle [mbedTLS](https://tls.mbed.org/). See the [NNG TLS documentation](https://nng.nanomsg.org/man/tip/nng_tls.7.html) for details.
+This will bundle [mbedTLS](https://tls.mbed.org/). See the [NNG TLS documentation](https://github.com/nanomsg/nng/blob/main/docs/man/nng_tls.7.adoc) for details.
 
 ### Library Discovery
 
