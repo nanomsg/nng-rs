@@ -6,17 +6,6 @@ Rust FFI bindings to [NNG](https://github.com/nanomsg/nng):
 [![crates.io](http://img.shields.io/crates/v/nng-sys.svg)](http://crates.io/crates/nng-sys)
 ![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-## ⚠️ NNG 2.0 Alpha
-
-This version wraps **NNG 2.0.0-alpha.6**, which is a major breaking release from NNG 1.x. Key changes include:
-
-- **Initialization required**: You must call `nng_init(null_mut())` before using any NNG functions
-- **API renames**: Many functions have been renamed (e.g., `nng_close()` → `nng_socket_close()`)
-- **Error handling**: The new `nng_err` enum replaces integer error codes in many functions
-- **Removed features**: ZeroTier transport and nanomsg compatibility layer have been removed
-
-See the [NNG 2.0 release notes](https://github.com/nanomsg/nng/releases) for full details.
-
 ## Usage
 
 To use the latest version of this crate, add the following to your `Cargo.toml`:
@@ -198,45 +187,7 @@ fn example() {
 
 ## Migration from NNG 1.x
 
-If you're upgrading from `nng-sys` 0.3.x (NNG 1.x), here are the key changes:
-
-### Required Initialization
-
-NNG 2.0 requires explicit initialization before use:
-
-```rust
-// Before using any NNG functions:
-nng_init(null_mut());
-```
-
-### Renamed Functions
-
-| NNG 1.x          | NNG 2.0              |
-| ---------------- | -------------------- |
-| `nng_close()`    | `nng_socket_close()` |
-| `nng_send_aio()` | `nng_socket_send()`  |
-| `nng_recv_aio()` | `nng_socket_recv()`  |
-
-### Changed Error Handling
-
-Many functions now return the `nng_err` enum instead of `c_int`:
-
-```rust
-// NNG 1.x
-let rv: c_int = nng_aio_alloc(...);
-if rv != 0 { /* error */ }
-
-// NNG 2.0
-let rv: nng_err = nng_aio_alloc(...);
-if rv != nng_err::NNG_OK { /* error */ }
-```
-
-### Removed Features
-
-- **ZeroTier transport**: The `nng_zt_*` functions and `NNG_AF_ZT` address family have been removed
-- **nanomsg compatibility layer**: The `compat` feature is no longer available
-- **Various legacy options**: Options like `NNG_OPT_SOCKNAME`, `NNG_OPT_RAW`, `NNG_OPT_URL` have been removed or replaced
-
-### Complete Migration Guide
-
-For the comprehensive list of all changes including TLS configuration, option function changes, HTTP/WebSocket API changes, and more, see the [NNG 1.x Migration Guide](https://github.com/nanomsg/nng/blob/master/docs/ref/migrate/nng1.md).
+This version wraps **NNG 2.0.0-alpha.6**, which is a major breaking release from
+NNG 1.x. See the [NNG 2.0 release
+notes](https://github.com/nanomsg/nng/releases) and the [NNG 1.x Migration
+Guide](https://github.com/nanomsg/nng/blob/master/docs/ref/migrate/nng1.md) for details.
