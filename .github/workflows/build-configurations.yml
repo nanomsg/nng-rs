@@ -20,39 +20,40 @@ jobs:
             features: # no-default-features, so this won't vendor, and system implies bindgen
             # build NNG from nng-sys submodule, clang-dev for bindgen
             apt: clang cmake libclang-dev
-            build_nng: true
+            # until nng v2 is available via apt we need to manually install nng
+            # for the checks that expect nng to be installed in the system
+            #
+            # TODO(flxo): remove the manual installation of nng and replace with
+            # a `apt install libnng2 libnng-dev` one the apt packages are
+            # available
+            install_nng: true
             env: {}
           - name: vendored + bindgen
             features: --features vendored,bindgen
             # vendored nng and clang-dev for bindgen
             apt: clang cmake libclang-dev
-            build_nng: false
             env: {}
           - name: vendored + bundled
             features: --features vendored
             # vendored nng with bundled bindings, default generator (Unix Makefiles)
             apt: clang cmake
-            build_nng: false
             env: {}
           - name: vendored with Ninja + bundled
             features: --features vendored
             # vendored nng with bundled bindings, ninja generator
             apt: clang cmake ninja-build
-            build_nng: false
             env:
               CMAKE_GENERATOR: Ninja
           - name: vendored with stats + bundled
             features: --features vendored,vendored-stats
             # vendored nng to get stats, bundled bindings
             apt: clang cmake
-            build_nng: false
             env: {}
           - name: vendored with tls + bundled
             features: --features vendored,tls
             # vendored nng to guarantee we get tls, bundled bindings, need to
             # link against mbedtls.
             apt: clang cmake libmbedtls-dev
-            build_nng: false
             env: {}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # tag=v6.0.1
@@ -62,7 +63,7 @@ jobs:
         run: |
           sudo apt-get install -y ${{ matrix.apt }}
       - name: Build and install NNG from nng-sys submodule
-        if: matrix.build_nng
+        if: matrix.install_nng
         run: .github/scripts/install-nng.sh
       - name: Install stable
         uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
@@ -121,14 +122,13 @@ jobs:
           - name: system nng (from nng-sys submodule)
             features:
             brew: cmake
-            build_nng: true
+            install_nng: true
             # /usr/local/lib is not in the default library search path on macOS
             env:
               RUSTFLAGS: -L native=/usr/local/lib
           - name: vendored
             features: --features vendored
             brew: cmake
-            build_nng: false
             env: {}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # tag=v6.0.1
@@ -138,7 +138,7 @@ jobs:
         run: |
           brew install ${{ matrix.brew }}
       - name: Build and install NNG from nng-sys submodule
-        if: matrix.build_nng
+        if: matrix.install_nng
         run: .github/scripts/install-nng.sh
       - name: Install stable
         uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # branch=master
