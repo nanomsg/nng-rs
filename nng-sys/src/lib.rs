@@ -177,3 +177,55 @@ impl TryFrom<i32> for nng_sockaddr_family {
         nng_sockaddr_family::try_convert_from(value).ok_or(EnumFromIntError(value))
     }
 }
+
+/// Macro to implement `TryFrom<i32>` for bindgen-generated enums.
+#[cfg(try_from)]
+macro_rules! impl_try_from_i32 {
+    ($enum:ty { $($variant:ident),+ $(,)? }) => {
+        impl TryFrom<i32> for $enum {
+            type Error = EnumFromIntError;
+            fn try_from(value: i32) -> Result<Self, Self::Error> {
+                $(if value == <$enum>::$variant as i32 { return Ok(<$enum>::$variant); })+
+                Err(EnumFromIntError(value))
+            }
+        }
+    };
+}
+
+#[cfg(try_from)]
+impl_try_from_i32!(nng_err {
+    NNG_OK,
+    NNG_EINTR,
+    NNG_ENOMEM,
+    NNG_EINVAL,
+    NNG_EBUSY,
+    NNG_ETIMEDOUT,
+    NNG_ECONNREFUSED,
+    NNG_ECLOSED,
+    NNG_EAGAIN,
+    NNG_ENOTSUP,
+    NNG_EADDRINUSE,
+    NNG_ESTATE,
+    NNG_ENOENT,
+    NNG_EPROTO,
+    NNG_EUNREACHABLE,
+    NNG_EADDRINVAL,
+    NNG_EPERM,
+    NNG_EMSGSIZE,
+    NNG_ECONNABORTED,
+    NNG_ECONNRESET,
+    NNG_ECANCELED,
+    NNG_ENOFILES,
+    NNG_ENOSPC,
+    NNG_EEXIST,
+    NNG_EREADONLY,
+    NNG_EWRITEONLY,
+    NNG_ECRYPTO,
+    NNG_EPEERAUTH,
+    NNG_EBADTYPE,
+    NNG_ECONNSHUT,
+    NNG_ESTOPPED,
+    NNG_EINTERNAL,
+    NNG_ESYSERR,
+    NNG_ETRANERR,
+});

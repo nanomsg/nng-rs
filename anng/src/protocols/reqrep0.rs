@@ -125,6 +125,7 @@ use std::{future::Future, io};
 /// #     }
 /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 /// # });
+/// # tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 /// // Connect to a server
 /// let socket = Req0::dial(c"inproc://req0-usage-doctest").await?;
 /// let mut ctx = socket.context();
