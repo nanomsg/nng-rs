@@ -16,14 +16,14 @@ To use the latest version of this crate, add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-nng-sys = "0.4.0"
+nng-sys = "0.4.0-v2pre"
 ```
 
 If you need TLS support:
 
 ```toml
 [dependencies]
-nng-sys = { version = "0.4.0", features = ["tls"] }
+nng-sys = { version = "0.4.0-v2pre", features = ["tls"] }
 ```
 
 This will bundle [mbedTLS](https://tls.mbed.org/). See the [NNG TLS documentation](https://github.com/nanomsg/nng/blob/main/docs/man/nng_tls.7.adoc) for details.
