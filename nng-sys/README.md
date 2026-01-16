@@ -6,6 +6,10 @@ Rust FFI bindings to [NNG](https://github.com/nanomsg/nng):
 [![crates.io](http://img.shields.io/crates/v/nng-sys.svg)](http://crates.io/crates/nng-sys)
 ![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)
 
+> [!WARNING]
+> This crate wraps [NNG v2](https://github.com/nanomsg/nng), which is still in alpha.
+> For [NNG v1 bindings](https://github.com/nanomsg/nng/tree/stable), see the [v1.xx branch](https://github.com/nanomsg/nng-rs/tree/v1.xx).
+
 ## Usage
 
 To use the latest version of this crate, add the following to your `Cargo.toml`:
