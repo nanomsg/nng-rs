@@ -144,6 +144,11 @@ jobs:
         run: .github/scripts/install-nng.sh
       - name: cargo hack nng-sys
         run: cargo hack -p nng-sys --feature-powerset check --skip source-update-bindings
+        env:
+          # add /usr/local/include to the C compiler search path for NNG headers
+          CFLAGS: -I/usr/local/include
+          # add /usr/local/lib to the linker search path for NNG libraries
+          RUSTFLAGS: -L native=/usr/local/lib
   msrv:
     # check that we can build using the minimal rust version that is specified by this crate
     runs-on: ubuntu-latest
