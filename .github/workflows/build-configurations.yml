@@ -18,8 +18,15 @@ jobs:
         include:
           - name: system + bindgen
             features: # no-default-features, so this won't vendor, and system implies bindgen
-            # system nng, clang-dev for bindgen
-            apt: libnng1 libnng-dev libclang-dev
+            # clang and cmake for installing NNG, clang-dev for bindgen
+            apt: clang cmake libclang-dev
+            # until nng v2 is available via apt, we need to manually install nng
+            # for the checks that expect nng to be installed in the system
+            # 
+            # TODO(flxo): remove the manual installation of nng and replace with
+            # a `apt install libnng2 libnng-dev` or similar, once the apt
+            # packages are available. Same applies for `brew` and others.
+            install_nng: true
             env: {}
           - name: vendored + bindgen
             features: --features vendored,bindgen
@@ -48,17 +55,6 @@ jobs:
             # link against mbedtls.
             apt: clang cmake libmbedtls-dev
             env: {}
-          - name: vendored with compat (bindgen implied)
-            features: --features compat
-            # to generate compat, we need to run bindgen since bundled do not
-            # include compat. bindgen feature is implied by compat.
-            apt: libnng1 libnng-dev libclang-dev
-            env: {}
-          - name: vendored with supplemental (bindgen implied)
-            features: --features supplemental
-            # ditto for supplemental
-            apt: libnng1 libnng-dev libclang-dev
-            env: {}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # tag=v6.0.1
         with:
@@ -66,6 +62,9 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get install -y ${{ matrix.apt }}
+      - name: Build and install NNG
+        if: matrix.install_nng
+        run: .github/scripts/install-nng.sh
       - name: Install stable
         uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # branch=master
         with:
@@ -80,6 +79,7 @@ jobs:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # tag=v6.0.1
         with:
           submodules: true
+      # the nng crate is not yet upgraded to nng v2. install nng v1.x (libnng1 and libnng-dev)
       - name: Install dependencies
         run: |
           sudo apt-get install -y libnng1 libnng-dev
@@ -119,16 +119,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: brew-provided nng + CFLAGS
+          - name: system nng
             features:
-            brew: nng
+            brew: cmake
+            install_nng: true
             env:
-              CFLAGS: -I/opt/homebrew/include
-              RUSTFLAGS: -L native=/opt/homebrew/lib
-          - name: brew-provided nng
-            features:
-            brew: nng
-            env: {}
+              # /usr/local/include is not a standard C compiler search path
+              CFLAGS: -I/usr/local/include
+              # /usr/local/lib is not in the default library search path on macOS
+              RUSTFLAGS: -L native=/usr/local/lib
           - name: vendored
             features: --features vendored
             brew: cmake
@@ -140,6 +139,9 @@ jobs:
       - name: Install dependencies
         run: |
           brew install ${{ matrix.brew }}
+      - name: Build and install NNG
+        if: matrix.install_nng
+        run: .github/scripts/install-nng.sh
       - name: Install stable
         uses: dtolnay/rust-toolchain@f7ccc83f9ed1e5b9c81d8a67d7ad1a747e22a561 # branch=master
         with:

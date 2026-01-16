@@ -11,6 +11,9 @@ mod tests {
     #[test]
     fn basic() {
         unsafe {
+            // Initialize NNG (required in NNG 2.0)
+            assert_eq!(nng_err::NNG_OK, nng_init(null_mut()));
+
             let url = CString::new("inproc://nng_sys/tests/basic").unwrap();
             let url = url.as_bytes_with_nul().as_ptr() as *const c_char;
 
@@ -40,8 +43,8 @@ mod tests {
             assert_eq!(0, nng_msg_trim_u32(recv_msg, &mut recv_val));
             assert_eq!(val, recv_val);
 
-            nng_close(req_socket);
-            nng_close(rep_socket);
+            nng_socket_close(req_socket);
+            nng_socket_close(rep_socket);
         }
     }
 
@@ -62,8 +65,11 @@ mod tests {
 
             // Build expected version string from compile-time constants
             let expected_version = format!(
-                "{}.{}.{}",
-                NNG_MAJOR_VERSION, NNG_MINOR_VERSION, NNG_PATCH_VERSION
+                "{}.{}.{}{}",
+                NNG_MAJOR_VERSION,
+                NNG_MINOR_VERSION,
+                NNG_PATCH_VERSION,
+                CStr::from_bytes_with_nul_unchecked(NNG_RELEASE_SUFFIX).to_string_lossy(),
             );
 
             println!("Runtime version from nng_version(): {}", version_str);
@@ -82,7 +88,13 @@ mod tests {
 
             let runtime_major: u32 = parts[0].parse().expect("a valid major version");
             let runtime_minor: u32 = parts[1].parse().expect("a valid minor version");
-            let runtime_patch: u32 = parts[2].parse().expect("a valid patch version");
+            // The patch part may contain a suffix like "0dev", so split at the first non-digit
+            let (patch_numeric, runtime_suffix) = match parts[2].find(|c: char| !c.is_ascii_digit())
+            {
+                Some(pos) => parts[2].split_at(pos),
+                None => (parts[2], ""),
+            };
+            let runtime_patch: u32 = patch_numeric.parse().expect("a valid patch version");
 
             assert_eq!(
                 runtime_major, NNG_MAJOR_VERSION,
@@ -95,6 +107,11 @@ mod tests {
             assert_eq!(
                 runtime_patch, NNG_PATCH_VERSION,
                 "runtime patch version doesn't match constant"
+            );
+            assert_eq!(
+                runtime_suffix,
+                CStr::from_bytes_with_nul_unchecked(NNG_RELEASE_SUFFIX).to_string_lossy(),
+                "runtime release suffix doesn't match constant"
             );
         }
     }
