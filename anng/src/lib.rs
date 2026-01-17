@@ -120,7 +120,14 @@ pub use message::Message;
 
 use std::sync::Arc;
 
+/// Shared owner for an underlying `nng_socket`.
+///
+/// This wrapper exists so we can:
+/// - Close the NNG socket exactly once when the last [`Socket`] clone is dropped.
+/// - Implement `Drop` locally (we can't implement `Drop` for `nng_sys::nng_socket` due to Rust's
+///   orphan rules).
 pub(crate) struct InnerSocket {
+    /// Raw NNG socket handle. Closed when the last `Arc<InnerSocket>` is dropped.
     pub(crate) socket: nng_sys::nng_socket,
 }
 
@@ -283,12 +290,6 @@ impl<Protocol> fmt::Debug for ContextfulSocket<'_, Protocol> {
     }
 }
 
-impl<Protocol> Drop for Socket<Protocol> {
-    fn drop(&mut self) {
-        // No-op: InnerSocket handles cleanup
-    }
-}
-
 impl<Protocol> Socket<Protocol> {
     /// Returns the underlying NNG socket handle.
     ///
@@ -340,7 +341,11 @@ impl<Protocol> Socket<Protocol> {
         // SAFETY: socket is valid and not closed (socket is live until `self` drops), and
         //         msg pointer pointer is valid.
         let errno = unsafe {
-            nng_sys::nng_recvmsg(self.inner.socket, &mut msg, nng_sys::NNG_FLAG_NONBLOCK as i32)
+            nng_sys::nng_recvmsg(
+                self.inner.socket,
+                &mut msg,
+                nng_sys::NNG_FLAG_NONBLOCK as i32,
+            )
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {
@@ -477,11 +482,12 @@ impl<Protocol> Socket<Protocol> {
         url: impl AsRef<CStr>,
         options: &pipes::PipeOptions,
     ) -> io::Result<pipes::Dialer<'socket, Protocol>> {
-        let dialer = crate::protocols::add_dialer_to_socket(self.inner.socket, url.as_ref(), |_dialer| {
-            let pipes::PipeOptions {} = options;
-            Ok(())
-        })
-        .await?;
+        let dialer =
+            crate::protocols::add_dialer_to_socket(self.inner.socket, url.as_ref(), |_dialer| {
+                let pipes::PipeOptions {} = options;
+                Ok(())
+            })
+            .await?;
         Ok(pipes::Dialer {
             socket: self,
             dialer,
@@ -528,12 +534,15 @@ impl<Protocol> Socket<Protocol> {
         url: impl AsRef<CStr>,
         options: &pipes::PipeOptions,
     ) -> io::Result<pipes::Listener<'socket, Protocol>> {
-        let listener =
-            crate::protocols::add_listener_to_socket(self.inner.socket, url.as_ref(), |_listener| {
+        let listener = crate::protocols::add_listener_to_socket(
+            self.inner.socket,
+            url.as_ref(),
+            |_listener| {
                 let pipes::PipeOptions {} = options;
                 Ok(())
-            })
-            .await?;
+            },
+        )
+        .await?;
         Ok(pipes::Listener {
             socket: self,
             listener,
