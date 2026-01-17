@@ -120,11 +120,35 @@ jobs:
       # since we're trying every combination here, we need to ensure we have
       # all the various tools installed already.
       - name: install tools
-        run: sudo apt-get install -y libclang-dev libnng1 libnng-dev clang cmake ninja-build libmbedtls-dev
+        run: sudo apt-get install -y libclang-dev clang cmake ninja-build libmbedtls-dev libnng1 libnng-dev
+      # Run cargo hack per-package because nng-sys v0.4 targets NNG v2, while
+      # nng and anng still depend on nng-sys v0.3 (NNG v1). Running feature-powerset
+      # on the entire workspace fails since these require incompatible NNG versions.
+      # The effect of the failure (when running `hack` on the workspace) is here:
+      # https://github.com/nanomsg/nng-rs/actions/runs/20988550343/job/60328143824
+      #
+      # TODO: Remove this workaround once nng and anng are migrated to nng-sys v0.4/NNG v2
+      # and revert to:
+      # - name: cargo hack
+      #   run: cargo hack --feature-powerset check --skip source-update-bindings
+      #
       # intentionally no target specifier; see https://github.com/jonhoo/rust-ci-conf/pull/4
       # --feature-powerset runs for every combination of features
-      - name: cargo hack
-        run: cargo hack --feature-powerset check --skip source-update-bindings
+      - name: cargo hack nng
+        run: cargo hack -p nng --feature-powerset check
+      - name: cargo hack anng
+        run: cargo hack -p anng --feature-powerset check
+      - name: remove NNG v1
+        run: sudo apt-get remove -y libnng1 libnng-dev
+      - name: build and install NNG v2 for nng-sys
+        run: .github/scripts/install-nng.sh
+      - name: cargo hack nng-sys
+        run: cargo hack -p nng-sys --feature-powerset check --skip source-update-bindings
+        env:
+          # add /usr/local/include to the C compiler search path for NNG headers
+          CFLAGS: -I/usr/local/include
+          # add /usr/local/lib to the linker search path for NNG libraries
+          RUSTFLAGS: -L native=/usr/local/lib
   msrv:
     # check that we can build using the minimal rust version that is specified by this crate
     runs-on: ubuntu-latest

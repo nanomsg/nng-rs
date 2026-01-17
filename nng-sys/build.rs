@@ -99,8 +99,6 @@ fn main() {
 
     if cfg!(feature = "bindgen") {
         println!("cargo:rerun-if-changed=src/wrapper.h");
-        println!("cargo:rerun-if-changed=src/compat.h");
-        println!("cargo:rerun-if-changed=src/supplemental.h");
     }
 
     // Rerun if any environment variables change
@@ -322,7 +320,7 @@ fn try_pkg_config() -> Option<(LibrarySource, Vec<PathBuf>)> {
     #[cfg(unix)]
     {
         if let Ok(lib) = pkg_config::Config::new()
-            .atleast_version("1.0.0")
+            .atleast_version("2.0.0")
             .probe("nng")
         {
             println!("cargo:warning=found NNG via pkg-config");
@@ -386,17 +384,17 @@ fn check_vendored_source() {
 
 #[cfg(feature = "vendored")]
 fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
-    let stats = if cfg!(feature = "vendored-stats") {
+    // Determine stats setting
+    // WORKAROUND: MSVC doesn't allow empty structs in C (error C2016), and NNG has a bug
+    // where nng/src/core/stats.h defines an empty `nni_stat_item` struct when stats are
+    // disabled. Until this is fixed upstream, we must always enable stats on MSVC.
+    // See: https://github.com/nanomsg/nng/issues/2217
+    let stats = if cfg!(feature = "vendored-stats") || cfg!(target_env = "msvc") {
         "ON"
     } else {
         "OFF"
     };
     let tls = if cfg!(feature = "tls") { "ON" } else { "OFF" };
-    let compat = if cfg!(feature = "compat") {
-        "ON"
-    } else {
-        "OFF"
-    };
 
     // Determine link type
     let static_link = should_link_static(true);
@@ -410,7 +408,6 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         .define("NNG_ENABLE_TLS", tls)
         .define("NNG_ENABLE_NNGCAT", "OFF")
         .define("NNG_ENABLE_COVERAGE", "OFF")
-        .define("NNG_ENABLE_COMPAT", compat)
         // NOTE: the `cmake` crate sets `CMAKE_INSTALL_PREFIX` to point to `$OUT_DIR/build`, which
         // is what `.build()` returns (into `dst`) below!
         .build_target("install");
@@ -482,13 +479,6 @@ fn generate_bindings(include_dirs: &[PathBuf]) {
     // Add include path for nng headers
     for include_dir in include_dirs {
         builder = builder.clang_arg(format!("-I{}", include_dir.display()));
-    }
-
-    if cfg!(feature = "compat") {
-        builder = builder.header("src/compat.h");
-    }
-    if cfg!(feature = "supplemental") {
-        builder = builder.header("src/supplemental.h");
     }
 
     let out_file = PathBuf::from(env::var("OUT_DIR").unwrap()).join("bindings.rs");
