@@ -290,7 +290,15 @@ impl RouterMessage {
     }
 
     pub fn request_id(&self) -> Option<&[u8]> {
-        self.0.header().get(4..8)
+        let header = self.0.header();
+        let len = header.len();
+        if len >= 4 {
+            // The Request ID is always the last entry in the routing stack
+            // (pushed first by client, popped last by server)
+            Some(&header[len - 4..])
+        } else {
+            None
+        }
     }
 
     pub fn identity_str(&self) -> String {
