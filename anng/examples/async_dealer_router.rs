@@ -50,7 +50,10 @@ impl AsyncDealer {
         &mut self,
         body: &[u8],
     ) -> Result<u32, Box<dyn std::error::Error + Send + Sync>> {
-        let req_id = self.next_request_id.fetch_add(1, Ordering::Relaxed);
+        // Ensure the high bit is always set (0x80000000) to respect NNG REQ protocol
+        // which uses it as a "backtrace end" flag.
+        let id = self.next_request_id.fetch_add(1, Ordering::Relaxed);
+        let req_id = id | 0x80000000;
 
         let mut msg = Message::with_capacity(body.len());
         msg.write_all(body)?;
@@ -66,11 +69,9 @@ impl AsyncDealer {
     ///
     /// Returns the reply message. The message body contains the response.
     /// The header (if any) is preserved but usually not needed for processing.
-    pub async fn recv(&mut self) -> Result<Message, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn recv(&mut self) -> Result<DealerMessage, Box<dyn std::error::Error + Send + Sync>> {
         let msg = self.socket.recv().await?;
-        // Note: We could strip the header here if we wanted to enforce a "clean" body,
-        // but often the header is empty on receive for Dealer (request ID is stripped by NNG usually).
-        Ok(msg)
+        Ok(DealerMessage::from_msg(msg))
     }
 }
 
@@ -91,11 +92,11 @@ impl AsyncRouter {
 
     /// Receives a request.
     ///
-    /// Returns a `RoutedMessage` which contains the original message with its routing header preserved.
+    /// Returns a `RouterMessage` which contains the original message with its routing header preserved.
     /// This message MUST be used to send the reply via `send_reply` to ensure correct routing.
-    pub async fn recv(&mut self) -> Result<Message, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn recv(&mut self) -> Result<RouterMessage, Box<dyn std::error::Error + Send + Sync>> {
         let msg = self.socket.recv().await?;
-        Ok(msg)
+        Ok(RouterMessage::from_msg(msg))
     }
 
     /// Sends a reply to a previously received request.
@@ -104,9 +105,9 @@ impl AsyncRouter {
     /// and sends it back. The body of the message should have been updated with the response.
     pub async fn send(
         &mut self,
-        msg: Message,
+        msg: RouterMessage,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.socket.send(msg).await.map_err(|(e, _)| e)?;
+        self.socket.send(msg.into_msg()).await.map_err(|(e, _)| e)?;
         Ok(())
     }
 
@@ -134,7 +135,7 @@ struct Args {
 
 fn parse_args() -> Result<Args, Box<dyn std::error::Error + Send + Sync>> {
     let mut mode = None;
-    let mut url = String::from("tcp://127.0.0.1:5560");
+    let mut url = String::from("ipc:///tmp/dealer_router.sock");
 
     let mut parser = lexopt::Parser::from_env();
     while let Some(arg) = parser.next()? {
@@ -229,7 +230,15 @@ async fn run_client(
     println!("CLIENT: Will send requests for {}ms delays", delay_ms);
 
     // Use AsyncDealer helper
-    let mut dealer = AsyncDealer::dial(url).await?;
+    let mut dealer = loop {
+        match AsyncDealer::dial(url).await {
+            Ok(d) => break d,
+            Err(e) => {
+                eprintln!("CLIENT: Failed to connect: {}. Retrying in 1s...", e);
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+    };
 
     // Send requests sequentially to demonstrate server concurrency
     let num_requests = 5;
@@ -252,27 +261,48 @@ async fn run_client(
 
     // Receive replies
     for _ in 1..=num_requests {
-        let reply = dealer.recv().await?;
-        let response_text = String::from_utf8_lossy(reply.as_slice());
-        println!("CLIENT: Received reply: {}", response_text);
+        let msg = dealer.recv().await?;
+        let req_id = msg.request_id();
+        let response_text = String::from_utf8_lossy(msg.as_slice());
+        println!(
+            "CLIENT: Received reply for req {:x}: {}",
+            req_id, response_text
+        );
     }
 
     println!("CLIENT: All requests completed");
     Ok(())
 }
 
-trait MessageExt {
-    fn identity(&self) -> Option<&[u8]>;
-    fn identity_str(&self) -> String;
-}
+pub struct RouterMessage(Message);
 
-impl MessageExt for Message {
-    fn identity(&self) -> Option<&[u8]> {
-        self.header().get(..4)
+impl RouterMessage {
+    fn from_msg(msg: Message) -> Self {
+        Self(msg)
     }
 
-    fn identity_str(&self) -> String {
+    pub fn into_msg(self) -> Message {
+        self.0
+    }
+
+    pub fn identity(&self) -> Option<&[u8]> {
+        self.0.header().get(..4)
+    }
+
+    pub fn request_id(&self) -> Option<&[u8]> {
+        self.0.header().get(4..8)
+    }
+
+    pub fn identity_str(&self) -> String {
         self.identity()
+            .unwrap_or(b"unknown")
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect()
+    }
+
+    pub fn request_id_str(&self) -> String {
+        self.request_id()
             .unwrap_or(b"unknown")
             .iter()
             .map(|b| format!("{:02x}", b))
@@ -280,16 +310,67 @@ impl MessageExt for Message {
     }
 }
 
-async fn handle_request(mut msg: Message, socket: &mut AsyncRouter) {
+impl std::ops::Deref for RouterMessage {
+    type Target = Message;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for RouterMessage {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+pub struct DealerMessage(Message);
+
+impl DealerMessage {
+    fn from_msg(msg: Message) -> Self {
+        Self(msg)
+    }
+
+    pub fn into_msg(self) -> Message {
+        self.0
+    }
+
+    pub fn request_id(&self) -> u32 {
+        let header = self.0.header();
+        if header.len() >= 4 {
+            let mut bytes = [0u8; 4];
+            bytes.copy_from_slice(&header[..4]);
+            u32::from_be_bytes(bytes)
+        } else {
+            0
+        }
+    }
+}
+
+impl std::ops::Deref for DealerMessage {
+    type Target = Message;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for DealerMessage {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+async fn handle_request(mut msg: RouterMessage, socket: &mut AsyncRouter) {
     // Parse request
     let req_str = String::from_utf8_lossy(msg.as_slice()).to_string();
     let delay_ms: u64 = req_str.trim().parse().unwrap_or(100);
 
     let identity_str = msg.identity_str();
+    let request_id_str = msg.request_id_str();
     println!(
-        "Received request: {} (delay {}ms) from {}",
-        req_str, delay_ms, identity_str
+        "Received request: {} (delay {}ms) from {} (req_id {})",
+        req_str, delay_ms, identity_str, request_id_str
     );
+
     let start = Instant::now();
 
     // Simulate work (non-blocking sleep)
