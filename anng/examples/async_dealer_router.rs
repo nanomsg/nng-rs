@@ -46,7 +46,7 @@ impl AsyncDealer {
     ///
     /// Automatically appends a Request ID to the header.
     /// Returns the Request ID used for this message.
-    pub async fn send_request(
+    pub async fn send(
         &mut self,
         body: &[u8],
     ) -> Result<u32, Box<dyn std::error::Error + Send + Sync>> {
@@ -66,9 +66,7 @@ impl AsyncDealer {
     ///
     /// Returns the reply message. The message body contains the response.
     /// The header (if any) is preserved but usually not needed for processing.
-    pub async fn recv_reply(
-        &mut self,
-    ) -> Result<Message, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn recv(&mut self) -> Result<Message, Box<dyn std::error::Error + Send + Sync>> {
         let msg = self.socket.recv().await?;
         // Note: We could strip the header here if we wanted to enforce a "clean" body,
         // but often the header is empty on receive for Dealer (request ID is stripped by NNG usually).
@@ -95,9 +93,7 @@ impl AsyncRouter {
     ///
     /// Returns a `RoutedMessage` which contains the original message with its routing header preserved.
     /// This message MUST be used to send the reply via `send_reply` to ensure correct routing.
-    pub async fn recv_request(
-        &mut self,
-    ) -> Result<Message, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn recv(&mut self) -> Result<Message, Box<dyn std::error::Error + Send + Sync>> {
         let msg = self.socket.recv().await?;
         Ok(msg)
     }
@@ -106,7 +102,7 @@ impl AsyncRouter {
     ///
     /// Takes the `msg` that was received (which contains the routing header)
     /// and sends it back. The body of the message should have been updated with the response.
-    pub async fn send_reply(
+    pub async fn send(
         &mut self,
         msg: Message,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -204,7 +200,7 @@ async fn run_server(url: &str) -> Result<(), Box<dyn std::error::Error + Send + 
         // Receive request
         // In Raw mode, the message header contains the routing ID of the client.
         // We MUST preserve this header to reply to the correct client.
-        let msg = match rx_socket.recv_request().await {
+        let msg = match rx_socket.recv().await {
             Ok(msg) => msg,
             Err(e) => {
                 eprintln!("Error receiving: {:?}", e);
@@ -246,7 +242,7 @@ async fn run_client(
         let request_text = request_delay.to_string();
 
         // Send request asynchronously using helper
-        dealer.send_request(request_text.as_bytes()).await?;
+        dealer.send(request_text.as_bytes()).await?;
 
         // Brief pause between requests to see server handling them concurrently
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -256,7 +252,7 @@ async fn run_client(
 
     // Receive replies
     for _ in 1..=num_requests {
-        let reply = dealer.recv_reply().await?;
+        let reply = dealer.recv().await?;
         let response_text = String::from_utf8_lossy(reply.as_slice());
         println!("CLIENT: Received reply: {}", response_text);
     }
@@ -265,12 +261,35 @@ async fn run_client(
     Ok(())
 }
 
+trait MessageExt {
+    fn identity(&self) -> Option<&[u8]>;
+    fn identity_str(&self) -> String;
+}
+
+impl MessageExt for Message {
+    fn identity(&self) -> Option<&[u8]> {
+        self.header().get(..4)
+    }
+
+    fn identity_str(&self) -> String {
+        self.identity()
+            .unwrap_or(b"unknown")
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect()
+    }
+}
+
 async fn handle_request(mut msg: Message, socket: &mut AsyncRouter) {
     // Parse request
     let req_str = String::from_utf8_lossy(msg.as_slice()).to_string();
     let delay_ms: u64 = req_str.trim().parse().unwrap_or(100);
 
-    println!("Received request: {} (delay {}ms)", req_str, delay_ms);
+    let identity_str = msg.identity_str();
+    println!(
+        "Received request: {} (delay {}ms) from {}",
+        req_str, delay_ms, identity_str
+    );
     let start = Instant::now();
 
     // Simulate work (non-blocking sleep)
@@ -289,7 +308,7 @@ async fn handle_request(mut msg: Message, socket: &mut AsyncRouter) {
     }
 
     // Send reply
-    if let Err(e) = socket.send_reply(msg).await {
+    if let Err(e) = socket.send(msg).await {
         eprintln!("Failed to send reply: {:?}", e);
     } else {
         println!("Sent reply: {}", response);
