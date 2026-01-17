@@ -310,29 +310,30 @@ impl<Protocol> Socket<Protocol> {
         // the Display impl of SocketAddr prints 1.2.3.4:5 or [ab:cd:ef]:5,
         // which matches what NNG expects.
         let url = CString::new(format!("tcp://{addr}")).expect("no null bytes in addr");
-        let listener = crate::protocols::add_listener_to_socket(self.socket, &url, |listener| {
-            let &TcpOptions {
-                no_delay,
-                keep_alive,
-                pipe: PipeOptions {},
-            } = options;
-
-            // SAFETY: these options are valid for TCP listeners, and the listener is valid.
-            unsafe {
-                nng_sys::nng_listener_set_bool(
-                    listener,
-                    nng_sys::NNG_OPT_TCP_NODELAY as *const _ as *const c_char,
+        let listener =
+            crate::protocols::add_listener_to_socket(self.inner.socket, &url, |listener| {
+                let &TcpOptions {
                     no_delay,
-                );
-                nng_sys::nng_listener_set_bool(
-                    listener,
-                    nng_sys::NNG_OPT_TCP_KEEPALIVE as *const _ as *const c_char,
                     keep_alive,
-                );
-            }
-            Ok(())
-        })
-        .await?;
+                    pipe: PipeOptions {},
+                } = options;
+
+                // SAFETY: these options are valid for TCP listeners, and the listener is valid.
+                unsafe {
+                    nng_sys::nng_listener_set_bool(
+                        listener,
+                        nng_sys::NNG_OPT_TCP_NODELAY as *const _ as *const c_char,
+                        no_delay,
+                    );
+                    nng_sys::nng_listener_set_bool(
+                        listener,
+                        nng_sys::NNG_OPT_TCP_KEEPALIVE as *const _ as *const c_char,
+                        keep_alive,
+                    );
+                }
+                Ok(())
+            })
+            .await?;
 
         Ok(TcpListener(Listener {
             socket: self,

@@ -87,7 +87,7 @@ pub(crate) unsafe fn create_socket<Protocol: core::fmt::Debug>(
     let socket = unsafe { socket.assume_init() };
 
     Ok(Socket {
-        socket,
+        inner: std::sync::Arc::new(crate::InnerSocket { socket }),
         aio: crate::aio::Aio::new(),
         recovered_msg: None,
         protocol: PhantomData::<Protocol>,
