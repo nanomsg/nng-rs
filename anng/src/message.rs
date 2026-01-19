@@ -681,7 +681,7 @@ impl Message {
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
             x if x == nng_err::NNG_ENOMEM as u32 => {
-                Err(AioError::from_nng_err(nng_err::NNG_ENOMEM)).map_err(Into::into)
+                Err(Into::into(AioError::from_nng_err(nng_err::NNG_ENOMEM)))
             }
             errno => {
                 unreachable!("nng_msg_insert documentation claims errno {errno} is never returned");
@@ -702,7 +702,7 @@ impl Message {
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
             x if x == nng_err::NNG_ENOMEM as u32 => {
-                Err(AioError::from_nng_err(nng_err::NNG_ENOMEM)).map_err(Into::into)
+                Err(Into::into(AioError::from_nng_err(nng_err::NNG_ENOMEM)))
             }
             errno => {
                 unreachable!(
@@ -725,7 +725,7 @@ impl Message {
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
             x if x == nng_err::NNG_ENOMEM as u32 => {
-                Err(AioError::from_nng_err(nng_err::NNG_ENOMEM)).map_err(Into::into)
+                Err(Into::into(AioError::from_nng_err(nng_err::NNG_ENOMEM)))
             }
             errno => {
                 unreachable!(
@@ -946,7 +946,7 @@ impl io::Write for Message {
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
             x if x == nng_err::NNG_ENOMEM as u32 => {
-                Err(AioError::from_nng_err(nng_err::NNG_ENOMEM)).map_err(io::Error::from)
+                Err(io::Error::from(AioError::from_nng_err(nng_err::NNG_ENOMEM)))
             }
             errno => {
                 unreachable!("nng_msg_append documentation claims errno {errno} is never returned");
