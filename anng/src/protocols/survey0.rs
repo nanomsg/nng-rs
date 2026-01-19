@@ -82,6 +82,7 @@ use core::{
     ffi::{CStr, c_char, c_int},
     time::Duration,
 };
+use nng_sys::nng_err;
 use std::io;
 
 /// Surveyor socket type for broadcasting surveys and collecting responses.
@@ -180,16 +181,16 @@ impl<'socket> ContextfulSocket<'socket, Surveyor0> {
 
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            nng_sys::NNG_ECLOSED => {
+            x if x == nng_err::NNG_ECLOSED as u32 => {
                 unreachable!("context is still open");
             }
-            nng_sys::NNG_EINVAL => {
+            x if x == nng_err::NNG_EINVAL as u32 => {
                 unreachable!("timeout value should be valid");
             }
-            nng_sys::NNG_ENOTSUP => {
+            x if x == nng_err::NNG_ENOTSUP as u32 => {
                 unreachable!("surveyor context should support SURVEYTIME option");
             }
-            nng_sys::NNG_EREADONLY => {
+            x if x == nng_err::NNG_EREADONLY as u32 => {
                 unreachable!("SURVEYTIME is not read-only");
             }
             errno => {
@@ -362,7 +363,9 @@ impl SurveyResponses<'_, '_> {
                 tracing::debug!("survey timeout reached");
                 None
             }
-            Err(AioError::Operation(errno)) if errno.get() == nng_sys::NNG_ESTATE => {
+            Err(AioError::Operation(errno))
+                if errno.get() == nng_sys::nng_err::NNG_ESTATE as u32 =>
+            {
                 // we hit this if we start the read _after_ the survey has already expired
                 tracing::debug!("survey already timed out");
                 None
@@ -389,7 +392,9 @@ impl SurveyResponses<'_, '_> {
                 Some(Ok(Some(message)))
             }
             Ok(None) => None, // Would block - survey is still active
-            Err(AioError::Operation(errno)) if errno.get() == nng_sys::NNG_ESTATE => {
+            Err(AioError::Operation(errno))
+                if errno.get() == nng_sys::nng_err::NNG_ESTATE as u32 =>
+            {
                 // Survey already timed out
                 tracing::debug!("survey already timed out");
                 Some(Ok(None))

@@ -8,6 +8,7 @@ use core::{
     ops::{Deref, DerefMut},
     ptr::NonNull,
 };
+use nng_sys::nng_err;
 use std::io;
 
 /// A memory-managed wrapper around NNG messages.
@@ -146,7 +147,7 @@ impl Clone for Message {
         let errno = unsafe { nng_sys::nng_msg_dup(&mut msg, self.inner.as_ptr()) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            nng_sys::NNG_ENOMEM => {
+            x if x == nng_err::NNG_ENOMEM as u32 => {
                 panic!("OOM");
             }
             errno => {
@@ -244,7 +245,7 @@ impl Message {
         let errno = unsafe { nng_sys::nng_msg_alloc(&mut msg, size) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            nng_sys::NNG_ENOMEM => {
+            x if x == nng_err::NNG_ENOMEM as u32 => {
                 panic!("OOM");
             }
             errno => {
@@ -392,35 +393,37 @@ impl Message {
         // SAFETY: arg and addr are both valid, and on success, nng_pipe_get_addr initializes
         let addr = unsafe {
             let mut addr = MaybeUninit::<nng_sys::nng_sockaddr>::uninit();
-            let errno = nng_sys::nng_pipe_get_addr(
+            let err = nng_sys::nng_pipe_get_addr(
                 pipe,
                 nng_sys::NNG_OPT_REMADDR as *const _ as *const c_char,
                 addr.as_mut_ptr(),
             );
-            match u32::try_from(errno).expect("errno is never negative") {
-                0 => {}
-                nng_sys::NNG_ENOTSUP => {
+            match err {
+                nng_err::NNG_OK => addr.assume_init(),
+                nng_err::NNG_ENOTSUP => {
                     tracing::warn!("Message pipe does not support REMADDR");
                     return None;
                 }
-                nng_sys::NNG_ENOENT => {
+                nng_err::NNG_ENOENT => {
                     tracing::warn!("Message does not have a pipe");
                     return None;
                 }
-                errno if (errno & nng_sys::NNG_ESYSERR) != 0 => {
-                    tracing::warn!(
-                        "nng_pipe_get_addr returned a system error: {}",
-                        io::Error::from_raw_os_error((errno & !nng_sys::NNG_ESYSERR) as i32)
-                    );
-                    return None;
-                }
-                errno => {
+                err => {
+                    let errno = err as u32;
+                    if (errno & nng_err::NNG_ESYSERR as u32) != 0 {
+                        tracing::warn!(
+                            "nng_pipe_get_addr returned a system error: {}",
+                            io::Error::from_raw_os_error(
+                                (errno & !(nng_err::NNG_ESYSERR as u32)) as i32
+                            )
+                        );
+                        return None;
+                    }
                     unreachable!(
-                        "nng_pipe_get_addr documentation claims errno {errno} is never returned"
+                        "nng_pipe_get_addr documentation claims err {err:?} is never returned"
                     );
                 }
             }
-            addr.assume_init()
         };
 
         Addr::from_nng(addr)
@@ -447,7 +450,7 @@ impl Message {
         let errno = unsafe { nng_sys::nng_msg_reserve(self.inner.as_ptr(), capacity) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            nng_sys::NNG_ENOMEM => {
+            x if x == nng_err::NNG_ENOMEM as u32 => {
                 panic!("OOM");
             }
             errno => {
@@ -541,7 +544,7 @@ impl Message {
         let errno = unsafe { nng_sys::nng_msg_chop(self.inner.as_ptr(), chop) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            nng_sys::NNG_EINVAL => {
+            x if x == nng_err::NNG_EINVAL as u32 => {
                 unreachable!("we checked that we're chopping no more than the body length");
             }
             errno => {
@@ -583,7 +586,7 @@ impl Message {
         let errno = unsafe { nng_sys::nng_msg_trim(self.inner.as_ptr(), trim) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            nng_sys::NNG_EINVAL => {
+            x if x == nng_err::NNG_EINVAL as u32 => {
                 unreachable!("we checked that we're trimming no more than the body length");
             }
             errno => {
@@ -608,7 +611,7 @@ impl Message {
         let errno = unsafe { nng_sys::nng_msg_header_chop(self.inner.as_ptr(), chop) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            nng_sys::NNG_EINVAL => {
+            x if x == nng_err::NNG_EINVAL as u32 => {
                 unreachable!("we checked that we're chopping no more than the header length");
             }
             errno => {
@@ -628,7 +631,7 @@ impl Message {
         let errno = unsafe { nng_sys::nng_msg_header_trim(self.inner.as_ptr(), trim) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            nng_sys::NNG_EINVAL => {
+            x if x == nng_err::NNG_EINVAL as u32 => {
                 unreachable!("we checked that we're trimming no more than the header length");
             }
             errno => {
@@ -677,9 +680,9 @@ impl Message {
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
-            errno @ nng_sys::NNG_ENOMEM => Err(AioError::try_from_u32(errno)
-                .map_err(io::Error::from)
-                .expect_err("0 is checked above")),
+            x if x == nng_err::NNG_ENOMEM as u32 => {
+                Err(AioError::from_nng_err(nng_err::NNG_ENOMEM)).map_err(Into::into)
+            }
             errno => {
                 unreachable!("nng_msg_insert documentation claims errno {errno} is never returned");
             }
@@ -698,9 +701,9 @@ impl Message {
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
-            errno @ nng_sys::NNG_ENOMEM => Err(AioError::try_from_u32(errno)
-                .map_err(io::Error::from)
-                .expect_err("0 is checked above")),
+            x if x == nng_err::NNG_ENOMEM as u32 => {
+                Err(AioError::from_nng_err(nng_err::NNG_ENOMEM)).map_err(Into::into)
+            }
             errno => {
                 unreachable!(
                     "nng_msg_header_append documentation claims errno {errno} is never returned"
@@ -721,9 +724,9 @@ impl Message {
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
-            errno @ nng_sys::NNG_ENOMEM => Err(AioError::try_from_u32(errno)
-                .map_err(io::Error::from)
-                .expect_err("0 is checked above")),
+            x if x == nng_err::NNG_ENOMEM as u32 => {
+                Err(AioError::from_nng_err(nng_err::NNG_ENOMEM)).map_err(Into::into)
+            }
             errno => {
                 unreachable!(
                     "nng_msg_header_insert documentation claims errno {errno} is never returned"
@@ -859,7 +862,7 @@ impl Message {
                 0 => {
                     // nng_msg_realloc sets the length to the new size, which is what we want
                 }
-                nng_sys::NNG_ENOMEM => {
+                x if x == nng_err::NNG_ENOMEM as u32 => {
                     panic!("OOM");
                 }
                 errno => {
@@ -942,9 +945,9 @@ impl io::Write for Message {
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
-            errno @ nng_sys::NNG_ENOMEM => Err(AioError::try_from_u32(errno)
-                .map_err(io::Error::from)
-                .expect_err("0 is checked above")),
+            x if x == nng_err::NNG_ENOMEM as u32 => {
+                Err(AioError::from_nng_err(nng_err::NNG_ENOMEM)).map_err(io::Error::from)
+            }
             errno => {
                 unreachable!("nng_msg_append documentation claims errno {errno} is never returned");
             }

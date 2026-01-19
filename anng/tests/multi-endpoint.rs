@@ -1,5 +1,3 @@
-#![cfg(nng_110)]
-
 use anng::Message;
 use std::{io::Write, sync::Arc, time::Duration};
 use tokio::select;

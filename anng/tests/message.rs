@@ -94,7 +94,8 @@ async fn remote_addr_inproc() {
             panic!("Expected inproc address, got: {addr}");
         };
 
-        assert_eq!(name, CString::new("inproc://test_remote_addr").unwrap());
+        // NNG returns just the address name without the "inproc://" prefix
+        assert_eq!(name, CString::new("test_remote_addr").unwrap());
 
         reply.reply(msg).await.unwrap();
     }
@@ -113,7 +114,8 @@ async fn remote_addr_inproc() {
             panic!("Expected inproc address, got: {addr}");
         };
 
-        assert_eq!(name, CString::new("inproc://test_remote_addr").unwrap());
+        // NNG returns just the address name without the "inproc://" prefix
+        assert_eq!(name, CString::new("test_remote_addr").unwrap());
     }
     .instrument(tracing::info_span!("req0"));
 
