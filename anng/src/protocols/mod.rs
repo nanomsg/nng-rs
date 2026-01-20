@@ -46,22 +46,6 @@ use core::{
 };
 use nng_sys::nng_err;
 use std::io;
-use std::sync::Once;
-
-static NNG_INIT: Once = Once::new();
-
-/// Ensures NNG is initialized before any operations.
-/// This is required by NNG 2.0 and must be called before using any NNG functions.
-fn ensure_nng_initialized() {
-    NNG_INIT.call_once(|| {
-        // SAFETY: nng_init is safe to call once before any NNG operations.
-        // Passing null uses NNG's default thread pool configuration.
-        let result = unsafe { nng_sys::nng_init(std::ptr::null()) };
-        if result != nng_err::NNG_OK {
-            panic!("Failed to initialize NNG: {result}");
-        }
-    });
-}
 
 pub mod bus0;
 pub mod pair1;
@@ -81,7 +65,7 @@ pub(crate) unsafe fn create_socket<Protocol: core::fmt::Debug>(
     proto: Protocol,
 ) -> io::Result<Socket<Protocol>> {
     // ensure NNG is initialized before creating any sockets (required by NNG 2.0)
-    ensure_nng_initialized();
+    crate::init_nng(None).expect("init_nng(None) cannot fail");
 
     let mut socket = MaybeUninit::<nng_sys::nng_socket>::uninit();
     // SAFETY: socket pointer is valid for writing.
