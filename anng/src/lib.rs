@@ -516,21 +516,6 @@ impl<'socket, Protocol> ContextfulSocket<'socket, Protocol> {
     }
 }
 
-fn nng_strerror(err: nng_sys::nng_err) -> &'static CStr {
-    // SAFETY: nng_strerror has no additional safety requirements.
-    let raw = unsafe { nng_sys::nng_strerror(err) };
-    // SAFETY: nng_strerror returns a valid null-terminated string.
-    //         no allocation information is provided,
-    //         which implies that this is a static string reference.
-    #[allow(clippy::let_and_return)]
-    let cstr = unsafe { CStr::from_ptr(raw) };
-    cstr
-}
-
-fn nng_err_to_string(err: nng_sys::nng_err) -> String {
-    nng_strerror(err).to_string_lossy().into_owned()
-}
-
 /// Helper function that calls `tokio::task::block_in_place` when appropriate.
 ///
 /// This function checks if there's a tokio runtime and whether it is multi-threaded,

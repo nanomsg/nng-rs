@@ -58,7 +58,7 @@ fn ensure_nng_initialized() {
         // Passing null uses NNG's default thread pool configuration.
         let result = unsafe { nng_sys::nng_init(std::ptr::null()) };
         if result != nng_err::NNG_OK {
-            panic!("Failed to initialize NNG: {:?}", result);
+            panic!("Failed to initialize NNG: {result}");
         }
     });
 }

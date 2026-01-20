@@ -420,7 +420,7 @@ impl Message {
                         return None;
                     }
                     unreachable!(
-                        "nng_pipe_get_addr documentation claims err {err:?} is never returned"
+                        "nng_pipe_get_addr documentation claims err \"{err}\" is never returned"
                     );
                 }
             }

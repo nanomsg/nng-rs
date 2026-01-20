@@ -75,7 +75,7 @@ impl Aio {
             }
             err => {
                 unreachable!(
-                    "nng_aio_alloc documentation claims nng_err {err:?} is never returned"
+                    "nng_aio_alloc documentation claims nng_err \"{err}\" is never returned"
                 );
             }
         }
@@ -340,8 +340,7 @@ impl fmt::Display for AioError {
             AioError::Operation(code) => {
                 // SAFETY: transmute is safe because nng_err is repr(u32)
                 let err = unsafe { core::mem::transmute::<u32, nng_err>(code.get()) };
-                let error_str = crate::nng_strerror(err);
-                write!(f, "{}", error_str.to_string_lossy())
+                write!(f, "{err}")
             }
         }
     }
@@ -397,109 +396,101 @@ impl From<AioError> for io::Error {
                 err if err == nng_err::NNG_EINTR as u32 => {
                     unreachable!("nng never exposes this publicly")
                 }
-                err if err == nng_err::NNG_EBUSY as u32 => io::Error::new(
-                    io::ErrorKind::ResourceBusy,
-                    crate::nng_err_to_string(nng_err::NNG_EBUSY),
-                ),
-                err if err == nng_err::NNG_EAGAIN as u32 => io::Error::new(
-                    io::ErrorKind::WouldBlock,
-                    crate::nng_err_to_string(nng_err::NNG_EAGAIN),
-                ),
-                err if err == nng_err::NNG_ENOTSUP as u32 => io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    crate::nng_err_to_string(nng_err::NNG_ENOTSUP),
-                ),
+                err if err == nng_err::NNG_EBUSY as u32 => {
+                    io::Error::new(io::ErrorKind::ResourceBusy, nng_err::NNG_EBUSY.to_string())
+                }
+                err if err == nng_err::NNG_EAGAIN as u32 => {
+                    io::Error::new(io::ErrorKind::WouldBlock, nng_err::NNG_EAGAIN.to_string())
+                }
+                err if err == nng_err::NNG_ENOTSUP as u32 => {
+                    io::Error::new(io::ErrorKind::Unsupported, nng_err::NNG_ENOTSUP.to_string())
+                }
                 err if err == nng_err::NNG_EADDRINUSE as u32 => io::Error::new(
                     io::ErrorKind::AddrInUse,
-                    crate::nng_err_to_string(nng_err::NNG_EADDRINUSE),
+                    nng_err::NNG_EADDRINUSE.to_string(),
                 ),
-                err if err == nng_err::NNG_ENOENT as u32 => io::Error::new(
-                    io::ErrorKind::NotFound,
-                    crate::nng_err_to_string(nng_err::NNG_ENOENT),
-                ),
+                err if err == nng_err::NNG_ENOENT as u32 => {
+                    io::Error::new(io::ErrorKind::NotFound, nng_err::NNG_ENOENT.to_string())
+                }
                 err if err == nng_err::NNG_EPERM as u32 => io::Error::new(
                     io::ErrorKind::PermissionDenied,
-                    crate::nng_err_to_string(nng_err::NNG_EPERM),
+                    nng_err::NNG_EPERM.to_string(),
                 ),
                 err if err == nng_err::NNG_EMSGSIZE as u32 => io::Error::new(
                     io::ErrorKind::FileTooLarge,
-                    crate::nng_err_to_string(nng_err::NNG_EMSGSIZE),
+                    nng_err::NNG_EMSGSIZE.to_string(),
                 ),
                 err if err == nng_err::NNG_ECONNABORTED as u32 => io::Error::new(
                     io::ErrorKind::ConnectionAborted,
-                    crate::nng_err_to_string(nng_err::NNG_ECONNABORTED),
+                    nng_err::NNG_ECONNABORTED.to_string(),
                 ),
                 err if err == nng_err::NNG_ENOFILES as u32 => io::Error::new(
                     io::ErrorKind::QuotaExceeded,
-                    crate::nng_err_to_string(nng_err::NNG_ENOFILES),
+                    nng_err::NNG_ENOFILES.to_string(),
                 ),
-                err if err == nng_err::NNG_ENOSPC as u32 => io::Error::new(
-                    io::ErrorKind::StorageFull,
-                    crate::nng_err_to_string(nng_err::NNG_ENOSPC),
-                ),
+                err if err == nng_err::NNG_ENOSPC as u32 => {
+                    io::Error::new(io::ErrorKind::StorageFull, nng_err::NNG_ENOSPC.to_string())
+                }
                 err if err == nng_err::NNG_EEXIST as u32 => io::Error::new(
                     io::ErrorKind::AlreadyExists,
-                    crate::nng_err_to_string(nng_err::NNG_EEXIST),
+                    nng_err::NNG_EEXIST.to_string(),
                 ),
                 err if err == nng_err::NNG_EREADONLY as u32 => io::Error::new(
                     io::ErrorKind::Unsupported,
-                    crate::nng_err_to_string(nng_err::NNG_EREADONLY),
+                    nng_err::NNG_EREADONLY.to_string(),
                 ),
                 err if err == nng_err::NNG_EWRITEONLY as u32 => io::Error::new(
                     io::ErrorKind::Unsupported,
-                    crate::nng_err_to_string(nng_err::NNG_EWRITEONLY),
+                    nng_err::NNG_EWRITEONLY.to_string(),
                 ),
                 err if err == nng_err::NNG_ECRYPTO as u32 => {
-                    io::Error::other(crate::nng_err_to_string(nng_err::NNG_ECRYPTO))
+                    io::Error::other(nng_err::NNG_ECRYPTO.to_string())
                 }
                 err if err == nng_err::NNG_EBADTYPE as u32 => io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    crate::nng_err_to_string(nng_err::NNG_EBADTYPE),
+                    nng_err::NNG_EBADTYPE.to_string(),
                 ),
                 err if err == nng_err::NNG_ECONNSHUT as u32 => io::Error::new(
                     io::ErrorKind::BrokenPipe,
-                    crate::nng_err_to_string(nng_err::NNG_ECONNSHUT),
+                    nng_err::NNG_ECONNSHUT.to_string(),
                 ),
                 err if err == nng_err::NNG_EINTERNAL as u32 => {
-                    io::Error::other(crate::nng_err_to_string(nng_err::NNG_EINTERNAL))
+                    io::Error::other(nng_err::NNG_EINTERNAL.to_string())
                 }
                 err if err == nng_err::NNG_EADDRINVAL as u32 => io::Error::new(
                     io::ErrorKind::InvalidInput,
-                    crate::nng_err_to_string(nng_err::NNG_EADDRINVAL),
+                    nng_err::NNG_EADDRINVAL.to_string(),
                 ),
-                err if err == nng_err::NNG_ECLOSED as u32 => io::Error::new(
-                    io::ErrorKind::BrokenPipe,
-                    crate::nng_err_to_string(nng_err::NNG_ECLOSED),
-                ),
+                err if err == nng_err::NNG_ECLOSED as u32 => {
+                    io::Error::new(io::ErrorKind::BrokenPipe, nng_err::NNG_ECLOSED.to_string())
+                }
                 err if err == nng_err::NNG_ESTATE as u32 => {
-                    io::Error::other(crate::nng_err_to_string(nng_err::NNG_ESTATE))
+                    io::Error::other(nng_err::NNG_ESTATE.to_string())
                 }
                 err if err == nng_err::NNG_ECONNREFUSED as u32 => io::Error::new(
                     io::ErrorKind::ConnectionRefused,
-                    crate::nng_err_to_string(nng_err::NNG_ECONNREFUSED),
+                    nng_err::NNG_ECONNREFUSED.to_string(),
                 ),
                 err if err == nng_err::NNG_ECONNRESET as u32 => io::Error::new(
                     io::ErrorKind::ConnectionReset,
-                    crate::nng_err_to_string(nng_err::NNG_ECONNRESET),
+                    nng_err::NNG_ECONNRESET.to_string(),
                 ),
-                err if err == nng_err::NNG_EINVAL as u32 => io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    crate::nng_err_to_string(nng_err::NNG_EINVAL),
-                ),
-                err if err == nng_err::NNG_ENOMEM as u32 => io::Error::new(
-                    io::ErrorKind::OutOfMemory,
-                    crate::nng_err_to_string(nng_err::NNG_ENOMEM),
-                ),
+                err if err == nng_err::NNG_EINVAL as u32 => {
+                    io::Error::new(io::ErrorKind::InvalidInput, nng_err::NNG_EINVAL.to_string())
+                }
+                err if err == nng_err::NNG_ENOMEM as u32 => {
+                    io::Error::new(io::ErrorKind::OutOfMemory, nng_err::NNG_ENOMEM.to_string())
+                }
                 err if err == nng_err::NNG_EPEERAUTH as u32 => io::Error::new(
                     io::ErrorKind::ConnectionAborted,
-                    crate::nng_err_to_string(nng_err::NNG_EPEERAUTH),
+                    nng_err::NNG_EPEERAUTH.to_string(),
                 ),
                 err if err == nng_err::NNG_EPROTO as u32 => {
-                    io::Error::other(crate::nng_err_to_string(nng_err::NNG_EPROTO))
+                    io::Error::other(nng_err::NNG_EPROTO.to_string())
                 }
                 err if err == nng_err::NNG_EUNREACHABLE as u32 => io::Error::new(
                     io::ErrorKind::HostUnreachable,
-                    crate::nng_err_to_string(nng_err::NNG_EUNREACHABLE),
+                    nng_err::NNG_EUNREACHABLE.to_string(),
                 ),
                 err if (err & nng_err::NNG_ESYSERR as u32) != 0 => {
                     io::Error::from_raw_os_error(err as i32 & !(nng_err::NNG_ESYSERR as i32))

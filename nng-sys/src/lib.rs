@@ -109,6 +109,19 @@ impl std::fmt::Display for EnumFromIntError {
     }
 }
 
+#[cfg(feature = "std")]
+impl std::fmt::Display for nng_err {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // SAFETY: nng_strerror has no additional safety requirements.
+        let raw = unsafe { nng_strerror(*self) };
+        // SAFETY: nng_strerror returns a valid null-terminated string.
+        //         no allocation information is provided,
+        //         which implies that this is a static string reference.
+        let cstr = unsafe { std::ffi::CStr::from_ptr(raw) };
+        write!(fmt, "{}", cstr.to_string_lossy())
+    }
+}
+
 impl nng_stat_type_enum {
     /// Converts value returned by [nng_stat_type](https://nanomsg.github.io/nng/man/v1.1.0/nng_stat_type.3) into `nng_stat_type_enum`.
     pub fn try_convert_from(value: i32) -> Option<Self> {
