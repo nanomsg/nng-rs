@@ -109,18 +109,32 @@ impl std::fmt::Display for EnumFromIntError {
     }
 }
 
+impl nng_err {
+    /// Returns a static string describing this error.
+    ///
+    /// This is a thin wrapper around `nng_strerror` that works in `no_std`
+    /// environments. The returned string has static lifetime as NNG returns
+    /// pointers to static string literals.
+    pub fn as_str(&self) -> &'static str {
+        // SAFETY: nng_strerror is safe to call with any nng_err value.
+        let raw = unsafe { nng_strerror(*self) };
+        // SAFETY: nng_strerror returns a valid, null-terminated, static string.
+        let cstr = unsafe { core::ffi::CStr::from_ptr(raw) };
+        // NNG error strings are always valid UTF-8 (ASCII)
+        cstr.to_str()
+            .expect("NNG error strings are always valid UTF-8")
+    }
+}
+
 #[cfg(feature = "std")]
 impl std::fmt::Display for nng_err {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        // SAFETY: nng_strerror has no additional safety requirements.
-        let raw = unsafe { nng_strerror(*self) };
-        // SAFETY: nng_strerror returns a valid null-terminated string.
-        //         no allocation information is provided,
-        //         which implies that this is a static string reference.
-        let cstr = unsafe { std::ffi::CStr::from_ptr(raw) };
-        write!(fmt, "{}", cstr.to_string_lossy())
+        write!(fmt, "{}", self.as_str())
     }
 }
+
+#[cfg(feature = "std")]
+impl std::error::Error for nng_err {}
 
 impl nng_stat_type_enum {
     /// Converts value returned by [nng_stat_type](https://nanomsg.github.io/nng/man/v1.1.0/nng_stat_type.3) into `nng_stat_type_enum`.
