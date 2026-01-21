@@ -18,11 +18,19 @@ pub enum ThreadLimit {
 /// When `max` is [`ThreadLimit::Limit`], it must be greater than or equal to `num`.
 /// The [`init_nng`] function validates this and returns [`InitError::Invalid`] if violated.
 #[derive(Debug, Copy, Clone)]
+#[non_exhaustive]
 pub struct ThreadPoolConfig {
     /// Number of threads to create initially.
     pub num: NonZeroI16,
     /// Maximum thread count. [`ThreadLimit::Unlimited`] removes the cap.
     pub max: ThreadLimit,
+}
+
+impl ThreadPoolConfig {
+    /// Creates a new thread pool configuration.
+    pub fn new(num: NonZeroI16, max: ThreadLimit) -> Self {
+        Self { num, max }
+    }
 }
 
 /// Configuration parameters for NNG library initialization.
@@ -33,6 +41,7 @@ pub struct ThreadPoolConfig {
 ///
 /// The default values are declared [within NNG](https://github.com/nanomsg/nng/blob/main/src/core/init.c)
 #[derive(Debug, Default, Copy, Clone)]
+#[non_exhaustive]
 pub struct NngConfig {
     /// Task queue threads. `None` = use NNG defaults.
     pub task_threads: Option<ThreadPoolConfig>,
@@ -44,8 +53,16 @@ pub struct NngConfig {
     pub num_resolver_threads: Option<NonZeroI16>,
 }
 
+impl NngConfig {
+    /// Creates a new NNG configuration with all defaults.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// Error returned by [`init_nng`] when initialization fails.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum InitError {
     /// Invalid configuration parameter.
     Invalid(String),
