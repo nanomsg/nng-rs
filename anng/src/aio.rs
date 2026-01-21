@@ -496,8 +496,8 @@ impl From<AioError> for io::Error {
                     io::Error::from_raw_os_error(err as i32 & !(nng_err::NNG_ESYSERR as i32))
                 }
                 err if (err & nng_err::NNG_ETRANERR as u32) != 0 => {
-                    // this is a bit flag that indicates an underlying transport
-                    // level error since this isn't a system error (like
+                    // This is a bit flag that indicates an underlying transport
+                    // level error. Since this isn't a system error (like
                     // `NNG_ESYSERR`), we can't turn it into anything more
                     // specific, so we just bubble it up as "other".
                     //
