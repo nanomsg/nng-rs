@@ -1,6 +1,6 @@
 use core::fmt;
+use core::num::NonZeroI16;
 use nng_sys::nng_err;
-use std::num::NonZeroUsize;
 
 /// Thread limit configuration for NNG thread pools.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -8,7 +8,7 @@ pub enum ThreadLimit {
     /// No limit on thread count.
     Unlimited,
     /// Specific limit on thread count.
-    Limit(NonZeroUsize),
+    Limit(NonZeroI16),
 }
 
 /// Configuration for a NNG thread pool.
@@ -20,7 +20,7 @@ pub enum ThreadLimit {
 #[derive(Debug, Copy, Clone)]
 pub struct ThreadPoolConfig {
     /// Number of threads to create initially.
-    pub num: NonZeroUsize,
+    pub num: NonZeroI16,
     /// Maximum thread count. [`ThreadLimit::Unlimited`] removes the cap.
     pub max: ThreadLimit,
 }
@@ -41,7 +41,7 @@ pub struct NngConfig {
     /// Poller threads. `None` = use NNG defaults.
     pub poller_threads: Option<ThreadPoolConfig>,
     /// Number of resolver threads. `None` = use NNG default.
-    pub num_resolver_threads: Option<NonZeroUsize>,
+    pub num_resolver_threads: Option<NonZeroI16>,
 }
 
 /// Error returned by [`init_nng`] when initialization fails.
@@ -80,7 +80,7 @@ impl std::error::Error for InitError {}
 ///
 /// # Errors
 ///
-/// - [`InitError::Invalid`] - A configuration value is out of range or inconsistent.
+/// - [`InitError::Invalid`] - A configuration value is invalid (e.g., `num > max`).
 /// - [`InitError::AlreadyInitialized`] - Config provided after initialization.
 pub fn init_nng(config: Option<NngConfig>) -> Result<(), InitError> {
     let result = match config {
@@ -97,13 +97,13 @@ pub fn init_nng(config: Option<NngConfig>) -> Result<(), InitError> {
             }
 
             let params = nng_sys::nng_init_params {
-                num_task_threads: pool_num_to_i16("task_threads.num", cfg.task_threads)?,
-                max_task_threads: pool_max_to_i16("task_threads.max", cfg.task_threads)?,
-                num_expire_threads: pool_num_to_i16("expire_threads.num", cfg.expire_threads)?,
-                max_expire_threads: pool_max_to_i16("expire_threads.max", cfg.expire_threads)?,
-                num_poller_threads: pool_num_to_i16("poller_threads.num", cfg.poller_threads)?,
-                max_poller_threads: pool_max_to_i16("poller_threads.max", cfg.poller_threads)?,
-                num_resolver_threads: to_i16("num_resolver_threads", cfg.num_resolver_threads)?,
+                num_task_threads: pool_num_to_i16(cfg.task_threads),
+                max_task_threads: pool_max_to_i16(cfg.task_threads),
+                num_expire_threads: pool_num_to_i16(cfg.expire_threads),
+                max_expire_threads: pool_max_to_i16(cfg.expire_threads),
+                num_poller_threads: pool_num_to_i16(cfg.poller_threads),
+                max_poller_threads: pool_max_to_i16(cfg.poller_threads),
+                num_resolver_threads: cfg.num_resolver_threads.map_or(0, |n| n.get()),
             };
             // SAFETY: params is valid and properly initialized
             unsafe { nng_sys::nng_init(&params) }
@@ -121,44 +121,19 @@ pub fn init_nng(config: Option<NngConfig>) -> Result<(), InitError> {
     }
 }
 
-fn to_i16(name: &'static str, v: Option<NonZeroUsize>) -> Result<i16, InitError> {
-    match v {
-        None => Ok(0),
-        Some(n) => nonzero_to_i16(name, n),
-    }
-}
-
-fn nonzero_to_i16(name: &'static str, n: NonZeroUsize) -> Result<i16, InitError> {
-    let val = n.get();
-    if val > i16::MAX as usize {
-        Err(InitError::Invalid(format!(
-            "{name} value {val} exceeds max {}",
-            i16::MAX
-        )))
-    } else {
-        Ok(val as i16)
-    }
-}
-
-fn limit_to_i16(name: &'static str, limit: ThreadLimit) -> Result<i16, InitError> {
+fn limit_to_i16(limit: ThreadLimit) -> i16 {
     match limit {
-        ThreadLimit::Unlimited => Ok(-1),
-        ThreadLimit::Limit(n) => nonzero_to_i16(name, n),
+        ThreadLimit::Unlimited => -1,
+        ThreadLimit::Limit(n) => n.get(),
     }
 }
 
-fn pool_num_to_i16(name: &'static str, pool: Option<ThreadPoolConfig>) -> Result<i16, InitError> {
-    match pool {
-        None => Ok(0),
-        Some(p) => nonzero_to_i16(name, p.num),
-    }
+fn pool_num_to_i16(pool: Option<ThreadPoolConfig>) -> i16 {
+    pool.map_or(0, |p| p.num.get())
 }
 
-fn pool_max_to_i16(name: &'static str, pool: Option<ThreadPoolConfig>) -> Result<i16, InitError> {
-    match pool {
-        None => Ok(0),
-        Some(p) => limit_to_i16(name, p.max),
-    }
+fn pool_max_to_i16(pool: Option<ThreadPoolConfig>) -> i16 {
+    pool.map_or(0, |p| limit_to_i16(p.max))
 }
 
 fn validate_pool_config(name: &'static str, pool: &ThreadPoolConfig) -> Result<(), InitError> {
@@ -178,62 +153,41 @@ fn validate_pool_config(name: &'static str, pool: &ThreadPoolConfig) -> Result<(
 mod tests {
     use super::*;
 
-    fn nz(n: usize) -> NonZeroUsize {
-        NonZeroUsize::new(n).unwrap()
-    }
-
-    #[test]
-    fn test_nonzero_to_i16() {
-        // Valid values
-        assert_eq!(nonzero_to_i16("f", nz(100)), Ok(100));
-        assert_eq!(nonzero_to_i16("f", nz(i16::MAX as usize)), Ok(i16::MAX));
-
-        // Exceeds max
-        let result = nonzero_to_i16("test_field", nz(i16::MAX as usize + 1));
-        assert!(matches!(result, Err(InitError::Invalid(msg)) if msg.contains("test_field") && msg.contains("exceeds max")));
-    }
-
-    #[test]
-    fn test_to_i16() {
-        assert_eq!(to_i16("f", None), Ok(0));
-        assert_eq!(to_i16("f", Some(nz(50))), Ok(50));
+    fn nz(n: i16) -> NonZeroI16 {
+        NonZeroI16::new(n).unwrap()
     }
 
     #[test]
     fn test_limit_to_i16() {
         // Unlimited
-        assert_eq!(limit_to_i16("f", ThreadLimit::Unlimited), Ok(-1));
+        assert_eq!(limit_to_i16(ThreadLimit::Unlimited), -1);
         // Valid limit
-        assert_eq!(limit_to_i16("f", ThreadLimit::Limit(nz(42))), Ok(42));
-
-        // Exceeds max
-        let result = limit_to_i16("test_field", ThreadLimit::Limit(nz(i16::MAX as usize + 1)));
-        assert!(matches!(result, Err(InitError::Invalid(msg)) if msg.contains("test_field")));
+        assert_eq!(limit_to_i16(ThreadLimit::Limit(nz(42))), 42);
     }
 
     #[test]
     fn test_pool_num_to_i16() {
-        assert_eq!(pool_num_to_i16("f", None), Ok(0));
+        assert_eq!(pool_num_to_i16(None), 0);
 
         let pool = ThreadPoolConfig { num: nz(8), max: ThreadLimit::Unlimited };
-        assert_eq!(pool_num_to_i16("f", Some(pool)), Ok(8));
+        assert_eq!(pool_num_to_i16(Some(pool)), 8);
     }
 
     #[test]
     fn test_pool_max_to_i16() {
-        assert_eq!(pool_max_to_i16("f", None), Ok(0));
+        assert_eq!(pool_max_to_i16(None), 0);
 
         let unlimited = ThreadPoolConfig { num: nz(4), max: ThreadLimit::Unlimited };
-        assert_eq!(pool_max_to_i16("f", Some(unlimited)), Ok(-1));
+        assert_eq!(pool_max_to_i16(Some(unlimited)), -1);
 
         let limited = ThreadPoolConfig { num: nz(4), max: ThreadLimit::Limit(nz(16)) };
-        assert_eq!(pool_max_to_i16("f", Some(limited)), Ok(16));
+        assert_eq!(pool_max_to_i16(Some(limited)), 16);
     }
 
     #[test]
     fn test_validate_pool_config() {
         // Unlimited max always ok
-        let unlimited = ThreadPoolConfig { num: nz(1000), max: ThreadLimit::Unlimited };
+        let unlimited = ThreadPoolConfig { num: nz(100), max: ThreadLimit::Unlimited };
         assert!(validate_pool_config("t", &unlimited).is_ok());
 
         // num == max ok
