@@ -184,7 +184,10 @@ mod tests {
     fn test_pool_num_to_i16() {
         assert_eq!(pool_num_to_i16(None), 0);
 
-        let pool = ThreadPoolConfig { num: nz(8), max: ThreadLimit::Unlimited };
+        let pool = ThreadPoolConfig {
+            num: nz(8),
+            max: ThreadLimit::Unlimited,
+        };
         assert_eq!(pool_num_to_i16(Some(pool)), 8);
     }
 
@@ -192,29 +195,47 @@ mod tests {
     fn test_pool_max_to_i16() {
         assert_eq!(pool_max_to_i16(None), 0);
 
-        let unlimited = ThreadPoolConfig { num: nz(4), max: ThreadLimit::Unlimited };
+        let unlimited = ThreadPoolConfig {
+            num: nz(4),
+            max: ThreadLimit::Unlimited,
+        };
         assert_eq!(pool_max_to_i16(Some(unlimited)), -1);
 
-        let limited = ThreadPoolConfig { num: nz(4), max: ThreadLimit::Limit(nz(16)) };
+        let limited = ThreadPoolConfig {
+            num: nz(4),
+            max: ThreadLimit::Limit(nz(16)),
+        };
         assert_eq!(pool_max_to_i16(Some(limited)), 16);
     }
 
     #[test]
     fn test_validate_pool_config() {
         // Unlimited max always ok
-        let unlimited = ThreadPoolConfig { num: nz(100), max: ThreadLimit::Unlimited };
+        let unlimited = ThreadPoolConfig {
+            num: nz(100),
+            max: ThreadLimit::Unlimited,
+        };
         assert!(validate_pool_config("t", &unlimited).is_ok());
 
         // num == max ok
-        let equal = ThreadPoolConfig { num: nz(10), max: ThreadLimit::Limit(nz(10)) };
+        let equal = ThreadPoolConfig {
+            num: nz(10),
+            max: ThreadLimit::Limit(nz(10)),
+        };
         assert!(validate_pool_config("t", &equal).is_ok());
 
         // num < max ok
-        let less = ThreadPoolConfig { num: nz(5), max: ThreadLimit::Limit(nz(10)) };
+        let less = ThreadPoolConfig {
+            num: nz(5),
+            max: ThreadLimit::Limit(nz(10)),
+        };
         assert!(validate_pool_config("t", &less).is_ok());
 
         // num > max error
-        let exceeds = ThreadPoolConfig { num: nz(15), max: ThreadLimit::Limit(nz(10)) };
+        let exceeds = ThreadPoolConfig {
+            num: nz(15),
+            max: ThreadLimit::Limit(nz(10)),
+        };
         let result = validate_pool_config("task_threads", &exceeds);
         assert!(matches!(result, Err(InitError::Invalid(msg)) 
             if msg.contains("task_threads.num") && msg.contains("15") 
