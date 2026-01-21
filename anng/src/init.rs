@@ -102,7 +102,7 @@ impl std::error::Error for InitError {}
 pub fn init_nng(config: Option<NngConfig>) -> Result<(), InitError> {
     let result = match config {
         Some(cfg) => {
-            // Validate num <= max constraints
+            // Validate pool configs
             if let Some(ref pool) = cfg.task_threads {
                 validate_pool_config("task_threads", pool)?;
             }
@@ -111,6 +111,15 @@ pub fn init_nng(config: Option<NngConfig>) -> Result<(), InitError> {
             }
             if let Some(ref pool) = cfg.poller_threads {
                 validate_pool_config("poller_threads", pool)?;
+            }
+
+            // Validate num_resolver_threads is positive
+            if let Some(n) = cfg.num_resolver_threads {
+                if n.get() <= 0 {
+                    return Err(InitError::Invalid(
+                        "num_resolver_threads must be positive".into(),
+                    ));
+                }
             }
 
             let params = nng_sys::nng_init_params {
@@ -169,7 +178,23 @@ fn pool_max_to_i16(pool: Option<ThreadPoolConfig>) -> i16 {
 }
 
 fn validate_pool_config(name: &'static str, pool: &ThreadPoolConfig) -> Result<(), InitError> {
+    // num must be positive (NonZeroI16 can be negative)
+    if pool.num.get() <= 0 {
+        return Err(InitError::Invalid(format!(
+            "{name}.num must be positive, got {}",
+            pool.num.get()
+        )));
+    }
+
     if let ThreadLimit::Limit(max) = pool.max {
+        // max must be positive
+        if max.get() <= 0 {
+            return Err(InitError::Invalid(format!(
+                "{name}.max must be positive, got {}",
+                max.get()
+            )));
+        }
+        // num <= max
         if pool.num.get() > max.get() {
             return Err(InitError::Invalid(format!(
                 "{name}.num ({}) exceeds {name}.max ({})",
@@ -257,5 +282,21 @@ mod tests {
         assert!(matches!(result, Err(InitError::Invalid(msg)) 
             if msg.contains("task_threads.num") && msg.contains("15") 
             && msg.contains("task_threads.max") && msg.contains("10")));
+
+        // negative num error
+        let neg_num = ThreadPoolConfig {
+            num: nz(-5),
+            max: ThreadLimit::Unlimited,
+        };
+        let result = validate_pool_config("t", &neg_num);
+        assert!(matches!(result, Err(InitError::Invalid(msg)) if msg.contains("positive")));
+
+        // negative max error
+        let neg_max = ThreadPoolConfig {
+            num: nz(5),
+            max: ThreadLimit::Limit(nz(-10)),
+        };
+        let result = validate_pool_config("t", &neg_max);
+        assert!(matches!(result, Err(InitError::Invalid(msg)) if msg.contains("positive")));
     }
 }
