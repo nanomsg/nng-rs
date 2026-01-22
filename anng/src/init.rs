@@ -149,16 +149,18 @@ pub fn init_nng(config: Option<NngConfig>) -> Result<(), InitError> {
 
 /// Deinitialize the NNG library and release resources.
 ///
-/// # Safety Considerations
+/// # Safety
 ///
-/// This function should only be called after all NNG sockets, dialers,
-/// listeners, and other resources have been closed. Calling this while
-/// NNG resources are still in use results in undefined behavior.
+/// Caller must ensure all NNG sockets, dialers, listeners, and other
+/// resources have been closed before calling this function. Calling this
+/// while resources are still open will cause NNG to forcibly close them,
+/// which may lead to unexpected `NNG_ECLOSED` errors on any handles that
+/// are still held.
 ///
 /// After calling `deinit_nng`, the library can be reinitialized by calling
 /// [`init_nng`] or by creating a new socket (which triggers automatic init).
-pub fn deinit_nng() {
-    // SAFETY: Caller is responsible for ensuring no NNG resources are in use.
+pub unsafe fn deinit_nng() {
+    // SAFETY: Caller guarantees all NNG resources have been closed.
     unsafe { nng_sys::nng_fini() }
 }
 
