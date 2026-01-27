@@ -113,7 +113,7 @@ impl Aio {
                 });
                 // SAFETY: AIO is valid (AIO is live until `Aio` is dropped).
                 let err = unsafe { nng_sys::nng_aio_result(self.0.aio.as_ptr()) };
-                tracing::trace!(msg_set = self.0.msg_was_set, ?err, "cancelled while");
+                tracing::trace!(msg_set = self.0.msg_was_set, %err, "cancelled while");
                 // SAFETY: AIO is valid (AIO is live until `Aio` is dropped).
                 debug_assert!(!unsafe { nng_sys::nng_aio_busy(self.0.aio.as_ptr()) });
                 // we also need to make sure we eat the notification so that it doesn't spuriously
@@ -319,17 +319,22 @@ pub enum AioError {
     /// in a consistent state.
     Cancelled,
 
-    /// Underlying NNG operation failed with the given error code.
+    /// Underlying NNG operation failed.
     ///
-    /// The error code corresponds to NNG's error constants. Common codes include:
-    /// - `NNG_ECONNREFUSED` (61): Connection refused by remote endpoint
-    /// - `NNG_ECONNRESET` (54): Connection reset by peer
-    /// - `NNG_EHOSTUNREACH` (65): Host unreachable
-    /// - `NNG_EADDRINUSE` (48): Address already in use
-    /// - `NNG_ESTATE` (71): Protocol state violation
+    /// Contains an [`NngError`] which wraps either a legacy integer error code
+    /// ([`NngError::V1`]) or a typed `nng_err` ([`NngError::V2`]) depending on
+    /// which NNG API returned the error.
+    ///
+    /// Common error conditions include:
+    /// - `NNG_ECONNREFUSED`: Connection refused by remote endpoint
+    /// - `NNG_ECONNRESET`: Connection reset by peer
+    /// - `NNG_EUNREACHABLE`: Host unreachable
+    /// - `NNG_EADDRINUSE`: Address already in use
+    /// - `NNG_ESTATE`: Protocol state violation
     ///
     /// See the [NNG documentation](https://nng.nanomsg.org/ref/api/errors.html)
-    Operation(NonZeroU32),
+    /// for the complete list of error codes.
+    Operation(NngError),
 }
 
 impl fmt::Display for AioError {
@@ -337,11 +342,7 @@ impl fmt::Display for AioError {
         match self {
             AioError::TimedOut => write!(f, "operation timed out"),
             AioError::Cancelled => write!(f, "operation was cancelled"),
-            AioError::Operation(code) => {
-                // SAFETY: transmute is safe because nng_err is repr(u32)
-                let err = unsafe { core::mem::transmute::<u32, nng_err>(code.get()) };
-                write!(f, "{err}")
-            }
+            AioError::Operation(nng_err) => write!(f, "{nng_err}"),
         }
     }
 }
@@ -352,28 +353,24 @@ impl AioError {
     /// Converts an `nng_err` to an `AioError`.
     ///
     /// Note: this function assumes `errno != NNG_OK`.
-    pub const fn from_nng_err(err: nng_err) -> Self {
+    pub(crate) const fn from_nng_err(err: nng_err) -> Self {
         match err {
             nng_err::NNG_ECANCELED => AioError::Cancelled,
             nng_err::NNG_ETIMEDOUT => AioError::TimedOut,
-            _ => AioError::Operation(NonZeroU32::new(err as u32).expect("err is non-zero")),
+            _ => AioError::Operation(NngError::V2(err)),
         }
     }
 
-    /// Converts a raw errno (as returned by NNG functions) to a Result.
-    pub(crate) fn try_from_i32(errno: i32) -> Result<(), Self> {
-        // NNG guarantees errno is never negative
-        let errno = u32::try_from(errno).expect("errno is never negative");
-        if errno == 0 {
-            Ok(())
-        } else if errno == nng_err::NNG_ECANCELED as u32 {
-            Err(AioError::Cancelled)
-        } else if errno == nng_err::NNG_ETIMEDOUT as u32 {
-            Err(AioError::TimedOut)
+    /// Converts a raw non-zero errno to a AioError.
+    ///
+    /// This is used for legacy NNG functions that return `int` error codes.
+    pub(crate) const fn from_nz_u32(errno: NonZeroU32) -> Self {
+        if errno.get() == nng_err::NNG_ECANCELED as u32 {
+            AioError::Cancelled
+        } else if errno.get() == nng_err::NNG_ETIMEDOUT as u32 {
+            AioError::TimedOut
         } else {
-            Err(AioError::Operation(
-                NonZeroU32::new(errno).expect("checked above"),
-            ))
+            AioError::Operation(NngError::V1(errno))
         }
     }
 }
@@ -385,135 +382,178 @@ impl From<AioError> for io::Error {
             AioError::Cancelled => {
                 io::Error::new(io::ErrorKind::Interrupted, "operation cancelled")
             }
-            AioError::Operation(errno) => match errno.get() {
-                0 => unreachable!("came from NonZero<u32>"),
-                err if err == nng_err::NNG_ETIMEDOUT as u32 => {
-                    unreachable!("always handled in outer variant")
+            AioError::Operation(NngError::V1(code)) => {
+                // Legacy error code path. These may contain system errors (NNG_ESYSERR | errno)
+                // or transport errors (NNG_ETRANERR | code) indicated by bit flags.
+                let error_code = code.get();
+
+                // For system errors, extract the underlying OS errno
+                if (error_code & nng_err::NNG_ESYSERR as u32) != 0 {
+                    return io::Error::from_raw_os_error(
+                        (error_code & !(nng_err::NNG_ESYSERR as u32)) as i32,
+                    );
                 }
-                err if err == nng_err::NNG_ECANCELED as u32 => {
-                    unreachable!("always handled in outer variant")
+
+                // Transport errors have no more specific mapping
+                if (error_code & nng_err::NNG_ETRANERR as u32) != 0 {
+                    // For transport errors and all other codes, use nng_strerror for the message
+                    // SAFETY: transmute is safe because nng_err is repr(u32) and all u32 values
+                    // are valid inputs to nng_strerror (it handles unknown values gracefully).
+                    let nng_error = unsafe { core::mem::transmute::<u32, nng_err>(error_code) };
+                    let msg = nng_error.as_cstr().to_string_lossy().into_owned();
+                    return io::Error::other(msg);
                 }
-                err if err == nng_err::NNG_EINTR as u32 => {
-                    unreachable!("nng never exposes this publicly")
-                }
-                err if err == nng_err::NNG_EBUSY as u32 => {
-                    io::Error::new(io::ErrorKind::ResourceBusy, nng_err::NNG_EBUSY.to_string())
-                }
-                err if err == nng_err::NNG_EAGAIN as u32 => {
-                    io::Error::new(io::ErrorKind::WouldBlock, nng_err::NNG_EAGAIN.to_string())
-                }
-                err if err == nng_err::NNG_ENOTSUP as u32 => {
-                    io::Error::new(io::ErrorKind::Unsupported, nng_err::NNG_ENOTSUP.to_string())
-                }
-                err if err == nng_err::NNG_EADDRINUSE as u32 => io::Error::new(
-                    io::ErrorKind::AddrInUse,
-                    nng_err::NNG_EADDRINUSE.to_string(),
-                ),
-                err if err == nng_err::NNG_ENOENT as u32 => {
-                    io::Error::new(io::ErrorKind::NotFound, nng_err::NNG_ENOENT.to_string())
-                }
-                err if err == nng_err::NNG_EPERM as u32 => io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    nng_err::NNG_EPERM.to_string(),
-                ),
-                err if err == nng_err::NNG_EMSGSIZE as u32 => io::Error::new(
-                    io::ErrorKind::FileTooLarge,
-                    nng_err::NNG_EMSGSIZE.to_string(),
-                ),
-                err if err == nng_err::NNG_ECONNABORTED as u32 => io::Error::new(
-                    io::ErrorKind::ConnectionAborted,
-                    nng_err::NNG_ECONNABORTED.to_string(),
-                ),
-                err if err == nng_err::NNG_ENOFILES as u32 => io::Error::new(
-                    io::ErrorKind::QuotaExceeded,
-                    nng_err::NNG_ENOFILES.to_string(),
-                ),
-                err if err == nng_err::NNG_ENOSPC as u32 => {
-                    io::Error::new(io::ErrorKind::StorageFull, nng_err::NNG_ENOSPC.to_string())
-                }
-                err if err == nng_err::NNG_EEXIST as u32 => io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    nng_err::NNG_EEXIST.to_string(),
-                ),
-                err if err == nng_err::NNG_EREADONLY as u32 => io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    nng_err::NNG_EREADONLY.to_string(),
-                ),
-                err if err == nng_err::NNG_EWRITEONLY as u32 => io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    nng_err::NNG_EWRITEONLY.to_string(),
-                ),
-                err if err == nng_err::NNG_ECRYPTO as u32 => {
-                    io::Error::other(nng_err::NNG_ECRYPTO.to_string())
-                }
-                err if err == nng_err::NNG_EBADTYPE as u32 => io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    nng_err::NNG_EBADTYPE.to_string(),
-                ),
-                err if err == nng_err::NNG_ECONNSHUT as u32 => io::Error::new(
-                    io::ErrorKind::BrokenPipe,
-                    nng_err::NNG_ECONNSHUT.to_string(),
-                ),
-                err if err == nng_err::NNG_EINTERNAL as u32 => {
-                    io::Error::other(nng_err::NNG_EINTERNAL.to_string())
-                }
-                err if err == nng_err::NNG_EADDRINVAL as u32 => io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    nng_err::NNG_EADDRINVAL.to_string(),
-                ),
-                err if err == nng_err::NNG_ECLOSED as u32 => {
-                    io::Error::new(io::ErrorKind::BrokenPipe, nng_err::NNG_ECLOSED.to_string())
-                }
-                err if err == nng_err::NNG_ESTATE as u32 => {
-                    io::Error::other(nng_err::NNG_ESTATE.to_string())
-                }
-                err if err == nng_err::NNG_ECONNREFUSED as u32 => io::Error::new(
-                    io::ErrorKind::ConnectionRefused,
-                    nng_err::NNG_ECONNREFUSED.to_string(),
-                ),
-                err if err == nng_err::NNG_ECONNRESET as u32 => io::Error::new(
-                    io::ErrorKind::ConnectionReset,
-                    nng_err::NNG_ECONNRESET.to_string(),
-                ),
-                err if err == nng_err::NNG_EINVAL as u32 => {
-                    io::Error::new(io::ErrorKind::InvalidInput, nng_err::NNG_EINVAL.to_string())
-                }
-                err if err == nng_err::NNG_ENOMEM as u32 => {
-                    io::Error::new(io::ErrorKind::OutOfMemory, nng_err::NNG_ENOMEM.to_string())
-                }
-                err if err == nng_err::NNG_EPEERAUTH as u32 => io::Error::new(
-                    io::ErrorKind::ConnectionAborted,
-                    nng_err::NNG_EPEERAUTH.to_string(),
-                ),
-                err if err == nng_err::NNG_EPROTO as u32 => {
-                    io::Error::other(nng_err::NNG_EPROTO.to_string())
-                }
-                err if err == nng_err::NNG_EUNREACHABLE as u32 => io::Error::new(
-                    io::ErrorKind::HostUnreachable,
-                    nng_err::NNG_EUNREACHABLE.to_string(),
-                ),
-                err if (err & nng_err::NNG_ESYSERR as u32) != 0 => {
-                    io::Error::from_raw_os_error(err as i32 & !(nng_err::NNG_ESYSERR as i32))
-                }
-                err if (err & nng_err::NNG_ETRANERR as u32) != 0 => {
-                    // This is a bit flag that indicates an underlying transport
-                    // level error. Since this isn't a system error (like
-                    // `NNG_ESYSERR`), we can't turn it into anything more
-                    // specific, so we just bubble it up as "other".
-                    //
-                    // NNG internally doesn't resolve transport errors to anything
-                    // beyond `"Transport error #%d", num & ~NNG_ETRANERR)`, so
-                    // we do the formatting right here.
-                    let err = err & !(nng_err::NNG_ETRANERR as u32);
-                    io::Error::other(format!("transport error: {err}"))
-                }
-                err => {
-                    tracing::error!(errno = err, "unknown nng error code surfaced");
-                    io::Error::other(format!("unknown nng error: {}", err))
-                }
-            },
+
+                nz_u32_into_io_err(code)
+            }
+            AioError::Operation(NngError::V2(err)) => nng_err_into_io_err(err),
         }
     }
+}
+
+/// Wrapper for NNG error codes across different API styles.
+///
+/// NNG functions may return either raw integer error codes (legacy pattern) or typed
+/// `nng_err` values (NNG 2.0 pattern). This enum provides a unified representation
+/// that can hold either form.
+///
+/// # Variants
+///
+/// ## Legacy errors
+/// - [`NngError::V1`]: Raw error code as returned by functions that use `int`.
+///
+/// ## Typed errors
+/// - [`NngError::V2`]: Typed `nng_err` from functions that have been updated in NNG v2.
+///
+/// # Note
+///
+/// Per the [NNG documentation](https://nng.nanomsg.org/ref/api/errors.html):
+/// "Many APIs are still using int, but the nng_err enumeration can be used instead."
+///
+/// `V1` errors may become `V2` errors in future releases as NNG migrates more APIs
+/// to return the typed `nng_err` enum.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum NngError {
+    /// Legacy NNG error code as a raw non-zero integer.
+    ///
+    /// This variant holds error codes from NNG functions that return `int` rather
+    /// than `nng_err`. The value is guaranteed to be non-zero (zero indicates success).
+    ///
+    /// Error codes may include system and transport errors that are indicated by a bit:
+    /// - `NNG_ESYSERR` (0x10000000): Indicates an underlying OS error
+    /// - `NNG_ETRANERR` (0x20000000): Indicates a transport-specific error
+    V1(NonZeroU32),
+
+    /// Typed NNG error from the modern API.
+    ///
+    /// This variant wraps the `nng_err` enum which provides type-safe error
+    /// handling with named variants like `NNG_ETIMEDOUT`, `NNG_ECLOSED`, etc.
+    /// Used by NNG 2.0 functions that have been updated to return `nng_err`.
+    V2(nng_err),
+}
+
+impl NngError {
+    /// Returns `true` if this error matches the given `nng_err` code.
+    ///
+    /// This method handles both legacy (`V1`) and typed (`V2`) error representations,
+    /// comparing the underlying error code in either case.
+    pub fn is(&self, err: nng_err) -> bool {
+        match self {
+            NngError::V1(code) => code.get() == err as u32,
+            NngError::V2(e) => *e == err,
+        }
+    }
+}
+
+impl fmt::Display for NngError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NngError::V1(code) => {
+                // Use nng_strerror for formatting. This handles *all* error types including:
+                // - Standard NNG errors (NNG_ETIMEDOUT, NNG_ECLOSED, etc.)
+                // - System errors (NNG_ESYSERR | errno) - formatted via platform `strerror`
+                // - Transport errors (NNG_ETRANERR | code) - formatted as "Transport error #N"
+                // - Unknown error codes as - formatted as "Unknown error #N"
+                //
+                // SAFETY: transmute is safe because nng_err is repr(u32) and all u32 values
+                // are valid inputs to nng_strerror (it handles unknown values gracefully).
+                let err = unsafe { core::mem::transmute::<u32, nng_err>(code.get()) };
+                write!(f, "{}", err.as_cstr().to_string_lossy())
+            }
+            NngError::V2(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+/// Converts an [`nng_err`] into an [`io::Error`].
+///
+/// This function maps NNG error codes to their closest [`io::ErrorKind`] equivalents,
+/// preserving the original error message from NNG via [`nng_err::to_string`].
+///
+/// # Panics
+///
+/// This function will panic (via `unreachable!`) if called with:
+/// - `NNG_OK` - success should not be passed to an error conversion function
+/// - `NNG_ETIMEDOUT` - should be handled as [`AioError::TimedOut`]
+/// - `NNG_ECANCELED` - should be handled as [`AioError::Cancelled`]
+/// - `NNG_EINTR` - NNG never exposes this error publicly
+fn nng_err_into_io_err(err: nng_err) -> io::Error {
+    match err {
+        nng_err::NNG_OK => unreachable!("NNG_OK should not be passed to this function"),
+        nng_err::NNG_ETIMEDOUT => unreachable!("always handled in outer variant"),
+        nng_err::NNG_ECANCELED => unreachable!("always handled in outer variant"),
+        nng_err::NNG_EINTR => unreachable!("nng never exposes this publicly"),
+        nng_err::NNG_EBUSY => io::Error::new(io::ErrorKind::ResourceBusy, err.to_string()),
+        nng_err::NNG_EAGAIN => io::Error::new(io::ErrorKind::WouldBlock, err.to_string()),
+        nng_err::NNG_ENOTSUP => io::Error::new(io::ErrorKind::Unsupported, err.to_string()),
+        nng_err::NNG_EADDRINUSE => io::Error::new(io::ErrorKind::AddrInUse, err.to_string()),
+        nng_err::NNG_ENOENT => io::Error::new(io::ErrorKind::NotFound, err.to_string()),
+        nng_err::NNG_EPERM => io::Error::new(io::ErrorKind::PermissionDenied, err.to_string()),
+        nng_err::NNG_EMSGSIZE => io::Error::new(io::ErrorKind::InvalidData, err.to_string()),
+        nng_err::NNG_ECONNABORTED => {
+            io::Error::new(io::ErrorKind::ConnectionAborted, err.to_string())
+        }
+        nng_err::NNG_ENOFILES => io::Error::new(io::ErrorKind::QuotaExceeded, err.to_string()),
+        nng_err::NNG_ENOSPC => io::Error::new(io::ErrorKind::StorageFull, err.to_string()),
+        nng_err::NNG_EEXIST => io::Error::new(io::ErrorKind::AlreadyExists, err.to_string()),
+        nng_err::NNG_EREADONLY | nng_err::NNG_EWRITEONLY => {
+            io::Error::new(io::ErrorKind::Unsupported, err.to_string())
+        }
+        nng_err::NNG_EBADTYPE | nng_err::NNG_EADDRINVAL | nng_err::NNG_EINVAL => {
+            io::Error::new(io::ErrorKind::InvalidInput, err.to_string())
+        }
+        nng_err::NNG_ECONNSHUT | nng_err::NNG_ECLOSED => {
+            io::Error::new(io::ErrorKind::BrokenPipe, err.to_string())
+        }
+        nng_err::NNG_ECONNREFUSED => {
+            io::Error::new(io::ErrorKind::ConnectionRefused, err.to_string())
+        }
+        nng_err::NNG_ECONNRESET => io::Error::new(io::ErrorKind::ConnectionReset, err.to_string()),
+        nng_err::NNG_ENOMEM => io::Error::new(io::ErrorKind::OutOfMemory, err.to_string()),
+        nng_err::NNG_EPEERAUTH => io::Error::new(io::ErrorKind::ConnectionAborted, err.to_string()),
+        nng_err::NNG_EUNREACHABLE => {
+            io::Error::new(io::ErrorKind::HostUnreachable, err.to_string())
+        }
+        // All other errors (NNG_ECRYPTO, NNG_EINTERNAL, NNG_ESTATE, NNG_EPROTO, etc.)
+        _ => io::Error::other(err.to_string()),
+    }
+}
+
+/// Converts a raw non-zero error code into an [`io::Error`].
+///
+/// This function handles legacy NNG error codes that are returned as raw integers
+/// rather than typed [`nng_err`] values. It transmutes the integer to [`nng_err`]
+/// and delegates to [`nng_err_into_io_err`] for the actual conversion.
+///
+/// # Safety considerations
+///
+/// The transmute from `u32` to [`nng_err`] is safe because:
+/// - [`nng_err`] is `#[repr(u32)]` and `#[non_exhaustive]`
+/// - All `u32` values are valid `nng_err` values (unknown values are handled gracefully)
+fn nz_u32_into_io_err(errno: NonZeroU32) -> io::Error {
+    // SAFETY: transmute is safe because nng_err is repr(u32) and non_exhaustive
+    let err = unsafe { core::mem::transmute::<u32, nng_err>(errno.get()) };
+    nng_err_into_io_err(err)
 }
 
 /// # Safety

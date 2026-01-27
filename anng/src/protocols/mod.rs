@@ -46,6 +46,7 @@ use core::{
 };
 use nng_sys::nng_err;
 use std::io;
+use std::num::NonZeroU32;
 
 pub mod bus0;
 pub mod pair1;
@@ -106,17 +107,18 @@ pub(crate) async fn add_listener_to_socket(
         unsafe { nng_sys::nng_listener_create(listener.as_mut_ptr(), socket, url.as_ptr()) };
     match u32::try_from(errno).expect("errno is never negative") {
         0 => {}
-        x if x == nng_err::NNG_ENOMEM as u32 => {
+        errno if errno == nng_err::NNG_ENOMEM as u32 => {
             panic!("OOM");
         }
-        x if x == nng_err::NNG_ECLOSED as u32
-            || x == nng_err::NNG_EADDRINVAL as u32
-            || x == nng_err::NNG_EINVAL as u32
-            || x == nng_err::NNG_ENOTSUP as u32 =>
+        errno
+            if errno == nng_err::NNG_ECLOSED as u32
+                || errno == nng_err::NNG_EADDRINVAL as u32
+                || errno == nng_err::NNG_EINVAL as u32
+                || errno == nng_err::NNG_ENOTSUP as u32 =>
         {
-            return Err(AioError::try_from_i32(errno)
-                .expect_err("checked above")
-                .into());
+            return Err(
+                AioError::from_nz_u32(NonZeroU32::new(errno).expect("0 is covered above")).into(),
+            );
         }
         errno => {
             unreachable!(
@@ -131,7 +133,7 @@ pub(crate) async fn add_listener_to_socket(
         let errno = unsafe { nng_sys::nng_listener_close(listener) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            x if x == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == nng_err::NNG_ECLOSED as u32 => {
                 unreachable!("the listener handle is valid");
             }
             errno => {
@@ -146,16 +148,16 @@ pub(crate) async fn add_listener_to_socket(
     let errno = unsafe { nng_sys::nng_listener_start(listener, 0) };
     match u32::try_from(errno).expect("errno is never negative") {
         0 => {}
-        x if x == nng_err::NNG_ECLOSED as u32 => {
+        errno if errno == nng_err::NNG_ECLOSED as u32 => {
             unreachable!("the listener handle is valid");
         }
-        x if x == nng_err::NNG_ESTATE as u32 => {
+        errno if errno == nng_err::NNG_ESTATE as u32 => {
             unreachable!("the listener is not already started");
         }
-        x if x == nng_err::NNG_EADDRINUSE as u32 || x == nng_err::NNG_EPERM as u32 => {
-            return Err(AioError::try_from_i32(errno)
-                .expect_err("checked above")
-                .into());
+        errno if errno == nng_err::NNG_EADDRINUSE as u32 || errno == nng_err::NNG_EPERM as u32 => {
+            return Err(
+                AioError::from_nz_u32(NonZeroU32::new(errno).expect("0 is covered above")).into(),
+            );
         }
         errno => {
             unreachable!("nng_listener_start documentation claims errno {errno} is never returned");
@@ -185,17 +187,18 @@ pub(crate) async fn add_dialer_to_socket(
     let errno = unsafe { nng_sys::nng_dialer_create(dialer.as_mut_ptr(), socket, url.as_ptr()) };
     match u32::try_from(errno).expect("errno is never negative") {
         0 => {}
-        x if x == nng_err::NNG_ENOMEM as u32 => {
+        errno if errno == nng_err::NNG_ENOMEM as u32 => {
             panic!("OOM");
         }
-        x if x == nng_err::NNG_ECLOSED as u32
-            || x == nng_err::NNG_EADDRINVAL as u32
-            || x == nng_err::NNG_EINVAL as u32
-            || x == nng_err::NNG_ENOTSUP as u32 =>
+        errno
+            if errno == nng_err::NNG_ECLOSED as u32
+                || errno == nng_err::NNG_EADDRINVAL as u32
+                || errno == nng_err::NNG_EINVAL as u32
+                || errno == nng_err::NNG_ENOTSUP as u32 =>
         {
-            return Err(AioError::try_from_i32(errno)
-                .expect_err("checked above")
-                .into());
+            return Err(
+                AioError::from_nz_u32(NonZeroU32::new(errno).expect("0 is covered above")).into(),
+            );
         }
         errno => {
             unreachable!("nng_dialer_create documentation claims errno {errno} is never returned");
@@ -208,7 +211,7 @@ pub(crate) async fn add_dialer_to_socket(
         let errno = unsafe { nng_sys::nng_dialer_close(dialer) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            x if x == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == nng_err::NNG_ECLOSED as u32 => {
                 unreachable!("the dialer handle is valid");
             }
             errno => {
@@ -234,13 +237,13 @@ pub(crate) async fn add_dialer_to_socket(
         // the dialing.
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(()),
-            x if x == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == nng_err::NNG_ECLOSED as u32 => {
                 unreachable!("the socket is still valid");
             }
-            x if x == nng_err::NNG_ESTATE as u32 => {
+            errno if errno == nng_err::NNG_ESTATE as u32 => {
                 unreachable!("the dialer has not been started");
             }
-            x if x == nng_err::NNG_ECANCELED as u32 => {
+            errno if errno == nng_err::NNG_ECANCELED as u32 => {
                 // this can happen if the dial future is dropped (such as if the future is
                 // cancelled), and that _also_ drops the referenced socket. if this occurrs, any
                 // I/O operation on the socket is cancelled by nng, and thus we get that error.
@@ -249,7 +252,7 @@ pub(crate) async fn add_dialer_to_socket(
                 tracing::warn!("socket dropped while (now-cancelled) dial future still running");
                 Err(io::Error::from(AioError::Cancelled))
             }
-            x if x == nng_err::NNG_EAGAIN as u32 => {
+            errno if errno == nng_err::NNG_EAGAIN as u32 => {
                 // this is returned from `getaddrinfo` if there's a temporary failure in name
                 // resolution, such as in a nix build jail where the DNS resolver is specifically
                 // configured to fail. this _should_ be caught and translated by NNG, but isn't at
@@ -264,20 +267,22 @@ pub(crate) async fn add_dialer_to_socket(
                     nng_err::NNG_EADDRINVAL,
                 )))
             }
-            x if x == nng_err::NNG_ENOMEM as u32 => {
+            errno if errno == nng_err::NNG_ENOMEM as u32 => {
                 panic!("OOM");
             }
-            x if x == nng_err::NNG_EADDRINVAL as u32
-                || x == nng_err::NNG_ECONNREFUSED as u32
-                || x == nng_err::NNG_ECONNRESET as u32
-                || x == nng_err::NNG_EINVAL as u32
-                || x == nng_err::NNG_EPEERAUTH as u32
-                || x == nng_err::NNG_EPROTO as u32
-                || x == nng_err::NNG_EUNREACHABLE as u32 =>
+            errno
+                if errno == nng_err::NNG_EADDRINVAL as u32
+                    || errno == nng_err::NNG_ECONNREFUSED as u32
+                    || errno == nng_err::NNG_ECONNRESET as u32
+                    || errno == nng_err::NNG_EINVAL as u32
+                    || errno == nng_err::NNG_EPEERAUTH as u32
+                    || errno == nng_err::NNG_EPROTO as u32
+                    || errno == nng_err::NNG_EUNREACHABLE as u32 =>
             {
-                Err(AioError::try_from_i32(errno)
-                    .expect_err("checked above")
-                    .into())
+                Err(
+                    AioError::from_nz_u32(NonZeroU32::new(errno).expect("0 is covered above"))
+                        .into(),
+                )
             }
             errno => {
                 unreachable!(

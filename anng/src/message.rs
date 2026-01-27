@@ -9,7 +9,7 @@ use core::{
     ptr::NonNull,
 };
 use nng_sys::nng_err;
-use std::io;
+use std::{io, num::NonZeroU32};
 
 /// A memory-managed wrapper around NNG messages.
 ///
@@ -680,9 +680,10 @@ impl Message {
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
-            x if x == nng_err::NNG_ENOMEM as u32 => {
-                Err(Into::into(AioError::from_nng_err(nng_err::NNG_ENOMEM)))
-            }
+            errno if errno == nng_err::NNG_ENOMEM as u32 => Err(AioError::from_nz_u32(
+                NonZeroU32::new(errno).expect("0 is checked above"),
+            )
+            .into()),
             errno => {
                 unreachable!("nng_msg_insert documentation claims errno {errno} is never returned");
             }
@@ -701,9 +702,10 @@ impl Message {
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
-            x if x == nng_err::NNG_ENOMEM as u32 => {
-                Err(Into::into(AioError::from_nng_err(nng_err::NNG_ENOMEM)))
-            }
+            errno if errno == nng_err::NNG_ENOMEM as u32 => Err(AioError::from_nz_u32(
+                NonZeroU32::new(errno).expect("0 is checked above"),
+            )
+            .into()),
             errno => {
                 unreachable!(
                     "nng_msg_header_append documentation claims errno {errno} is never returned"
@@ -724,9 +726,10 @@ impl Message {
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
-            x if x == nng_err::NNG_ENOMEM as u32 => {
-                Err(Into::into(AioError::from_nng_err(nng_err::NNG_ENOMEM)))
-            }
+            errno if errno == nng_err::NNG_ENOMEM as u32 => Err(AioError::from_nz_u32(
+                NonZeroU32::new(errno).expect("0 is checked above"),
+            )
+            .into()),
             errno => {
                 unreachable!(
                     "nng_msg_header_insert documentation claims errno {errno} is never returned"
@@ -945,9 +948,10 @@ impl io::Write for Message {
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(buf.len()),
-            x if x == nng_err::NNG_ENOMEM as u32 => {
-                Err(io::Error::from(AioError::from_nng_err(nng_err::NNG_ENOMEM)))
-            }
+            errno if errno == nng_err::NNG_ENOMEM as u32 => Err(AioError::from_nz_u32(
+                NonZeroU32::new(errno).expect("0 is checked above"),
+            )
+            .into()),
             errno => {
                 unreachable!("nng_msg_append documentation claims errno {errno} is never returned");
             }

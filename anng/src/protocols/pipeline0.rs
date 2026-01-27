@@ -244,13 +244,13 @@ impl Socket<Push0> {
 
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(()),
-            x if x == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == nng_err::NNG_ECLOSED as u32 => {
                 unreachable!("socket is still open");
             }
-            x if x == nng_err::NNG_EINVAL as u32 => {
+            errno if errno == nng_err::NNG_EINVAL as u32 => {
                 unreachable!("we've checked the range of the input");
             }
-            x if x == nng_err::NNG_ENOMEM as u32 => Err(io::Error::new(
+            errno if errno == nng_err::NNG_ENOMEM as u32 => Err(io::Error::new(
                 io::ErrorKind::OutOfMemory,
                 "insufficient memory to resize send buffer",
             )),

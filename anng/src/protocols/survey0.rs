@@ -181,16 +181,16 @@ impl<'socket> ContextfulSocket<'socket, Surveyor0> {
 
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            x if x == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == nng_err::NNG_ECLOSED as u32 => {
                 unreachable!("context is still open");
             }
-            x if x == nng_err::NNG_EINVAL as u32 => {
+            errno if errno == nng_err::NNG_EINVAL as u32 => {
                 unreachable!("timeout value should be valid");
             }
-            x if x == nng_err::NNG_ENOTSUP as u32 => {
+            errno if errno == nng_err::NNG_ENOTSUP as u32 => {
                 unreachable!("surveyor context should support SURVEYTIME option");
             }
-            x if x == nng_err::NNG_EREADONLY as u32 => {
+            errno if errno == nng_err::NNG_EREADONLY as u32 => {
                 unreachable!("SURVEYTIME is not read-only");
             }
             errno => {
@@ -363,9 +363,7 @@ impl SurveyResponses<'_, '_> {
                 tracing::debug!("survey timeout reached");
                 None
             }
-            Err(AioError::Operation(errno))
-                if errno.get() == nng_sys::nng_err::NNG_ESTATE as u32 =>
-            {
+            Err(AioError::Operation(e)) if e.is(nng_err::NNG_ESTATE) => {
                 // we hit this if we start the read _after_ the survey has already expired
                 tracing::debug!("survey already timed out");
                 None
@@ -392,9 +390,7 @@ impl SurveyResponses<'_, '_> {
                 Some(Ok(Some(message)))
             }
             Ok(None) => None, // Would block - survey is still active
-            Err(AioError::Operation(errno))
-                if errno.get() == nng_sys::nng_err::NNG_ESTATE as u32 =>
-            {
+            Err(AioError::Operation(e)) if e.is(nng_err::NNG_ESTATE) => {
                 // Survey already timed out
                 tracing::debug!("survey already timed out");
                 Some(Ok(None))

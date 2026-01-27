@@ -5,6 +5,7 @@ use crate::{
 };
 use core::{fmt, mem::MaybeUninit, ptr::NonNull};
 use nng_sys::nng_err;
+use std::num::NonZeroU32;
 
 impl<Protocol: crate::protocols::SupportsContext> Socket<Protocol> {
     /// Creates a new context for concurrent operations on this socket.
@@ -27,10 +28,10 @@ impl<Protocol: crate::protocols::SupportsContext> Socket<Protocol> {
         let errno = unsafe { nng_sys::nng_ctx_open(context.as_mut_ptr(), self.socket) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            x if x == nng_err::NNG_ENOMEM as u32 => {
+            errno if errno == nng_err::NNG_ENOMEM as u32 => {
                 panic!("OOM");
             }
-            x if x == nng_err::NNG_ENOTSUP as u32 => {
+            errno if errno == nng_err::NNG_ENOTSUP as u32 => {
                 // the SupportsContext trait bound ensures this method is only callable
                 // on protocols that support contexts, so this error should be impossible.
                 unreachable!("protocol supports contexts per SupportsContext trait bound");
@@ -132,27 +133,33 @@ impl<Protocol> Context<'_, Protocol> {
                 let msg = unsafe { Message::from_raw_unchecked(msg) };
                 Ok(Some(msg))
             }
-            x if x == nng_err::NNG_EAGAIN as u32 => Ok(None),
-            x if x == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == nng_err::NNG_EAGAIN as u32 => Ok(None),
+            errno if errno == nng_err::NNG_ECLOSED as u32 => {
                 unreachable!("socket is still open since we have a reference to it");
             }
-            x if x == nng_err::NNG_EINVAL as u32 => {
+            errno if errno == nng_err::NNG_EINVAL as u32 => {
                 unreachable!("flags are valid for the call");
             }
-            x if x == nng_err::NNG_ENOMEM as u32 => {
+            errno if errno == nng_err::NNG_ENOMEM as u32 => {
                 panic!("OOM");
             }
-            x if x == nng_err::NNG_ENOTSUP as u32 => {
+            errno if errno == nng_err::NNG_ENOTSUP as u32 => {
                 // protocol does not support receiving
-                Err(AioError::from_nng_err(nng_err::NNG_ENOTSUP))
+                Err(AioError::from_nz_u32(
+                    NonZeroU32::try_from(errno).expect("statically checked to be >0"),
+                ))
             }
-            x if x == nng_err::NNG_ESTATE as u32 => {
+            errno if errno == nng_err::NNG_ESTATE as u32 => {
                 // protocol does not support receiving in its current state
-                Err(AioError::from_nng_err(nng_err::NNG_ESTATE))
+                Err(AioError::from_nz_u32(
+                    NonZeroU32::try_from(errno).expect("statically checked to be >0"),
+                ))
             }
-            x if x == nng_err::NNG_ETIMEDOUT as u32 => {
+            errno if errno == nng_err::NNG_ETIMEDOUT as u32 => {
                 // likely due to a protocol-level timeout (like surveys)
-                Err(AioError::from_nng_err(nng_err::NNG_ETIMEDOUT))
+                Err(AioError::from_nz_u32(
+                    NonZeroU32::try_from(errno).expect("statically checked to be >0"),
+                ))
             }
             errno => {
                 unreachable!(

@@ -265,10 +265,10 @@ impl Socket<Pair1> {
 
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            x if x == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == nng_err::NNG_ECLOSED as u32 => {
                 unreachable!("socket is still open");
             }
-            x if x == nng_err::NNG_EINVAL as u32 => {
+            errno if errno == nng_err::NNG_EINVAL as u32 => {
                 unreachable!("we've checked the range of the input");
             }
             errno => {
