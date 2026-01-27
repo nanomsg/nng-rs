@@ -155,7 +155,7 @@ pub fn init_nng(config: Option<NngConfig>) -> Result<(), InitError> {
 /// resources have been closed before calling this function. Calling this
 /// while resources are still open will cause NNG to forcibly close them,
 /// which may lead to unexpected `NNG_ECLOSED` errors on any handles that
-/// are still held.
+/// are still held, or possibly undefined behavior from within NNG.
 ///
 /// After calling `deinit_nng`, the library can be reinitialized by calling
 /// [`init_nng`] or by creating a new socket (which triggers automatic init).
