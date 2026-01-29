@@ -66,7 +66,6 @@ mod bindings {
 use core::convert::TryFrom;
 
 pub use crate::bindings::*;
-use core::ffi::CStr;
 
 impl nng_pipe {
     pub const NNG_PIPE_INITIALIZER: nng_pipe = nng_pipe {
@@ -116,7 +115,7 @@ impl nng_err {
     /// This is a thin wrapper around `nng_strerror` that works in `no_std`
     /// environments. The returned string has static lifetime as NNG returns
     /// pointers to static null terminated string literals.
-    pub fn as_cstr(&self) -> &'static CStr {
+    pub fn as_cstr(&self) -> &'static core::ffi::CStr {
         // SAFETY: nng_strerror is safe to call with any nng_err value.
         let raw = unsafe { nng_strerror(*self) };
         // SAFETY: nng_strerror returns a valid, null-terminated, static string.
