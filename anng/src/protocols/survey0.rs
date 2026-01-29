@@ -77,7 +77,7 @@
 //! ```
 
 use super::SupportsContext;
-use crate::{ContextfulSocket, Socket, aio::AioError, message::Message};
+use crate::{ContextfulSocket, NngError, Socket, aio::AioError, message::Message};
 use core::{
     ffi::{CStr, c_char, c_int},
     time::Duration,
@@ -363,7 +363,7 @@ impl SurveyResponses<'_, '_> {
                 tracing::debug!("survey timeout reached");
                 None
             }
-            Err(AioError::Operation(e)) if e.is(nng_err::NNG_ESTATE) => {
+            Err(AioError::Operation(NngError::NngError(nng_err::NNG_ESTATE))) => {
                 // we hit this if we start the read _after_ the survey has already expired
                 tracing::debug!("survey already timed out");
                 None
@@ -390,7 +390,7 @@ impl SurveyResponses<'_, '_> {
                 Some(Ok(Some(message)))
             }
             Ok(None) => None, // Would block - survey is still active
-            Err(AioError::Operation(e)) if e.is(nng_err::NNG_ESTATE) => {
+            Err(AioError::Operation(NngError::NngError(nng_err::NNG_ESTATE))) => {
                 // Survey already timed out
                 tracing::debug!("survey already timed out");
                 Some(Ok(None))
