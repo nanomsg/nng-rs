@@ -127,6 +127,8 @@ impl nng_err {
 #[cfg(feature = "std")]
 impl std::fmt::Display for nng_err {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // TODO(flxo): update this once [Tracking Issue for
+        // CStr::display](https://github.com/rust-lang/rust/issues/139984) is stable
         write!(fmt, "{}", self.as_cstr().to_string_lossy())
     }
 }
