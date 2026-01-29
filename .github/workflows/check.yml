@@ -136,12 +136,17 @@ jobs:
       # --feature-powerset runs for every combination of features
       - name: cargo hack nng
         run: cargo hack -p nng --feature-powerset check
-      - name: cargo hack anng
-        run: cargo hack -p anng --feature-powerset check
       - name: remove NNG v1
         run: sudo apt-get remove -y libnng1 libnng-dev
       - name: build and install NNG v2 for nng-sys
         run: .github/scripts/install-nng.sh
+      - name: cargo hack anng
+        run: cargo hack -p anng --feature-powerset check
+        env:
+          # add /usr/local/include to the C compiler search path for NNG headers
+          CFLAGS: -I/usr/local/include
+          # add /usr/local/lib to the linker search path for NNG libraries
+          RUSTFLAGS: -L native=/usr/local/lib
       - name: cargo hack nng-sys
         run: cargo hack -p nng-sys --feature-powerset check --skip source-update-bindings
         env:
