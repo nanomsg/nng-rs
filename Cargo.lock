@@ -18,7 +18,7 @@ dependencies = [
  "bytes",
  "lazy_static",
  "lexopt",
- "nng-sys 0.3.0+1.11.0",
+ "nng-sys 0.4.0-v2pre.1+v2.0.0-alpha.6",
  "rstest",
  "tokio",
  "tracing",

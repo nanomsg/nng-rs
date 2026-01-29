@@ -109,6 +109,32 @@ impl std::fmt::Display for EnumFromIntError {
     }
 }
 
+impl nng_err {
+    /// Returns a static C-string describing this error.
+    ///
+    /// This is a thin wrapper around `nng_strerror` that works in `no_std`
+    /// environments. The returned string has static lifetime as NNG returns
+    /// pointers to static null terminated string literals.
+    pub fn as_cstr(&self) -> &'static core::ffi::CStr {
+        // SAFETY: nng_strerror is safe to call with any nng_err value.
+        let raw = unsafe { nng_strerror(*self) };
+        // SAFETY: nng_strerror returns a valid, null-terminated, static string.
+        unsafe { core::ffi::CStr::from_ptr(raw) }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::fmt::Display for nng_err {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // TODO(flxo): update this once [Tracking Issue for
+        // CStr::display](https://github.com/rust-lang/rust/issues/139984) is stable
+        write!(fmt, "{}", self.as_cstr().to_string_lossy())
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for nng_err {}
+
 impl nng_stat_type_enum {
     /// Converts value returned by [nng_stat_type](https://nanomsg.github.io/nng/man/v1.1.0/nng_stat_type.3) into `nng_stat_type_enum`.
     pub fn try_convert_from(value: i32) -> Option<Self> {

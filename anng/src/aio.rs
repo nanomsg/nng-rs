@@ -1,11 +1,12 @@
 use crate::message::Message;
 use core::{
-    ffi::{c_int, c_void},
+    ffi::c_void,
     fmt,
-    num::{NonZero, NonZeroU32},
+    num::NonZeroU32,
     ptr::NonNull,
     task::{Poll, Waker},
 };
+use nng_sys::nng_err;
 use std::{future::Future, io};
 use tokio::sync::Notify;
 
@@ -66,14 +67,16 @@ impl Aio {
     ) -> NonNull<nng_sys::nng_aio> {
         let mut aio = core::ptr::null_mut::<nng_sys::nng_aio>();
         // SAFETY: aio pointer is valid for writing and callback is a valid function pointer.
-        let errno = unsafe { nng_sys::nng_aio_alloc(&mut aio, Some(callback), arg) };
-        match u32::try_from(errno).expect("errno is never negative") {
-            0 => {}
-            nng_sys::NNG_ENOMEM => {
+        let err = unsafe { nng_sys::nng_aio_alloc(&mut aio, Some(callback), arg) };
+        match err {
+            nng_err::NNG_OK => {}
+            nng_err::NNG_ENOMEM => {
                 panic!("OOM");
             }
-            errno => {
-                unreachable!("nng_aio_alloc documentation claims errno {errno} is never returned");
+            err => {
+                unreachable!(
+                    "nng_aio_alloc documentation claims nng_err \"{err}\" is never returned"
+                );
             }
         }
         NonNull::new(aio).expect("nng_aio_alloc always sets the pointer when it succeeds")
@@ -101,16 +104,16 @@ impl Aio {
             fn drop(&mut self) {
                 // NOTE(jon): this call blocks until the AIO is fully cancelled (or completed).
                 // we have to do that so that we can correctly handle the contained message, if
-                // any. note that we _don't_ use nng_aio_stop, because that disallows future calls
-                // to `nng_aio_begin`.
+                // any. note that we _don't_ use nng_aio_stop, because that permanently stops
+                // the AIO and disallows future operations (returns NNG_ESTOPPED).
                 tracing::warn!("wait cancelled");
                 crate::block_in_place(|| unsafe {
                     nng_sys::nng_aio_cancel(self.0.aio.as_ptr());
                     nng_sys::nng_aio_wait(self.0.aio.as_ptr());
                 });
                 // SAFETY: AIO is valid (AIO is live until `Aio` is dropped).
-                let errno = unsafe { nng_sys::nng_aio_result(self.0.aio.as_ptr()) };
-                tracing::trace!(msg_set = self.0.msg_was_set, errno, "cancelled while");
+                let err = unsafe { nng_sys::nng_aio_result(self.0.aio.as_ptr()) };
+                tracing::trace!(msg_set = self.0.msg_was_set, %err, "cancelled while");
                 // SAFETY: AIO is valid (AIO is live until `Aio` is dropped).
                 debug_assert!(!unsafe { nng_sys::nng_aio_busy(self.0.aio.as_ptr()) });
                 // we also need to make sure we eat the notification so that it doesn't spuriously
@@ -131,8 +134,8 @@ impl Aio {
                     }
                 }
 
-                match (self.0.msg_was_set, errno) {
-                    (true, 0) => {
+                match (self.0.msg_was_set, err) {
+                    (true, nng_err::NNG_OK) => {
                         // an operation where we set the message (send) succeeded,
                         // in which case NNG is responsible for freeing, so all is well.
                         // still set msg to NULL to make it clear it isn't usable any more.
@@ -142,7 +145,7 @@ impl Aio {
                         };
                         self.0.msg_was_set = false;
                     }
-                    (false, 0) => {
+                    (false, nng_err::NNG_OK) => {
                         // an operation where we didn't set the message (recv) succeeded,
                         // so we now own the (incoming) message, if any.
                         // we'll leave it in the Aio so that subsequent calls have a hope to
@@ -175,7 +178,7 @@ impl Aio {
         core::mem::forget(guard);
 
         // NOTE(jon): at this point we know that the callback has finished, but there is a small
-        // chance that the callback is _still_ executing if it got pre-empted _just_ before
+        // chance that the callback is _still_ executing if it got preempted _just_ before
         // returning (but after notifying). so, we also call nng_aio_wait to ensure we're fully
         // past the callback section.
 
@@ -191,29 +194,25 @@ impl Aio {
         // now that the operation is fully complete, we can get its result
 
         // SAFETY: AIO is valid (AIO is live until `Aio` is dropped).
-        let errno = unsafe { nng_sys::nng_aio_result(self.aio.as_ptr()) };
-        tracing::trace!(errno, "nng_aio_result");
-        if errno == 0 {
-            match msg_implication {
-                ImplicationOnMessage::Sent => {
-                    // the AIO's msg is now gone, so let's make sure we don't refer to it any more
-                    unsafe { nng_sys::nng_aio_set_msg(self.as_ptr(), core::ptr::null_mut()) };
-                    self.msg_was_set = false
-                }
-                ImplicationOnMessage::Received => {
-                    // the AIO's msg is now set, but it's up to the caller to extract it (eg, with
-                    // `take_message`) as documented in this method's signature.
-                }
-            }
-        }
+        let err = unsafe { nng_sys::nng_aio_result(self.aio.as_ptr()) };
+        tracing::trace!(err = ?err, "nng_aio_result");
 
-        match NonZeroU32::new(u32::try_from(errno).expect("errno is never negative")) {
-            None => Ok(()),
-            Some(errno) => Err(match errno.get() {
-                nng_sys::NNG_ETIMEDOUT => AioError::TimedOut,
-                nng_sys::NNG_ECANCELED => AioError::Cancelled,
-                _ => AioError::Operation(errno),
-            }),
+        match err {
+            nng_err::NNG_OK => {
+                match msg_implication {
+                    ImplicationOnMessage::Sent => {
+                        // the AIO's msg is now gone, so let's make sure we don't refer to it any more
+                        unsafe { nng_sys::nng_aio_set_msg(self.as_ptr(), core::ptr::null_mut()) };
+                        self.msg_was_set = false
+                    }
+                    ImplicationOnMessage::Received => {
+                        // the AIO's msg is now set, but it's up to the caller to extract it (eg, with
+                        // `take_message`) as documented in this method's signature.
+                    }
+                }
+                Ok(())
+            }
+            _ => Err(AioError::from_nng_err(err)),
         }
     }
 
@@ -320,18 +319,22 @@ pub enum AioError {
     /// in a consistent state.
     Cancelled,
 
-    /// Underlying NNG operation failed with the given error code.
+    /// Underlying NNG operation failed.
     ///
-    /// The error code corresponds to NNG's error constants. Common codes include:
-    /// - `NNG_ECONNREFUSED` (61): Connection refused by remote endpoint
-    /// - `NNG_ECONNRESET` (54): Connection reset by peer
-    /// - `NNG_EHOSTUNREACH` (65): Host unreachable
-    /// - `NNG_EADDRINUSE` (48): Address already in use
-    /// - `NNG_ESTATE` (71): Protocol state violation
+    /// Contains an [`NngError`] which wraps either a legacy integer error code
+    /// ([`NngError::V1`]) or a typed `nng_err` ([`NngError::V2`]) depending on
+    /// which NNG API returned the error.
     ///
-    /// See the [NNG documentation](https://nng.nanomsg.org/man/v1.10.0/nng.7.html#error_codes)
-    /// for a complete list of error codes. You can also get them from the [`nng_sys`] crate.
-    Operation(NonZeroU32),
+    /// Common error conditions include:
+    /// - `NNG_ECONNREFUSED`: Connection refused by remote endpoint
+    /// - `NNG_ECONNRESET`: Connection reset by peer
+    /// - `NNG_EUNREACHABLE`: Host unreachable
+    /// - `NNG_EADDRINUSE`: Address already in use
+    /// - `NNG_ESTATE`: Protocol state violation
+    ///
+    /// See the [NNG documentation](https://nng.nanomsg.org/ref/api/errors.html)
+    /// for the complete list of error codes.
+    Operation(NngError),
 }
 
 impl fmt::Display for AioError {
@@ -339,10 +342,7 @@ impl fmt::Display for AioError {
         match self {
             AioError::TimedOut => write!(f, "operation timed out"),
             AioError::Cancelled => write!(f, "operation was cancelled"),
-            AioError::Operation(code) => {
-                let error_str = crate::nng_strerror(code.get() as c_int);
-                write!(f, "{}", error_str.to_string_lossy())
-            }
+            AioError::Operation(nng_err) => write!(f, "{nng_err}"),
         }
     }
 }
@@ -350,26 +350,74 @@ impl fmt::Display for AioError {
 impl core::error::Error for AioError {}
 
 impl AioError {
-    pub(crate) fn from_nz_u32(errno: NonZero<u32>) -> Self {
-        match errno.get() {
-            0 => unreachable!("from NonZero"),
-            nng_sys::NNG_ECANCELED => AioError::Cancelled,
-            nng_sys::NNG_ETIMEDOUT => AioError::TimedOut,
-            _ => AioError::Operation(errno),
-        }
-    }
-
-    pub(crate) fn try_from_u32(errno: u32) -> Result<(), Self> {
-        if let Some(nz) = NonZero::new(errno) {
-            Err(Self::from_nz_u32(nz))
+    /// Converts an `nng_err` to an `AioError`.
+    ///
+    /// Note: this function assumes `errno != NNG_OK`.
+    pub(crate) fn from_nng_err(err: nng_err) -> Self {
+        let code = err as u32;
+        if code == nng_err::NNG_ECANCELED as u32 {
+            AioError::Cancelled
+        } else if code == nng_err::NNG_ETIMEDOUT as u32 {
+            AioError::TimedOut
+        } else if let Some(special) = try_extract_special_error(code) {
+            AioError::Operation(special)
         } else {
-            Ok(())
+            AioError::Operation(NngError::NngError(err))
         }
     }
 
-    pub(crate) fn try_from_i32(errno: i32) -> Result<(), Self> {
-        let errno = u32::try_from(errno).expect("nng errno is never negative");
-        Self::try_from_u32(errno)
+    /// Converts a raw non-zero errno to a AioError.
+    ///
+    /// This is used for legacy NNG functions that return `int` error codes.
+    pub(crate) fn from_nz_u32(errno: NonZeroU32) -> Self {
+        let code = errno.get();
+        if code == nng_err::NNG_ECANCELED as u32 {
+            AioError::Cancelled
+        } else if code == nng_err::NNG_ETIMEDOUT as u32 {
+            AioError::TimedOut
+        } else {
+            let err = match code {
+                c if c == nng_err::NNG_EINTR as u32 => nng_err::NNG_EINTR,
+                c if c == nng_err::NNG_ENOMEM as u32 => nng_err::NNG_ENOMEM,
+                c if c == nng_err::NNG_EINVAL as u32 => nng_err::NNG_EINVAL,
+                c if c == nng_err::NNG_EBUSY as u32 => nng_err::NNG_EBUSY,
+                c if c == nng_err::NNG_ETIMEDOUT as u32 => nng_err::NNG_ETIMEDOUT,
+                c if c == nng_err::NNG_ECONNREFUSED as u32 => nng_err::NNG_ECONNREFUSED,
+                c if c == nng_err::NNG_ECLOSED as u32 => nng_err::NNG_ECLOSED,
+                c if c == nng_err::NNG_EAGAIN as u32 => nng_err::NNG_EAGAIN,
+                c if c == nng_err::NNG_ENOTSUP as u32 => nng_err::NNG_ENOTSUP,
+                c if c == nng_err::NNG_EADDRINUSE as u32 => nng_err::NNG_EADDRINUSE,
+                c if c == nng_err::NNG_ESTATE as u32 => nng_err::NNG_ESTATE,
+                c if c == nng_err::NNG_ENOENT as u32 => nng_err::NNG_ENOENT,
+                c if c == nng_err::NNG_EPROTO as u32 => nng_err::NNG_EPROTO,
+                c if c == nng_err::NNG_EUNREACHABLE as u32 => nng_err::NNG_EUNREACHABLE,
+                c if c == nng_err::NNG_EADDRINVAL as u32 => nng_err::NNG_EADDRINVAL,
+                c if c == nng_err::NNG_EPERM as u32 => nng_err::NNG_EPERM,
+                c if c == nng_err::NNG_EMSGSIZE as u32 => nng_err::NNG_EMSGSIZE,
+                c if c == nng_err::NNG_ECONNABORTED as u32 => nng_err::NNG_ECONNABORTED,
+                c if c == nng_err::NNG_ECONNRESET as u32 => nng_err::NNG_ECONNRESET,
+                c if c == nng_err::NNG_ECANCELED as u32 => nng_err::NNG_ECANCELED,
+                c if c == nng_err::NNG_ENOFILES as u32 => nng_err::NNG_ENOFILES,
+                c if c == nng_err::NNG_ENOSPC as u32 => nng_err::NNG_ENOSPC,
+                c if c == nng_err::NNG_EEXIST as u32 => nng_err::NNG_EEXIST,
+                c if c == nng_err::NNG_EREADONLY as u32 => nng_err::NNG_EREADONLY,
+                c if c == nng_err::NNG_EWRITEONLY as u32 => nng_err::NNG_EWRITEONLY,
+                c if c == nng_err::NNG_ECRYPTO as u32 => nng_err::NNG_ECRYPTO,
+                c if c == nng_err::NNG_EPEERAUTH as u32 => nng_err::NNG_EPEERAUTH,
+                c if c == nng_err::NNG_EBADTYPE as u32 => nng_err::NNG_EBADTYPE,
+                c if c == nng_err::NNG_ECONNSHUT as u32 => nng_err::NNG_ECONNSHUT,
+                c if c == nng_err::NNG_ESTOPPED as u32 => nng_err::NNG_ESTOPPED,
+                c if c == nng_err::NNG_EINTERNAL as u32 => nng_err::NNG_EINTERNAL,
+                _ => {
+                    return if let Some(special) = try_extract_special_error(code) {
+                        AioError::Operation(special)
+                    } else {
+                        AioError::Operation(NngError::Other(errno))
+                    };
+                }
+            };
+            AioError::Operation(NngError::NngError(err))
+        }
     }
 }
 
@@ -380,137 +428,128 @@ impl From<AioError> for io::Error {
             AioError::Cancelled => {
                 io::Error::new(io::ErrorKind::Interrupted, "operation cancelled")
             }
-            AioError::Operation(errno) => match errno.get() {
-                0 => unreachable!("came from NonZero<u32>"),
-                nng_sys::NNG_ETIMEDOUT => unreachable!("always handled in outer variant"),
-                nng_sys::NNG_ECANCELED => unreachable!("always handled in outer variant"),
-                nng_sys::NNG_EINTR => unreachable!("nng never exposes this publicly"),
-                nng_sys::NNG_EBUSY => io::Error::new(
-                    io::ErrorKind::ResourceBusy,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EAGAIN => io::Error::new(
-                    io::ErrorKind::WouldBlock,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_ENOTSUP => io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EADDRINUSE => io::Error::new(
-                    io::ErrorKind::AddrInUse,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_ENOENT => io::Error::new(
-                    io::ErrorKind::NotFound,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EPERM => io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EMSGSIZE => io::Error::new(
-                    io::ErrorKind::FileTooLarge,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_ECONNABORTED => io::Error::new(
-                    io::ErrorKind::ConnectionAborted,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_ENOFILES => io::Error::new(
-                    io::ErrorKind::QuotaExceeded,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_ENOSPC => io::Error::new(
-                    io::ErrorKind::StorageFull,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EEXIST => io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EREADONLY => io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EWRITEONLY => io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_ECRYPTO => {
-                    io::Error::other(crate::nng_errno_to_string(errno.get() as c_int))
-                }
-                nng_sys::NNG_ENOARG => io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EAMBIGUOUS => {
-                    io::Error::other(crate::nng_errno_to_string(errno.get() as c_int))
-                }
-                nng_sys::NNG_EBADTYPE => io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_ECONNSHUT => io::Error::new(
-                    io::ErrorKind::BrokenPipe,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EINTERNAL => {
-                    io::Error::other(crate::nng_errno_to_string(errno.get() as c_int))
-                }
-                nng_sys::NNG_EADDRINVAL => io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_ECLOSED => io::Error::new(
-                    io::ErrorKind::BrokenPipe,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_ESTATE => {
-                    io::Error::other(crate::nng_errno_to_string(errno.get() as c_int))
-                }
-                nng_sys::NNG_ECONNREFUSED => io::Error::new(
-                    io::ErrorKind::ConnectionRefused,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_ECONNRESET => io::Error::new(
-                    io::ErrorKind::ConnectionReset,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EINVAL => io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_ENOMEM => io::Error::new(
-                    io::ErrorKind::OutOfMemory,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EPEERAUTH => io::Error::new(
-                    io::ErrorKind::ConnectionAborted,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                nng_sys::NNG_EPROTO => {
-                    io::Error::other(crate::nng_errno_to_string(errno.get() as c_int))
-                }
-                nng_sys::NNG_EUNREACHABLE => io::Error::new(
-                    io::ErrorKind::HostUnreachable,
-                    crate::nng_errno_to_string(errno.get() as c_int),
-                ),
-                errno if (errno & nng_sys::NNG_ESYSERR) != 0 => {
-                    io::Error::from_raw_os_error(errno as i32 & !(nng_sys::NNG_ESYSERR as i32))
-                }
-                errno if (errno & nng_sys::NNG_ETRANERR) != 0 => {
-                    // this is a bit flag that indicates an underlying transport level error
-                    // since this isn't a system error (like `NNG_ESYSERR`), we can't turn it into
-                    // anything more specific, so we just bubble it up as "other".
-                    io::Error::other(crate::nng_errno_to_string(errno as c_int))
-                }
-                errno => {
-                    tracing::error!(errno, "unknown nng error code surfaced");
-                    io::Error::other(crate::nng_errno_to_string(errno as c_int))
-                }
+            AioError::Operation(err) => match err {
+                NngError::NngError(err) => match err {
+                    nng_err::NNG_OK => unreachable!("NNG_OK should not be passed to this function"),
+                    nng_err::NNG_ETIMEDOUT => unreachable!("always handled in outer variant"),
+                    nng_err::NNG_ECANCELED => unreachable!("always handled in outer variant"),
+                    nng_err::NNG_EINTR => unreachable!("nng never exposes this publicly"),
+                    nng_err::NNG_EBUSY => {
+                        io::Error::new(io::ErrorKind::ResourceBusy, err.to_string())
+                    }
+                    nng_err::NNG_EAGAIN => {
+                        io::Error::new(io::ErrorKind::WouldBlock, err.to_string())
+                    }
+                    nng_err::NNG_ENOTSUP => {
+                        io::Error::new(io::ErrorKind::Unsupported, err.to_string())
+                    }
+                    nng_err::NNG_EADDRINUSE => {
+                        io::Error::new(io::ErrorKind::AddrInUse, err.to_string())
+                    }
+                    nng_err::NNG_ENOENT => io::Error::new(io::ErrorKind::NotFound, err.to_string()),
+                    nng_err::NNG_EPERM => {
+                        io::Error::new(io::ErrorKind::PermissionDenied, err.to_string())
+                    }
+                    nng_err::NNG_EMSGSIZE => {
+                        io::Error::new(io::ErrorKind::InvalidData, err.to_string())
+                    }
+                    nng_err::NNG_ECONNABORTED => {
+                        io::Error::new(io::ErrorKind::ConnectionAborted, err.to_string())
+                    }
+                    nng_err::NNG_ENOFILES => {
+                        io::Error::new(io::ErrorKind::QuotaExceeded, err.to_string())
+                    }
+                    nng_err::NNG_ENOSPC => {
+                        io::Error::new(io::ErrorKind::StorageFull, err.to_string())
+                    }
+                    nng_err::NNG_EEXIST => {
+                        io::Error::new(io::ErrorKind::AlreadyExists, err.to_string())
+                    }
+                    nng_err::NNG_EREADONLY | nng_err::NNG_EWRITEONLY => {
+                        io::Error::new(io::ErrorKind::Unsupported, err.to_string())
+                    }
+                    nng_err::NNG_EBADTYPE | nng_err::NNG_EADDRINVAL | nng_err::NNG_EINVAL => {
+                        io::Error::new(io::ErrorKind::InvalidInput, err.to_string())
+                    }
+                    nng_err::NNG_ECONNSHUT | nng_err::NNG_ECLOSED => {
+                        io::Error::new(io::ErrorKind::BrokenPipe, err.to_string())
+                    }
+                    nng_err::NNG_ECONNREFUSED => {
+                        io::Error::new(io::ErrorKind::ConnectionRefused, err.to_string())
+                    }
+                    nng_err::NNG_ECONNRESET => {
+                        io::Error::new(io::ErrorKind::ConnectionReset, err.to_string())
+                    }
+                    nng_err::NNG_ENOMEM => {
+                        io::Error::new(io::ErrorKind::OutOfMemory, err.to_string())
+                    }
+                    nng_err::NNG_EPEERAUTH => {
+                        io::Error::new(io::ErrorKind::ConnectionAborted, err.to_string())
+                    }
+                    nng_err::NNG_EUNREACHABLE => {
+                        io::Error::new(io::ErrorKind::HostUnreachable, err.to_string())
+                    }
+                    // All other errors (NNG_ECRYPTO, NNG_EINTERNAL, NNG_ESTATE, NNG_EPROTO, etc.)
+                    _ => io::Error::other(err.to_string()),
+                },
+                NngError::Transport(code) => io::Error::other(format!("Transport error #{}", code)),
+                NngError::System(kind) => io::Error::from(kind),
+                NngError::Other(code) => io::Error::other(code.to_string()),
             },
         }
+    }
+}
+
+/// Wrapper for NNG error codes across different API styles.
+///
+/// NNG functions may return either raw integer error codes (legacy pattern) or typed
+/// `nng_err` values (NNG 2.0 pattern). This enum provides a unified representation
+/// that can hold either form.
+///
+/// # Variants
+///
+/// - [`NngError::NngError`]: Typed `nng_err` from functions that have been updated in NNG v2.
+/// - [`NngError::Transport`]: Transport-specific error code extracted from nng_err::NNG_ETRANERR.
+/// - [`NngError::System`]: System error (errno) mapped to [`io::ErrorKind`] extracted from nng_err::NNG_ESYSERR.
+/// - [`NngError::Other`]: Raw error code not captured by other variants.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum NngError {
+    /// Standard NNG error.
+    NngError(nng_err),
+    /// Transport-specific error.
+    Transport(u32),
+    /// System error.
+    System(io::ErrorKind),
+    /// Other error.
+    Other(NonZeroU32),
+}
+
+impl fmt::Display for NngError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NngError::NngError(err) => write!(f, "{err}"),
+            NngError::Transport(code) => write!(f, "Transport error #{code}"),
+            NngError::System(kind) => write!(f, "System error: {}", io::Error::from(*kind)),
+            NngError::Other(code) => write!(f, "Unknown error #{code}"),
+        }
+    }
+}
+
+/// Checks if the error code represents a system or transport error and extracts it.
+///
+/// Returns `Some(NngError::System(...))` for system errors (NNG_ESYSERR flag set),
+/// `Some(NngError::Transport(...))` for transport errors (NNG_ETRANERR flag set),
+/// or `None` for standard NNG error codes.
+fn try_extract_special_error(code: u32) -> Option<NngError> {
+    if (code & (nng_err::NNG_ESYSERR as u32)) != 0 {
+        let sys_err = (code & !(nng_err::NNG_ESYSERR as u32)) as i32;
+        let kind = io::Error::from_raw_os_error(sys_err).kind();
+        Some(NngError::System(kind))
+    } else if (code & (nng_err::NNG_ETRANERR as u32)) != 0 {
+        let tran_err = code & !(nng_err::NNG_ETRANERR as u32);
+        Some(NngError::Transport(tran_err))
+    } else {
+        None
     }
 }
 
