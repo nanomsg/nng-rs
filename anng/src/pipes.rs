@@ -62,16 +62,18 @@ impl<Protocol> Listener<'_, Protocol> {
                 nng_sys::NNG_OPT_LOCADDR as *const _ as *const c_char,
                 addr.as_mut_ptr(),
             );
-            if errno == nng_err::NNG_ENOTSUP as i32 {
-                return Err(io::Error::new(
-                    io::ErrorKind::AddrNotAvailable,
-                    "listener transport does not support NNG_OPT_LOCADDR",
-                ));
+            match u32::try_from(errno).expect("errno is never negative") {
+                0 => {}
+                errno if errno == nng_err::NNG_ENOTSUP as u32 => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::AddrNotAvailable,
+                        "listener transport does not support NNG_OPT_LOCADDR",
+                    ));
+                }
+                errno => unreachable!(
+                    "nng_listener_get_addr documentation claims errno {errno} is never returned"
+                ),
             }
-            assert_eq!(
-                errno, 0,
-                "all listed error conditions of nng_listener_get_addr are impossible given arguments"
-            );
             addr.assume_init()
         };
 
