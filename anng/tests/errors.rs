@@ -5,8 +5,6 @@ use std::io::ErrorKind;
 async fn test_invalid_url_format() {
     let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
-    // NNG returns NNG_ENOTSUP for empty/incomplete URLs, which maps to Unsupported.
-    // Earlier versions returned NNG_EINVAL (InvalidInput). Accept both for compatibility.
     let invalid_urls = vec![("", "empty URL"), ("tcp://", "incomplete URL")];
 
     for (url, description) in invalid_urls {
@@ -14,6 +12,8 @@ async fn test_invalid_url_format() {
         let result = reqrep0::Req0::dial(url_cstr.as_c_str()).await;
 
         let err = result.expect_err(&format!("Expected error for {}", description));
+        // NNG returns NNG_ENOTSUP for empty/incomplete URLs, which maps to Unsupported.
+        // Earlier versions returned NNG_EINVAL (InvalidInput). Accept both for compatibility.
         assert!(
             err.kind() == ErrorKind::InvalidInput || err.kind() == ErrorKind::Unsupported,
             "Expected InvalidInput or Unsupported for '{}', got {:?}",
