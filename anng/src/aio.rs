@@ -320,9 +320,9 @@ pub enum AioError {
 
     /// Underlying NNG operation failed.
     ///
-    /// Contains an [`NngError`] which wraps either a legacy integer error code
-    /// ([`NngError::V1`]) or a typed `nng_err` ([`NngError::V2`]) depending on
-    /// which NNG API returned the error.
+    /// Contains an [`NngError`] which wraps a typed `nng_err` ([`NngError::NngError`]),
+    /// a transport-specific error ([`NngError::Transport`]), a system error
+    /// ([`NngError::System`]), or an unrecognized error code ([`NngError::Other`]).
     ///
     /// Common error conditions include:
     /// - `NNG_ECONNREFUSED`: Connection refused by remote endpoint
