@@ -353,6 +353,8 @@ impl AioError {
     ///
     /// Note: this function assumes `errno != NNG_OK`.
     pub(crate) fn from_nng_err(err: nng_err) -> Self {
+        debug_assert_ne!(nng_err::NNG_OK, err);
+
         let code = err as u32;
         if code == nng_err::NNG_ECANCELED as u32 {
             AioError::Cancelled
