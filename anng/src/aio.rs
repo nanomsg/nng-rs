@@ -197,22 +197,21 @@ impl Aio {
         let err = unsafe { nng_sys::nng_aio_result(self.aio.as_ptr()) };
         tracing::trace!(err = ?err, "nng_aio_result");
 
-        match err {
-            nng_err::NNG_OK => {
-                match msg_implication {
-                    ImplicationOnMessage::Sent => {
-                        // the AIO's msg is now gone, so let's make sure we don't refer to it any more
-                        unsafe { nng_sys::nng_aio_set_msg(self.as_ptr(), core::ptr::null_mut()) };
-                        self.msg_was_set = false
-                    }
-                    ImplicationOnMessage::Received => {
-                        // the AIO's msg is now set, but it's up to the caller to extract it (eg, with
-                        // `take_message`) as documented in this method's signature.
-                    }
+        if err == nng_err::NNG_OK {
+            match msg_implication {
+                ImplicationOnMessage::Sent => {
+                    // the AIO's msg is now gone, so let's make sure we don't refer to it any more
+                    unsafe { nng_sys::nng_aio_set_msg(self.as_ptr(), core::ptr::null_mut()) };
+                    self.msg_was_set = false
                 }
-                Ok(())
+                ImplicationOnMessage::Received => {
+                    // the AIO's msg is now set, but it's up to the caller to extract it (eg, with
+                    // `take_message`) as documented in this method's signature.
+                }
             }
-            _ => Err(AioError::from_nng_err(err)),
+            Ok(())
+        } else {
+            Err(AioError::from_nng_err(err))
         }
     }
 
