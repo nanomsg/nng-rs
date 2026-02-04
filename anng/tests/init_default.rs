@@ -1,3 +1,6 @@
+// Note: NNG configuration is static per process. Since Rust runs each integration
+// test file in a separate process, this file intentionally contains only one test.
+
 use anng::{init::NngConfig, init_nng};
 
 /// Verifies that initializing with the default configuration succeeds.
