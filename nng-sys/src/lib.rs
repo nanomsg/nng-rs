@@ -99,6 +99,20 @@ impl nng_ctx {
     };
 }
 
+/// NNG error codes.
+///
+/// This enum represents the standard error codes returned by NNG library functions.
+/// These are distinct from system errors ([`nng_err::NNG_ESYSERR`]) and transport
+/// errors ([`nng_err::NNG_ETRANERR`]) which use flag bits to encode additional information.
+///
+/// # Relationship to [`nng_err`]
+///
+/// The raw [`nng_err`] type from bindgen includes `NNG_OK` (success) and flag markers
+/// for system/transport errors. This `ErrorCode` enum provides a cleaner Rust-native
+/// representation of just the NNG-specific error codes, excluding success and flags.
+///
+/// Use [`ErrorKind`] to handle all error categories (NNG errors, system errors,
+/// transport errors) in a unified way.
 #[repr(u32)]
 #[non_exhaustive]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
