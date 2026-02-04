@@ -467,7 +467,7 @@ fn generate_bindings(include_dirs: &[PathBuf]) {
         })
         .constified_enum("nng_flag_enum")
         // NNG_ESYSERR and NNG_ETRANERR are used like flags
-        .constified_enum("nng_errno_enum")
+        .newtype_enum("nng_err")
         .constified_enum("nng_pipe_ev")
         .use_core()
         .parse_callbacks(Box::new(BindgenCallbacks))

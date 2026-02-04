@@ -100,22 +100,19 @@ use crate::{
     aio::{Aio, ImplicationOnMessage},
     context::Context,
 };
-use core::{
-    ffi::{CStr, c_int},
-    fmt,
-    marker::PhantomData,
-    num::NonZeroU32,
-    ptr::NonNull,
-};
+use core::{ffi::CStr, fmt, marker::PhantomData, ptr::NonNull};
+use nng_sys::{ErrorCode, ErrorKind};
 use std::io;
 
 mod aio;
 mod context;
+pub mod init;
 mod message;
 pub mod pipes;
 pub mod protocols;
 
 pub use aio::AioError;
+pub use init::init_nng;
 pub use message::Message;
 
 /// A type-safe NNG socket with compile-time protocol verification.
@@ -262,7 +259,7 @@ impl<Protocol> fmt::Debug for ContextfulSocket<'_, Protocol> {
 impl<Protocol> Drop for Socket<Protocol> {
     fn drop(&mut self) {
         // SAFETY: socket is valid and not already closed (socket is live until `self` drops).
-        crate::block_in_place(|| unsafe { nng_sys::nng_close(self.socket) });
+        crate::block_in_place(|| unsafe { nng_sys::nng_socket_close(self.socket) });
     }
 }
 
@@ -288,7 +285,7 @@ impl<Protocol> Socket<Protocol> {
         // SAFETY: socket is valid and not closed (socket is live until `self` drops),
         //         AIO is valid and not busy (per `Aio` busy state invariant), and
         //         message has been set on AIO (just above).
-        unsafe { nng_sys::nng_send_aio(self.socket, self.aio.as_ptr()) };
+        unsafe { nng_sys::nng_socket_send(self.socket, self.aio.as_ptr()) };
         // the above started an async operation (makes AIO busy).
         // we call wait() to preserve the Aio busy invariant.
         match self.aio.wait(ImplicationOnMessage::Sent).await {
@@ -326,35 +323,29 @@ impl<Protocol> Socket<Protocol> {
                 let msg = unsafe { Message::from_raw_unchecked(msg) };
                 Ok(Some(msg))
             }
-            nng_sys::NNG_EAGAIN => Ok(None),
-            nng_sys::NNG_ECLOSED => {
+            err if err == ErrorCode::EAGAIN as u32 => Ok(None),
+            err if err == ErrorCode::ECLOSED as u32 => {
                 unreachable!("socket is still open since we have a reference to it");
             }
-            nng_sys::NNG_EINVAL => {
+            err if err == ErrorCode::EINVAL as u32 => {
                 unreachable!("flags are valid for the call");
             }
-            nng_sys::NNG_ENOMEM => {
+            err if err == ErrorCode::ENOMEM as u32 => {
                 panic!("OOM");
             }
-            err @ nng_sys::NNG_ENOTSUP => {
+            err if err == ErrorCode::ENOTSUP as u32 => {
                 // protocol does not support receiving
-                Err(AioError::Operation(
-                    NonZeroU32::try_from(err).expect("statically checked to be >0"),
-                ))
+                Err(AioError::Operation(ErrorKind::NngError(ErrorCode::ENOTSUP)))
             }
-            err @ nng_sys::NNG_ESTATE => {
+            err if err == ErrorCode::ESTATE as u32 => {
                 // protocol does not support receiving in its current state
-                Err(AioError::Operation(
-                    NonZeroU32::try_from(err).expect("statically checked to be >0"),
-                ))
+                Err(AioError::Operation(ErrorKind::NngError(ErrorCode::ESTATE)))
             }
-            err @ nng_sys::NNG_ETIMEDOUT => {
+            err if err == ErrorCode::ETIMEDOUT as u32 => {
                 // likely due to a protocol-level timeout (like surveys)
-                Err(AioError::Operation(
-                    NonZeroU32::try_from(err).expect("statically checked to be >0"),
-                ))
+                Err(AioError::TimedOut)
             }
-            errno => {
+            _ => {
                 unreachable!("nng_recvmsg documentation claims errno {errno} is never returned");
             }
         }
@@ -370,7 +361,7 @@ impl<Protocol> Socket<Protocol> {
 
         // SAFETY: socket is valid and not closed (socket is live until `self` drops), and
         //         AIO is valid and not busy (per `Aio` busy state invariant).
-        unsafe { nng_sys::nng_recv_aio(self.socket, self.aio.as_ptr()) };
+        unsafe { nng_sys::nng_socket_recv(self.socket, self.aio.as_ptr()) };
         // the above started an async operation (which makes the AIO busy), so we must eventually
         // call wait() later to preserve the Aio busy invariant.
         //
@@ -525,21 +516,6 @@ impl<'socket, Protocol> ContextfulSocket<'socket, Protocol> {
     pub fn socket(&self) -> &'socket Socket<Protocol> {
         self.context.socket
     }
-}
-
-fn nng_strerror(errno: c_int) -> &'static CStr {
-    // SAFETY: nng_strerror has no additional safety requirements.
-    let raw = unsafe { nng_sys::nng_strerror(errno) };
-    // SAFETY: nng_strerror returns a valid null-terminated string.
-    //         no allocation information is provided,
-    //         which implies that this is a static string reference.
-    #[allow(clippy::let_and_return)]
-    let cstr = unsafe { CStr::from_ptr(raw) };
-    cstr
-}
-
-fn nng_errno_to_string(errno: c_int) -> String {
-    nng_strerror(errno).to_string_lossy().into_owned()
 }
 
 /// Helper function that calls `tokio::task::block_in_place` when appropriate.

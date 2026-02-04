@@ -3,7 +3,8 @@ use crate::{
     aio::{Aio, AioError, ImplicationOnMessage},
     message::Message,
 };
-use core::{fmt, mem::MaybeUninit, num::NonZeroU32, ptr::NonNull};
+use core::{fmt, mem::MaybeUninit, ptr::NonNull};
+use nng_sys::{ErrorCode, ErrorKind};
 
 impl<Protocol: crate::protocols::SupportsContext> Socket<Protocol> {
     /// Creates a new context for concurrent operations on this socket.
@@ -26,15 +27,15 @@ impl<Protocol: crate::protocols::SupportsContext> Socket<Protocol> {
         let errno = unsafe { nng_sys::nng_ctx_open(context.as_mut_ptr(), self.socket) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            nng_sys::NNG_ENOMEM => {
+            err if err == ErrorCode::ENOMEM as u32 => {
                 panic!("OOM");
             }
-            nng_sys::NNG_ENOTSUP => {
+            err if err == ErrorCode::ENOTSUP as u32 => {
                 // the SupportsContext trait bound ensures this method is only callable
                 // on protocols that support contexts, so this error should be impossible.
                 unreachable!("protocol supports contexts per SupportsContext trait bound");
             }
-            errno => {
+            _ => {
                 unreachable!("nng_ctx_open documentation claims errno {errno} is never returned");
             }
         }
@@ -131,35 +132,29 @@ impl<Protocol> Context<'_, Protocol> {
                 let msg = unsafe { Message::from_raw_unchecked(msg) };
                 Ok(Some(msg))
             }
-            nng_sys::NNG_EAGAIN => Ok(None),
-            nng_sys::NNG_ECLOSED => {
+            err if err == ErrorCode::EAGAIN as u32 => Ok(None),
+            err if err == ErrorCode::ECLOSED as u32 => {
                 unreachable!("socket is still open since we have a reference to it");
             }
-            nng_sys::NNG_EINVAL => {
+            err if err == ErrorCode::EINVAL as u32 => {
                 unreachable!("flags are valid for the call");
             }
-            nng_sys::NNG_ENOMEM => {
+            err if err == ErrorCode::ENOMEM as u32 => {
                 panic!("OOM");
             }
-            err @ nng_sys::NNG_ENOTSUP => {
+            err if err == ErrorCode::ENOTSUP as u32 => {
                 // protocol does not support receiving
-                Err(AioError::Operation(
-                    NonZeroU32::try_from(err).expect("statically checked to be >0"),
-                ))
+                Err(AioError::Operation(ErrorKind::NngError(ErrorCode::ENOTSUP)))
             }
-            err @ nng_sys::NNG_ESTATE => {
+            err if err == ErrorCode::ESTATE as u32 => {
                 // protocol does not support receiving in its current state
-                Err(AioError::Operation(
-                    NonZeroU32::try_from(err).expect("statically checked to be >0"),
-                ))
+                Err(AioError::Operation(ErrorKind::NngError(ErrorCode::ESTATE)))
             }
-            err @ nng_sys::NNG_ETIMEDOUT => {
+            err if err == ErrorCode::ETIMEDOUT as u32 => {
                 // likely due to a protocol-level timeout (like surveys)
-                Err(AioError::Operation(
-                    NonZeroU32::try_from(err).expect("statically checked to be >0"),
-                ))
+                Err(AioError::TimedOut)
             }
-            errno => {
+            _ => {
                 unreachable!(
                     "nng_ctx_recvmsg documentation claims errno {errno} is never returned"
                 );

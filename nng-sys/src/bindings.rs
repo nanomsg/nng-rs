@@ -93,45 +93,45 @@ pub struct nng_socket_s {
 pub type nng_socket = nng_socket_s;
 pub type nng_duration = i32;
 pub type nng_time = u64;
-#[repr(u32)]
-#[non_exhaustive]
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum nng_err {
-    NNG_OK = 0,
-    NNG_EINTR = 1,
-    NNG_ENOMEM = 2,
-    NNG_EINVAL = 3,
-    NNG_EBUSY = 4,
-    NNG_ETIMEDOUT = 5,
-    NNG_ECONNREFUSED = 6,
-    NNG_ECLOSED = 7,
-    NNG_EAGAIN = 8,
-    NNG_ENOTSUP = 9,
-    NNG_EADDRINUSE = 10,
-    NNG_ESTATE = 11,
-    NNG_ENOENT = 12,
-    NNG_EPROTO = 13,
-    NNG_EUNREACHABLE = 14,
-    NNG_EADDRINVAL = 15,
-    NNG_EPERM = 16,
-    NNG_EMSGSIZE = 17,
-    NNG_ECONNABORTED = 18,
-    NNG_ECONNRESET = 19,
-    NNG_ECANCELED = 20,
-    NNG_ENOFILES = 21,
-    NNG_ENOSPC = 22,
-    NNG_EEXIST = 23,
-    NNG_EREADONLY = 24,
-    NNG_EWRITEONLY = 25,
-    NNG_ECRYPTO = 26,
-    NNG_EPEERAUTH = 27,
-    NNG_EBADTYPE = 30,
-    NNG_ECONNSHUT = 31,
-    NNG_ESTOPPED = 999,
-    NNG_EINTERNAL = 1000,
-    NNG_ESYSERR = 268435456,
-    NNG_ETRANERR = 536870912,
+impl nng_err {
+    pub const NNG_OK: nng_err = nng_err(0);
+    pub const NNG_EINTR: nng_err = nng_err(1);
+    pub const NNG_ENOMEM: nng_err = nng_err(2);
+    pub const NNG_EINVAL: nng_err = nng_err(3);
+    pub const NNG_EBUSY: nng_err = nng_err(4);
+    pub const NNG_ETIMEDOUT: nng_err = nng_err(5);
+    pub const NNG_ECONNREFUSED: nng_err = nng_err(6);
+    pub const NNG_ECLOSED: nng_err = nng_err(7);
+    pub const NNG_EAGAIN: nng_err = nng_err(8);
+    pub const NNG_ENOTSUP: nng_err = nng_err(9);
+    pub const NNG_EADDRINUSE: nng_err = nng_err(10);
+    pub const NNG_ESTATE: nng_err = nng_err(11);
+    pub const NNG_ENOENT: nng_err = nng_err(12);
+    pub const NNG_EPROTO: nng_err = nng_err(13);
+    pub const NNG_EUNREACHABLE: nng_err = nng_err(14);
+    pub const NNG_EADDRINVAL: nng_err = nng_err(15);
+    pub const NNG_EPERM: nng_err = nng_err(16);
+    pub const NNG_EMSGSIZE: nng_err = nng_err(17);
+    pub const NNG_ECONNABORTED: nng_err = nng_err(18);
+    pub const NNG_ECONNRESET: nng_err = nng_err(19);
+    pub const NNG_ECANCELED: nng_err = nng_err(20);
+    pub const NNG_ENOFILES: nng_err = nng_err(21);
+    pub const NNG_ENOSPC: nng_err = nng_err(22);
+    pub const NNG_EEXIST: nng_err = nng_err(23);
+    pub const NNG_EREADONLY: nng_err = nng_err(24);
+    pub const NNG_EWRITEONLY: nng_err = nng_err(25);
+    pub const NNG_ECRYPTO: nng_err = nng_err(26);
+    pub const NNG_EPEERAUTH: nng_err = nng_err(27);
+    pub const NNG_EBADTYPE: nng_err = nng_err(30);
+    pub const NNG_ECONNSHUT: nng_err = nng_err(31);
+    pub const NNG_ESTOPPED: nng_err = nng_err(999);
+    pub const NNG_EINTERNAL: nng_err = nng_err(1000);
+    pub const NNG_ESYSERR: nng_err = nng_err(268435456);
+    pub const NNG_ETRANERR: nng_err = nng_err(536870912);
 }
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub struct nng_err(pub ::core::ffi::c_uint);
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct nng_msg {

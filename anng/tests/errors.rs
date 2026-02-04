@@ -12,10 +12,11 @@ async fn test_invalid_url_format() {
         let result = reqrep0::Req0::dial(url_cstr.as_c_str()).await;
 
         let err = result.expect_err(&format!("Expected error for {}", description));
-        assert_eq!(
-            err.kind(),
-            ErrorKind::InvalidInput,
-            "Expected InvalidInput for '{}', got {:?}",
+        // NNG returns NNG_ENOTSUP for empty/incomplete URLs, which maps to Unsupported.
+        // Earlier versions returned NNG_EINVAL (InvalidInput). Accept both for compatibility.
+        assert!(
+            err.kind() == ErrorKind::InvalidInput || err.kind() == ErrorKind::Unsupported,
+            "Expected InvalidInput or Unsupported for '{}', got {:?}",
             description,
             err
         );
@@ -151,9 +152,7 @@ async fn test_cross_protocol_consistency() {
 
     test_protocol!("REQ0", reqrep0::Req0::dial(invalid_addr));
     test_protocol!("REP0", reqrep0::Rep0::dial(invalid_addr));
-    #[cfg(nng_110)]
     test_protocol!("PUB0", pubsub0::Pub0::dial(invalid_addr));
-    #[cfg(nng_110)]
     test_protocol!("SUB0", pubsub0::Sub0::dial(invalid_addr));
     test_protocol!("PUSH0", pipeline0::Push0::dial(invalid_addr));
     test_protocol!("PULL0", pipeline0::Pull0::dial(invalid_addr));

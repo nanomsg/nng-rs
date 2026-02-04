@@ -64,6 +64,8 @@ mod bindings {
 
 #[cfg(try_from)]
 use core::convert::TryFrom;
+#[cfg(feature = "std")]
+use std::num::NonZeroU32;
 
 pub use crate::bindings::*;
 
@@ -96,6 +98,219 @@ impl nng_ctx {
         _bindgen_opaque_blob: 0,
     };
 }
+
+/// NNG error codes.
+///
+/// This enum represents the standard error codes returned by NNG library functions.
+/// These are distinct from system errors ([`nng_err::NNG_ESYSERR`]) and transport
+/// errors ([`nng_err::NNG_ETRANERR`]) which use flag bits to encode additional information.
+///
+/// # Relationship to [`nng_err`]
+///
+/// The raw [`nng_err`] type from bindgen includes `NNG_OK` (success) and flag markers
+/// for system/transport errors. This `ErrorCode` enum provides a cleaner Rust-native
+/// representation of just the NNG-specific error codes, excluding success and flags.
+///
+/// Use [`ErrorKind`] to handle all error categories (NNG errors, system errors,
+/// transport errors) in a unified way.
+#[repr(u32)]
+#[non_exhaustive]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum ErrorCode {
+    EINTR = 1,
+    ENOMEM = 2,
+    EINVAL = 3,
+    EBUSY = 4,
+    ETIMEDOUT = 5,
+    ECONNREFUSED = 6,
+    ECLOSED = 7,
+    EAGAIN = 8,
+    ENOTSUP = 9,
+    EADDRINUSE = 10,
+    ESTATE = 11,
+    ENOENT = 12,
+    EPROTO = 13,
+    EUNREACHABLE = 14,
+    EADDRINVAL = 15,
+    EPERM = 16,
+    EMSGSIZE = 17,
+    ECONNABORTED = 18,
+    ECONNRESET = 19,
+    ECANCELED = 20,
+    ENOFILES = 21,
+    ENOSPC = 22,
+    EEXIST = 23,
+    EREADONLY = 24,
+    EWRITEONLY = 25,
+    ECRYPTO = 26,
+    EPEERAUTH = 27,
+    EBADTYPE = 30,
+    ECONNSHUT = 31,
+    ESTOPPED = 999,
+    EINTERNAL = 1000,
+}
+
+#[cfg(feature = "std")]
+impl std::fmt::Display for ErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", nng_err(*self as u32))
+    }
+}
+
+/// Categorized representation of NNG error codes.
+///
+/// NNG functions return error codes as integers. This enum provides a typed
+/// categorization of these errors, making it easier to handle different error
+/// classes in Rust code.
+///
+/// # Error Categories
+///
+/// - [`NngError`](Self::NngError): Standard NNG library errors with well-defined semantics
+/// - [`Transport`](Self::Transport): Transport-layer specific errors (e.g., TCP, IPC)
+/// - [`System`](Self::System): Operating system errors, mapped to [`std::io::ErrorKind`]
+/// - [`Other`](Self::Other): Unrecognized error codes that don't fit other categories
+///
+/// # Example
+///
+/// ```ignore
+/// use nng_sys::{ErrorKind, ErrorCode, nng_err};
+///
+/// let err = ErrorKind::from_nng_err(nng_err::NNG_ETIMEDOUT);
+/// match err {
+///     ErrorKind::NngError(ErrorCode::ETIMEDOUT) => println!("Operation timed out"),
+///     ErrorKind::System(kind) => println!("System error: {:?}", kind),
+///     _ => println!("Other error"),
+/// }
+/// ```
+#[cfg(feature = "std")]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ErrorKind {
+    /// Standard NNG error with a known error code.
+    ///
+    /// These are errors defined by the NNG library itself, such as timeouts,
+    /// connection refused, invalid arguments, etc.
+    NngError(ErrorCode),
+    /// Transport-specific error.
+    ///
+    /// Contains the transport-specific error code extracted from the original
+    /// NNG error.
+    Transport(u32),
+    /// System/OS error mapped to Rust's I/O error kind.
+    ///
+    /// These errors originate from the operating system. The original NNG error
+    /// has the `NNG_ESYSERR` marker bitset.
+    System(std::io::ErrorKind),
+    /// Other unrecognized error code.
+    ///
+    /// Contains non-zero error codes that don't match any known NNG error,
+    /// transport error, or system error pattern.
+    Other(NonZeroU32),
+}
+
+#[cfg(feature = "std")]
+impl std::fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErrorKind::NngError(err) => write!(f, "{err}"),
+            ErrorKind::Transport(code) => write!(f, "Transport error #{code}"),
+            ErrorKind::System(kind) => write!(f, "System error: {}", std::io::Error::from(*kind)),
+            ErrorKind::Other(code) => write!(f, "Unknown error #{code}"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for ErrorKind {}
+
+#[cfg(feature = "std")]
+impl ErrorKind {
+    /// Converts an [`nng_err`] into an [`ErrorKind`].
+    ///
+    /// This method categorizes NNG error codes into the appropriate [`ErrorKind`] variant.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the error code is zero as error codes are expected to be non-zero.
+    pub fn from_nng_err(err: nng_err) -> ErrorKind {
+        match err {
+            nng_err::NNG_EINTR => ErrorKind::NngError(ErrorCode::EINTR),
+            nng_err::NNG_ENOMEM => ErrorKind::NngError(ErrorCode::ENOMEM),
+            nng_err::NNG_EINVAL => ErrorKind::NngError(ErrorCode::EINVAL),
+            nng_err::NNG_EBUSY => ErrorKind::NngError(ErrorCode::EBUSY),
+            nng_err::NNG_ETIMEDOUT => ErrorKind::NngError(ErrorCode::ETIMEDOUT),
+            nng_err::NNG_ECONNREFUSED => ErrorKind::NngError(ErrorCode::ECONNREFUSED),
+            nng_err::NNG_ECLOSED => ErrorKind::NngError(ErrorCode::ECLOSED),
+            nng_err::NNG_EAGAIN => ErrorKind::NngError(ErrorCode::EAGAIN),
+            nng_err::NNG_ENOTSUP => ErrorKind::NngError(ErrorCode::ENOTSUP),
+            nng_err::NNG_EADDRINUSE => ErrorKind::NngError(ErrorCode::EADDRINUSE),
+            nng_err::NNG_ESTATE => ErrorKind::NngError(ErrorCode::ESTATE),
+            nng_err::NNG_ENOENT => ErrorKind::NngError(ErrorCode::ENOENT),
+            nng_err::NNG_EPROTO => ErrorKind::NngError(ErrorCode::EPROTO),
+            nng_err::NNG_EUNREACHABLE => ErrorKind::NngError(ErrorCode::EUNREACHABLE),
+            nng_err::NNG_EADDRINVAL => ErrorKind::NngError(ErrorCode::EADDRINVAL),
+            nng_err::NNG_EPERM => ErrorKind::NngError(ErrorCode::EPERM),
+            nng_err::NNG_EMSGSIZE => ErrorKind::NngError(ErrorCode::EMSGSIZE),
+            nng_err::NNG_ECONNABORTED => ErrorKind::NngError(ErrorCode::ECONNABORTED),
+            nng_err::NNG_ECONNRESET => ErrorKind::NngError(ErrorCode::ECONNRESET),
+            nng_err::NNG_ECANCELED => ErrorKind::NngError(ErrorCode::ECANCELED),
+            nng_err::NNG_ENOFILES => ErrorKind::NngError(ErrorCode::ENOFILES),
+            nng_err::NNG_ENOSPC => ErrorKind::NngError(ErrorCode::ENOSPC),
+            nng_err::NNG_EEXIST => ErrorKind::NngError(ErrorCode::EEXIST),
+            nng_err::NNG_EREADONLY => ErrorKind::NngError(ErrorCode::EREADONLY),
+            nng_err::NNG_EWRITEONLY => ErrorKind::NngError(ErrorCode::EWRITEONLY),
+            nng_err::NNG_ECRYPTO => ErrorKind::NngError(ErrorCode::ECRYPTO),
+            nng_err::NNG_EPEERAUTH => ErrorKind::NngError(ErrorCode::EPEERAUTH),
+            nng_err::NNG_EBADTYPE => ErrorKind::NngError(ErrorCode::EBADTYPE),
+            nng_err::NNG_ECONNSHUT => ErrorKind::NngError(ErrorCode::ECONNSHUT),
+            nng_err::NNG_ESTOPPED => ErrorKind::NngError(ErrorCode::ESTOPPED),
+            nng_err::NNG_EINTERNAL => ErrorKind::NngError(ErrorCode::EINTERNAL),
+            err if err.0 & nng_err::NNG_ETRANERR.0 != 0 => {
+                ErrorKind::Transport(err.0 & !nng_err::NNG_ETRANERR.0)
+            }
+            err if err.0 & nng_err::NNG_ESYSERR.0 != 0 => {
+                let sys_err = err.0 & !nng_err::NNG_ESYSERR.0;
+                let kind = std::io::Error::from_raw_os_error(sys_err as i32).kind();
+                ErrorKind::System(kind)
+            }
+            err => ErrorKind::Other(NonZeroU32::new(err.0).expect("error codes are non-zero")),
+        }
+    }
+
+    /// Converts a non-zero error code into an [`ErrorKind`].
+    ///
+    /// This is a convenience wrapper for cases where the error code is already
+    /// known to be non-zero (e.g., from NNG functions that return `int` instead
+    /// of `nng_err`).
+    pub fn from_nz_u32(err: NonZeroU32) -> ErrorKind {
+        Self::from_nng_err(nng_err(err.get()))
+    }
+}
+
+impl nng_err {
+    /// Returns a static C-string describing this error.
+    ///
+    /// This is a thin wrapper around `nng_strerror` that works in `no_std`
+    /// environments. The returned string has static lifetime as NNG returns
+    /// pointers to static null terminated string literals.
+    pub fn as_cstr(&self) -> &'static core::ffi::CStr {
+        // SAFETY: nng_strerror is safe to call with any nng_err value.
+        let raw = unsafe { nng_strerror(*self) };
+        // SAFETY: nng_strerror returns a valid, null-terminated, static string.
+        unsafe { core::ffi::CStr::from_ptr(raw) }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::fmt::Display for nng_err {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        // TODO(flxo): update this once [Tracking Issue for
+        // CStr::display](https://github.com/rust-lang/rust/issues/139984) is stable
+        write!(fmt, "{}", self.as_cstr().to_string_lossy())
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for nng_err {}
 
 /// The error type returned when unable to convert an integer to an enum value.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
