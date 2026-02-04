@@ -116,8 +116,10 @@ pub(crate) async fn add_listener_to_socket(
             || err == ErrorCode::EINVAL as u32
             || err == ErrorCode::ENOTSUP as u32 =>
         {
-            return Err(io::Error::from(AioError::from_nz_u32(
-                NonZeroU32::new(err).expect("0 is checked above"),
+            return Err(io::Error::from(AioError::Operation(
+                // Note: none of the codes matched above map to
+                // `AioError::TimeOut` or `AioError::Cancelled`
+                ErrorKind::from_nz_u32(NonZeroU32::new(err).expect("0 is checked above")),
             )));
         }
         errno => {
@@ -155,8 +157,8 @@ pub(crate) async fn add_listener_to_socket(
             unreachable!("the listener is not already started");
         }
         err if err == ErrorCode::EADDRINUSE as u32 || err == ErrorCode::EPERM as u32 => {
-            return Err(io::Error::from(AioError::from_nz_u32(
-                NonZeroU32::new(err).expect("0 is checked above"),
+            return Err(io::Error::from(AioError::Operation(
+                ErrorKind::from_nz_u32(NonZeroU32::new(err).expect("0 is checked above")),
             )));
         }
         errno => {
@@ -195,8 +197,8 @@ pub(crate) async fn add_dialer_to_socket(
             || err == ErrorCode::EINVAL as u32
             || err == ErrorCode::ENOTSUP as u32 =>
         {
-            return Err(io::Error::from(AioError::from_nz_u32(
-                NonZeroU32::new(err).expect("0 is checked above"),
+            return Err(io::Error::from(AioError::Operation(
+                ErrorKind::from_nz_u32(NonZeroU32::new(err).expect("0 is checked above")),
             )));
         }
         errno => {
@@ -277,8 +279,8 @@ pub(crate) async fn add_dialer_to_socket(
                 || err == ErrorCode::EPROTO as u32
                 || err == ErrorCode::EUNREACHABLE as u32 =>
             {
-                Err(io::Error::from(AioError::from_nz_u32(
-                    NonZeroU32::new(err).expect("0 is checked above"),
+                Err(io::Error::from(AioError::Operation(
+                    ErrorKind::from_nz_u32(NonZeroU32::new(err).expect("0 is checked above")),
                 )))
             }
             errno => {

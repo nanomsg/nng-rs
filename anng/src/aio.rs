@@ -199,21 +199,24 @@ impl Aio {
         let errno = unsafe { nng_sys::nng_aio_result(self.aio.as_ptr()) };
         tracing::trace!(err = ?errno, "nng_aio_result");
 
-        if errno == nng_err::NNG_OK {
-            match msg_implication {
-                ImplicationOnMessage::Sent => {
-                    // the AIO's msg is now gone, so let's make sure we don't refer to it any more
-                    unsafe { nng_sys::nng_aio_set_msg(self.as_ptr(), core::ptr::null_mut()) };
-                    self.msg_was_set = false
+        match errno {
+            nng_err::NNG_OK => {
+                match msg_implication {
+                    ImplicationOnMessage::Sent => {
+                        // the AIO's msg is now gone, so let's make sure we don't refer to it any more
+                        unsafe { nng_sys::nng_aio_set_msg(self.as_ptr(), core::ptr::null_mut()) };
+                        self.msg_was_set = false
+                    }
+                    ImplicationOnMessage::Received => {
+                        // the AIO's msg is now set, but it's up to the caller to extract it (eg, with
+                        // `take_message`) as documented in this method's signature.
+                    }
                 }
-                ImplicationOnMessage::Received => {
-                    // the AIO's msg is now set, but it's up to the caller to extract it (eg, with
-                    // `take_message`) as documented in this method's signature.
-                }
+                Ok(())
             }
-            Ok(())
-        } else {
-            Err(AioError::from_nng_err(errno))
+            nng_err::NNG_ECANCELED => Err(AioError::Cancelled),
+            nng_err::NNG_ETIMEDOUT => Err(AioError::TimedOut),
+            err => Err(AioError::Operation(ErrorKind::from_nng_err(err))),
         }
     }
 
@@ -336,22 +339,6 @@ pub enum AioError {
     /// See the [NNG documentation](https://nng.nanomsg.org/ref/api/errors.html)
     /// for the complete list of error codes.
     Operation(ErrorKind),
-}
-
-impl AioError {
-    /// Creates an `AioError` from an `nng_err`.
-    pub(crate) fn from_nng_err(err: nng_err) -> Self {
-        match ErrorKind::from_nng_err(err) {
-            ErrorKind::NngError(ErrorCode::ECANCELED) => AioError::Cancelled,
-            ErrorKind::NngError(ErrorCode::ETIMEDOUT) => AioError::TimedOut,
-            kind => AioError::Operation(kind),
-        }
-    }
-
-    /// Creates an `AioError` from a non-zero error code.
-    pub(crate) fn from_nz_u32(err: std::num::NonZeroU32) -> Self {
-        Self::from_nng_err(nng_err(err.get()))
-    }
 }
 
 impl core::error::Error for AioError {}
