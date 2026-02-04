@@ -106,13 +106,13 @@ use std::io;
 
 mod aio;
 mod context;
-mod init;
+pub mod init;
 mod message;
 pub mod pipes;
 pub mod protocols;
 
 pub use aio::AioError;
-pub use init::{InitError, NngConfig, ThreadLimit, ThreadPoolConfig, deinit_nng, init_nng};
+pub use init::init_nng;
 pub use message::Message;
 
 /// A type-safe NNG socket with compile-time protocol verification.

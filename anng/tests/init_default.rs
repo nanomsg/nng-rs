@@ -1,4 +1,4 @@
-use anng::{NngConfig, init_nng};
+use anng::{init::NngConfig, init_nng};
 
 /// Verifies that initializing with the default configuration succeeds.
 #[test]
