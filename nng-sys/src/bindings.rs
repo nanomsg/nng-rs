@@ -2402,7 +2402,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn nng_http_server_get_addr(arg1: *mut nng_http_server, arg2: *mut nng_sockaddr)
-        -> nng_err;
+    -> nng_err;
 }
 unsafe extern "C" {
     pub fn nng_http_server_set_error_page(
