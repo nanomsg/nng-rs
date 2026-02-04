@@ -94,7 +94,7 @@
 use crate::{Socket, aio::AioError, message::Message};
 use core::ffi::CStr;
 use core::ffi::c_char;
-use nng_sys::nng_err;
+use nng_sys::ErrorCode;
 use std::io;
 
 /// Pull socket type for receiving work from push sockets.
@@ -244,13 +244,13 @@ impl Socket<Push0> {
 
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(()),
-            errno if errno == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == ErrorCode::ECLOSED as u32 => {
                 unreachable!("socket is still open");
             }
-            errno if errno == nng_err::NNG_EINVAL as u32 => {
+            errno if errno == ErrorCode::EINVAL as u32 => {
                 unreachable!("we've checked the range of the input");
             }
-            errno if errno == nng_err::NNG_ENOMEM as u32 => Err(io::Error::new(
+            errno if errno == ErrorCode::ENOMEM as u32 => Err(io::Error::new(
                 io::ErrorKind::OutOfMemory,
                 "insufficient memory to resize send buffer",
             )),

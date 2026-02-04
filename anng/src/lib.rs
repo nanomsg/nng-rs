@@ -101,8 +101,8 @@ use crate::{
     context::Context,
 };
 use core::{ffi::CStr, fmt, marker::PhantomData, ptr::NonNull};
-use nng_sys::nng_err;
-use std::{io, num::NonZeroU32};
+use nng_sys::{ErrorCode, ErrorKind};
+use std::io;
 
 mod aio;
 mod context;
@@ -111,7 +111,7 @@ mod message;
 pub mod pipes;
 pub mod protocols;
 
-pub use aio::{AioError, NngError};
+pub use aio::AioError;
 pub use init::{InitError, NngConfig, ThreadLimit, ThreadPoolConfig, deinit_nng, init_nng};
 pub use message::Message;
 
@@ -323,35 +323,29 @@ impl<Protocol> Socket<Protocol> {
                 let msg = unsafe { Message::from_raw_unchecked(msg) };
                 Ok(Some(msg))
             }
-            errno if errno == nng_err::NNG_EAGAIN as u32 => Ok(None),
-            errno if errno == nng_err::NNG_ECLOSED as u32 => {
+            err if err == ErrorCode::EAGAIN as u32 => Ok(None),
+            err if err == ErrorCode::ECLOSED as u32 => {
                 unreachable!("socket is still open since we have a reference to it");
             }
-            errno if errno == nng_err::NNG_EINVAL as u32 => {
+            err if err == ErrorCode::EINVAL as u32 => {
                 unreachable!("flags are valid for the call");
             }
-            errno if errno == nng_err::NNG_ENOMEM as u32 => {
+            err if err == ErrorCode::ENOMEM as u32 => {
                 panic!("OOM");
             }
-            errno if errno == nng_err::NNG_ENOTSUP as u32 => {
+            err if err == ErrorCode::ENOTSUP as u32 => {
                 // protocol does not support receiving
-                Err(AioError::from_nz_u32(
-                    NonZeroU32::try_from(errno).expect("statically checked to be >0"),
-                ))
+                Err(AioError::Operation(ErrorKind::NngError(ErrorCode::ENOTSUP)))
             }
-            errno if errno == nng_err::NNG_ESTATE as u32 => {
+            err if err == ErrorCode::ESTATE as u32 => {
                 // protocol does not support receiving in its current state
-                Err(AioError::from_nz_u32(
-                    NonZeroU32::try_from(errno).expect("statically checked to be >0"),
-                ))
+                Err(AioError::Operation(ErrorKind::NngError(ErrorCode::ESTATE)))
             }
-            errno if errno == nng_err::NNG_ETIMEDOUT as u32 => {
+            err if err == ErrorCode::ETIMEDOUT as u32 => {
                 // likely due to a protocol-level timeout (like surveys)
-                Err(AioError::from_nz_u32(
-                    NonZeroU32::try_from(errno).expect("statically checked to be >0"),
-                ))
+                Err(AioError::TimedOut)
             }
-            errno => {
+            _ => {
                 unreachable!("nng_recvmsg documentation claims errno {errno} is never returned");
             }
         }

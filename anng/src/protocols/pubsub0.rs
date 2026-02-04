@@ -99,7 +99,7 @@
 use super::SupportsContext;
 use crate::{ContextfulSocket, Socket, aio::AioError, message::Message};
 use core::ffi::{CStr, c_char, c_void};
-use nng_sys::nng_err;
+use nng_sys::ErrorCode;
 use std::io;
 
 /// Subscribe socket type for receiving filtered messages from publishers.
@@ -268,19 +268,19 @@ impl<'socket> ContextfulSocket<'socket, Sub0> {
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            errno if errno == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == ErrorCode::ECLOSED as u32 => {
                 unreachable!("socket is still open");
             }
-            errno if errno == nng_err::NNG_EINVAL as u32 => {
+            errno if errno == ErrorCode::EINVAL as u32 => {
                 unreachable!("the value is valid for this setting");
             }
-            errno if errno == nng_err::NNG_ENOTSUP as u32 => {
+            errno if errno == ErrorCode::ENOTSUP as u32 => {
                 unreachable!("this is a sub0 socket, and those support PREFNEW");
             }
-            errno if errno == nng_err::NNG_EREADONLY as u32 => {
+            errno if errno == ErrorCode::EREADONLY as u32 => {
                 unreachable!("PREFNEW is not read-only");
             }
-            errno if errno == nng_err::NNG_ESTATE as u32 => {
+            errno if errno == ErrorCode::ESTATE as u32 => {
                 panic!("state machine for sub0 socket is in unexpected state for setting PREFNEW");
             }
             errno => {
@@ -346,13 +346,13 @@ impl<'socket> ContextfulSocket<'socket, Sub0> {
             unsafe { nng_sys::nng_sub0_ctx_subscribe(self.context.id(), core::ptr::null(), 0) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            errno if errno == nng_err::NNG_ENOMEM as u32 => {
+            errno if errno == ErrorCode::ENOMEM as u32 => {
                 panic!("OOM");
             }
-            errno if errno == nng_err::NNG_ENOTSUP as u32 => {
+            errno if errno == ErrorCode::ENOTSUP as u32 => {
                 unreachable!("this is a sub0 socket");
             }
-            errno if errno == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == ErrorCode::ECLOSED as u32 => {
                 unreachable!("socket is still open");
             }
             errno => {
@@ -413,13 +413,13 @@ impl<'socket> ContextfulSocket<'socket, Sub0> {
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            errno if errno == nng_err::NNG_ENOMEM as u32 => {
+            errno if errno == ErrorCode::ENOMEM as u32 => {
                 panic!("OOM");
             }
-            errno if errno == nng_err::NNG_ENOTSUP as u32 => {
+            errno if errno == ErrorCode::ENOTSUP as u32 => {
                 unreachable!("this is a sub0 socket");
             }
-            errno if errno == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == ErrorCode::ECLOSED as u32 => {
                 unreachable!("socket is still open");
             }
             errno => {
@@ -475,16 +475,16 @@ impl<'socket> ContextfulSocket<'socket, Sub0> {
         };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => true,
-            errno if errno == nng_err::NNG_ENOMEM as u32 => {
+            errno if errno == ErrorCode::ENOMEM as u32 => {
                 panic!("OOM");
             }
-            errno if errno == nng_err::NNG_ENOTSUP as u32 => {
+            errno if errno == ErrorCode::ENOTSUP as u32 => {
                 unreachable!("this is a sub0 socket");
             }
-            errno if errno == nng_err::NNG_ECLOSED as u32 => {
+            errno if errno == ErrorCode::ECLOSED as u32 => {
                 unreachable!("socket is still open");
             }
-            errno if errno == nng_err::NNG_ENOENT as u32 => false,
+            errno if errno == ErrorCode::ENOENT as u32 => false,
             errno => {
                 unreachable!(
                     "nng_sub0_socket_unsubscribe documentation claims errno {errno} is never returned"

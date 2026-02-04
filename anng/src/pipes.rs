@@ -10,7 +10,7 @@ use core::net::SocketAddr;
 use core::net::SocketAddrV4;
 use core::net::SocketAddrV6;
 use core::ops::Deref;
-use nng_sys::nng_err;
+use nng_sys::ErrorCode;
 use std::ffi::CString;
 use std::io;
 
@@ -62,18 +62,18 @@ impl<Protocol> Listener<'_, Protocol> {
                 nng_sys::NNG_OPT_LOCADDR as *const _ as *const c_char,
                 addr.as_mut_ptr(),
             );
-            match u32::try_from(errno).expect("errno is never negative") {
-                0 => {}
-                errno if errno == nng_err::NNG_ENOTSUP as u32 => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::AddrNotAvailable,
-                        "listener transport does not support NNG_OPT_LOCADDR",
-                    ));
-                }
-                errno => unreachable!(
-                    "nng_listener_get_addr documentation claims errno {errno} is never returned"
-                ),
+
+            let errno = u32::try_from(errno).expect("errno is never negative");
+            if errno == ErrorCode::ENOTSUP as u32 {
+                return Err(io::Error::new(
+                    io::ErrorKind::AddrNotAvailable,
+                    "listener transport does not support NNG_OPT_LOCADDR",
+                ));
             }
+            assert_eq!(
+                errno, 0,
+                "all listed error conditions of nng_listener_get_addr are impossible given arguments"
+            );
             addr.assume_init()
         };
 
