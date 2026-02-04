@@ -222,6 +222,7 @@ impl std::fmt::Display for ErrorKind {
 #[cfg(feature = "std")]
 impl std::error::Error for ErrorKind {}
 
+#[cfg(feature = "std")]
 impl ErrorKind {
     /// Converts an [`nng_err`] into an [`ErrorKind`].
     ///
