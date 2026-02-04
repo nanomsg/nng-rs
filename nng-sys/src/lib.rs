@@ -209,22 +209,6 @@ impl std::fmt::Display for ErrorKind {
 impl std::error::Error for ErrorKind {}
 
 impl ErrorKind {
-    /// Converts a non-zero error code into an [`ErrorKind`].
-    ///
-    /// This is a convenience wrapper around [`from_nng_err`](Self::from_nng_err)
-    /// for cases where the error code is already known to be non-zero.
-    ///
-    /// # Arguments
-    ///
-    /// * `err` - A non-zero 32-bit unsigned integer representing an NNG error code.
-    ///
-    /// # Returns
-    ///
-    /// The corresponding [`ErrorKind`] variant for the given error code.
-    pub fn from_nz_u32(err: NonZeroU32) -> ErrorKind {
-        Self::from_nng_err(nng_err(err.get()))
-    }
-
     /// Converts an [`nng_err`] into an [`ErrorKind`].
     ///
     /// This method categorizes NNG error codes into the appropriate [`ErrorKind`] variant.
