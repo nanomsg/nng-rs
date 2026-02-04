@@ -281,10 +281,6 @@ impl ErrorKind {
     /// This is a convenience wrapper for cases where the error code is already
     /// known to be non-zero (e.g., from NNG functions that return `int` instead
     /// of `nng_err`).
-    ///
-    /// # Panics
-    ///
-    /// Panics if the error code is zero as error codes are expected to be non-zero.
     pub fn from_nz_u32(err: NonZeroU32) -> ErrorKind {
         Self::from_nng_err(nng_err(err.get()))
     }
