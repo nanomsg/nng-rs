@@ -141,7 +141,9 @@ jobs:
       - name: build and install NNG v2 for nng-sys
         run: .github/scripts/install-nng.sh
       - name: cargo hack anng
-        run: cargo hack -p anng --feature-powerset check
+        # TODO(flxo): check anng just with feature vendored enabled because the needed nng version
+        # alpha.6 is not available
+        run: cargo hack -p anng --features vendored check
         env:
           # add /usr/local/include to the C compiler search path for NNG headers
           CFLAGS: -I/usr/local/include
