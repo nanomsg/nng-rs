@@ -408,6 +408,9 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         .define("NNG_ENABLE_TLS", tls)
         .define("NNG_ENABLE_NNGCAT", "OFF")
         .define("NNG_ENABLE_COVERAGE", "OFF")
+        // Force consistent library output directory across all platforms.
+        // GNUInstallDirs sets this to lib64 on some 64-bit Linux distros.
+        .define("CMAKE_INSTALL_LIBDIR", "lib")
         // NOTE: the `cmake` crate sets `CMAKE_INSTALL_PREFIX` to point to `$OUT_DIR/build`, which
         // is what `.build()` returns (into `dst`) below!
         .build_target("install");
