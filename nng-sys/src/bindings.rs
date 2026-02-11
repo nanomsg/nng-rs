@@ -15,18 +15,15 @@ pub const NNG_OPT_SENDBUF: &[u8; 12] = b"send-buffer\0";
 pub const NNG_OPT_RECVTIMEO: &[u8; 13] = b"recv-timeout\0";
 pub const NNG_OPT_SENDTIMEO: &[u8; 13] = b"send-timeout\0";
 pub const NNG_OPT_LOCADDR: &[u8; 14] = b"local-address\0";
-pub const NNG_OPT_REMADDR: &[u8; 15] = b"remote-address\0";
 pub const NNG_OPT_MAXTTL: &[u8; 8] = b"ttl-max\0";
 pub const NNG_OPT_RECVMAXSZ: &[u8; 14] = b"recv-size-max\0";
 pub const NNG_OPT_RECONNMINT: &[u8; 19] = b"reconnect-time-min\0";
 pub const NNG_OPT_RECONNMAXT: &[u8; 19] = b"reconnect-time-max\0";
 pub const NNG_OPT_TLS_VERIFIED: &[u8; 13] = b"tls-verified\0";
 pub const NNG_OPT_TLS_PEER_CN: &[u8; 12] = b"tls-peer-cn\0";
-pub const NNG_OPT_TLS_PEER_ALT_NAMES: &[u8; 19] = b"tls-peer-alt-names\0";
 pub const NNG_OPT_TCP_NODELAY: &[u8; 12] = b"tcp-nodelay\0";
 pub const NNG_OPT_TCP_KEEPALIVE: &[u8; 14] = b"tcp-keepalive\0";
-pub const NNG_OPT_TCP_BOUND_PORT: &[u8; 15] = b"tcp-bound-port\0";
-pub const NNG_OPT_UDP_BOUND_PORT: &[u8; 15] = b"tcp-bound-port\0";
+pub const NNG_OPT_BOUND_PORT: &[u8; 11] = b"bound-port\0";
 pub const NNG_OPT_UDP_COPY_MAX: &[u8; 13] = b"udp:copy-max\0";
 pub const NNG_OPT_IPC_PERMISSIONS: &[u8; 16] = b"ipc:permissions\0";
 pub const NNG_OPT_PEER_UID: &[u8; 13] = b"ipc:peer-uid\0";
@@ -38,6 +35,10 @@ pub const NNG_OPT_IPC_PEER_PID: &[u8; 13] = b"ipc:peer-pid\0";
 pub const NNG_OPT_PEER_ZONEID: &[u8; 16] = b"ipc:peer-zoneid\0";
 pub const NNG_OPT_IPC_PEER_ZONEID: &[u8; 16] = b"ipc:peer-zoneid\0";
 pub const NNG_OPT_WS_HEADER: &[u8; 11] = b"ws:header:\0";
+pub const NNG_OPT_WS_HEADER_NEXT: &[u8; 12] = b"ws:hdr-next\0";
+pub const NNG_OPT_WS_HEADER_RESET: &[u8; 13] = b"ws:hdr-reset\0";
+pub const NNG_OPT_WS_HEADER_KEY: &[u8; 11] = b"ws:hdr-key\0";
+pub const NNG_OPT_WS_HEADER_VALUE: &[u8; 11] = b"ws:hdr-val\0";
 pub const NNG_OPT_WS_REQUEST_URI: &[u8; 15] = b"ws:request-uri\0";
 pub const NNG_OPT_WS_SENDMAXFRAME: &[u8; 15] = b"ws:txframe-max\0";
 pub const NNG_OPT_WS_RECVMAXFRAME: &[u8; 15] = b"ws:rxframe-max\0";
@@ -56,6 +57,30 @@ pub const NNG_HTTP_VERSION_1_0: &[u8; 9] = b"HTTP/1.0\0";
 pub const NNG_HTTP_VERSION_1_1: &[u8; 9] = b"HTTP/1.1\0";
 pub const NNG_HTTP_VERSION_2: &[u8; 7] = b"HTTP/2\0";
 pub const NNG_HTTP_VERSION_3: &[u8; 7] = b"HTTP/3\0";
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct tm {
+    pub tm_sec: ::core::ffi::c_int,
+    pub tm_min: ::core::ffi::c_int,
+    pub tm_hour: ::core::ffi::c_int,
+    pub tm_mday: ::core::ffi::c_int,
+    pub tm_mon: ::core::ffi::c_int,
+    pub tm_year: ::core::ffi::c_int,
+    pub tm_wday: ::core::ffi::c_int,
+    pub tm_yday: ::core::ffi::c_int,
+    pub tm_isdst: ::core::ffi::c_int,
+    pub tm_gmtoff: ::core::ffi::c_long,
+    pub tm_zone: *const ::core::ffi::c_char,
+}
+impl Default for tm {
+    fn default() -> Self {
+        let mut s = ::core::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::core::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
+}
 #[repr(C)]
 #[repr(align(4))]
 #[derive(Debug, Default, Copy, Clone)]
@@ -157,6 +182,12 @@ pub struct nng_url {
 pub struct nng_tls_config {
     _unused: [u8; 0],
 }
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct nng_tls_cert_s {
+    _unused: [u8; 0],
+}
+pub type nng_tls_cert = nng_tls_cert_s;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct nng_sockaddr_inproc {
@@ -563,7 +594,7 @@ unsafe extern "C" {
     pub fn nng_dialer_get_string(
         arg1: nng_dialer,
         arg2: *const ::core::ffi::c_char,
-        arg3: *mut *mut ::core::ffi::c_char,
+        arg3: *mut *const ::core::ffi::c_char,
     ) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
@@ -632,13 +663,6 @@ unsafe extern "C" {
     ) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
-    pub fn nng_listener_set_addr(
-        arg1: nng_listener,
-        arg2: *const ::core::ffi::c_char,
-        arg3: *const nng_sockaddr,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
     pub fn nng_listener_set_tls(
         arg1: nng_listener,
         arg2: *mut nng_tls_config,
@@ -685,7 +709,7 @@ unsafe extern "C" {
     pub fn nng_listener_get_string(
         arg1: nng_listener,
         arg2: *const ::core::ffi::c_char,
-        arg3: *mut *mut ::core::ffi::c_char,
+        arg3: *mut *const ::core::ffi::c_char,
     ) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
@@ -693,13 +717,6 @@ unsafe extern "C" {
         arg1: nng_listener,
         arg2: *const ::core::ffi::c_char,
         arg3: *mut nng_duration,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn nng_listener_get_addr(
-        arg1: nng_listener,
-        arg2: *const ::core::ffi::c_char,
-        arg3: *mut nng_sockaddr,
     ) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
@@ -935,7 +952,7 @@ unsafe extern "C" {
     pub fn nng_aio_reset(arg1: *mut nng_aio);
 }
 unsafe extern "C" {
-    pub fn nng_aio_finish(arg1: *mut nng_aio, arg2: ::core::ffi::c_int);
+    pub fn nng_aio_finish(arg1: *mut nng_aio, arg2: nng_err);
 }
 pub type nng_aio_cancelfn = ::core::option::Option<
     unsafe extern "C" fn(arg1: *mut nng_aio, arg2: *mut ::core::ffi::c_void, arg3: nng_err),
@@ -1136,15 +1153,39 @@ unsafe extern "C" {
     pub fn nng_pipe_get_string(
         arg1: nng_pipe,
         arg2: *const ::core::ffi::c_char,
+        arg3: *mut *const ::core::ffi::c_char,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_pipe_get_strdup(
+        arg1: nng_pipe,
+        arg2: *const ::core::ffi::c_char,
         arg3: *mut *mut ::core::ffi::c_char,
     ) -> nng_err;
 }
 unsafe extern "C" {
-    pub fn nng_pipe_get_addr(
+    pub fn nng_pipe_get_strcpy(
         arg1: nng_pipe,
         arg2: *const ::core::ffi::c_char,
-        arg3: *mut nng_sockaddr,
+        arg3: *mut ::core::ffi::c_char,
+        arg4: usize,
     ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_pipe_get_strlen(
+        arg1: nng_pipe,
+        arg2: *const ::core::ffi::c_char,
+        arg3: *mut usize,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_pipe_peer_addr(arg1: nng_pipe, arg2: *mut nng_sockaddr) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_pipe_self_addr(arg1: nng_pipe, arg2: *mut nng_sockaddr) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_pipe_peer_cert(arg1: nng_pipe, arg2: *mut *mut nng_tls_cert) -> nng_err;
 }
 unsafe extern "C" {
     pub fn nng_pipe_close(arg1: nng_pipe) -> nng_err;
@@ -1354,15 +1395,17 @@ unsafe extern "C" {
     pub fn nng_stream_get_string(
         arg1: *mut nng_stream,
         arg2: *const ::core::ffi::c_char,
-        arg3: *mut *mut ::core::ffi::c_char,
+        arg3: *mut *const ::core::ffi::c_char,
     ) -> nng_err;
 }
 unsafe extern "C" {
-    pub fn nng_stream_get_addr(
-        arg1: *mut nng_stream,
-        arg2: *const ::core::ffi::c_char,
-        arg3: *mut nng_sockaddr,
-    ) -> nng_err;
+    pub fn nng_stream_peer_addr(arg1: *mut nng_stream) -> *const nng_sockaddr;
+}
+unsafe extern "C" {
+    pub fn nng_stream_self_addr(arg1: *mut nng_stream) -> *const nng_sockaddr;
+}
+unsafe extern "C" {
+    pub fn nng_stream_peer_cert(arg1: *mut nng_stream, arg2: *mut *mut nng_tls_cert) -> nng_err;
 }
 unsafe extern "C" {
     pub fn nng_stream_dialer_alloc(
@@ -1427,14 +1470,7 @@ unsafe extern "C" {
     pub fn nng_stream_dialer_get_string(
         arg1: *mut nng_stream_dialer,
         arg2: *const ::core::ffi::c_char,
-        arg3: *mut *mut ::core::ffi::c_char,
-    ) -> nng_err;
-}
-unsafe extern "C" {
-    pub fn nng_stream_dialer_get_addr(
-        arg1: *mut nng_stream_dialer,
-        arg2: *const ::core::ffi::c_char,
-        arg3: *mut nng_sockaddr,
+        arg3: *mut *const ::core::ffi::c_char,
     ) -> nng_err;
 }
 unsafe extern "C" {
@@ -1564,14 +1600,7 @@ unsafe extern "C" {
     pub fn nng_stream_listener_get_string(
         arg1: *mut nng_stream_listener,
         arg2: *const ::core::ffi::c_char,
-        arg3: *mut *mut ::core::ffi::c_char,
-    ) -> nng_err;
-}
-unsafe extern "C" {
-    pub fn nng_stream_listener_get_addr(
-        arg1: *mut nng_stream_listener,
-        arg2: *const ::core::ffi::c_char,
-        arg3: *mut nng_sockaddr,
+        arg3: *mut *const ::core::ffi::c_char,
     ) -> nng_err;
 }
 unsafe extern "C" {
@@ -1963,6 +1992,62 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn nng_tls_engine_fips_mode() -> bool;
 }
+unsafe extern "C" {
+    pub fn nng_tls_cert_parse_pem(
+        arg1: *mut *mut nng_tls_cert,
+        arg2: *const ::core::ffi::c_char,
+        arg3: usize,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_tls_cert_parse_der(
+        arg1: *mut *mut nng_tls_cert,
+        arg2: *const u8,
+        arg3: usize,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_tls_cert_der(cert: *mut nng_tls_cert, arg1: *mut u8, arg2: *mut usize);
+}
+unsafe extern "C" {
+    pub fn nng_tls_cert_free(arg1: *mut nng_tls_cert);
+}
+unsafe extern "C" {
+    pub fn nng_tls_cert_subject(
+        arg1: *mut nng_tls_cert,
+        arg2: *mut *mut ::core::ffi::c_char,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_tls_cert_issuer(
+        arg1: *mut nng_tls_cert,
+        arg2: *mut *mut ::core::ffi::c_char,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_tls_cert_serial_number(
+        arg1: *mut nng_tls_cert,
+        arg2: *mut *mut ::core::ffi::c_char,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_tls_cert_subject_cn(
+        arg1: *mut nng_tls_cert,
+        arg2: *mut *mut ::core::ffi::c_char,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_tls_cert_next_alt(
+        arg1: *mut nng_tls_cert,
+        arg2: *mut *mut ::core::ffi::c_char,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_tls_cert_not_before(arg1: *mut nng_tls_cert, arg2: *mut tm) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_tls_cert_not_after(arg1: *mut nng_tls_cert, arg2: *mut tm) -> nng_err;
+}
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct nng_id_map_s {
@@ -2249,6 +2334,12 @@ unsafe extern "C" {
     pub fn nng_http_get_method(arg1: *mut nng_http) -> *const ::core::ffi::c_char;
 }
 unsafe extern "C" {
+    pub fn nng_http_local_address(arg1: *mut nng_http, arg2: *mut nng_sockaddr) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_http_remote_address(arg1: *mut nng_http, arg2: *mut nng_sockaddr) -> nng_err;
+}
+unsafe extern "C" {
     pub fn nng_http_set_header(
         arg1: *mut nng_http,
         arg2: *const ::core::ffi::c_char,
@@ -2272,6 +2363,14 @@ unsafe extern "C" {
     ) -> *const ::core::ffi::c_char;
 }
 unsafe extern "C" {
+    pub fn nng_http_next_header(
+        arg1: *mut nng_http,
+        key: *mut *const ::core::ffi::c_char,
+        val: *mut *const ::core::ffi::c_char,
+        ptr: *mut *mut ::core::ffi::c_void,
+    ) -> bool;
+}
+unsafe extern "C" {
     pub fn nng_http_get_body(
         arg1: *mut nng_http,
         arg2: *mut *mut ::core::ffi::c_void,
@@ -2287,6 +2386,9 @@ unsafe extern "C" {
         arg2: *const ::core::ffi::c_void,
         arg3: usize,
     ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_http_peer_cert(arg1: *mut nng_http, arg2: *mut *mut nng_tls_cert) -> nng_err;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -2401,8 +2503,10 @@ unsafe extern "C" {
     ) -> nng_err;
 }
 unsafe extern "C" {
-    pub fn nng_http_server_get_addr(arg1: *mut nng_http_server, arg2: *mut nng_sockaddr)
-    -> nng_err;
+    pub fn nng_http_server_get_port(
+        arg1: *mut nng_http_server,
+        arg2: *mut ::core::ffi::c_int,
+    ) -> nng_err;
 }
 unsafe extern "C" {
     pub fn nng_http_server_set_error_page(
