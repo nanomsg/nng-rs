@@ -436,11 +436,10 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         dst.join("build/Release")
     } else {
         let lib64 = dst.join("lib64");
-        let lib = dst.join("lib");
         if lib64.exists() {
             lib64
         } else {
-            lib
+            dst.join("lib")
         }
     };
 
