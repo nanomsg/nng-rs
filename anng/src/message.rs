@@ -1,8 +1,8 @@
-use crate::{AioError, pipes::Addr};
+use crate::{AioError, pipes::Url};
 use bytes::{Buf, BufMut};
 use core::{
     cmp::max,
-    ffi::{c_char, c_void},
+    ffi::c_void,
     fmt,
     mem::MaybeUninit,
     ops::{Deref, DerefMut},
@@ -386,44 +386,127 @@ impl Message {
         }
     }
 
-    /// Returns the remote address of the message (ie, where it was received from), if available.
-    pub fn remote_addr(&self) -> Option<Addr> {
+    /// Returns the remote URL of the message (ie, where it was received from), if available.
+    pub fn remote_addr(&self) -> Option<Url> {
+        use core::ffi::CStr;
+
         let pipe = self.pipe()?;
 
-        // SAFETY: arg and addr are both valid, and on success, nng_pipe_get_addr initializes
-        let addr = unsafe {
-            let mut addr = MaybeUninit::<nng_sys::nng_sockaddr>::uninit();
-            let errno = nng_sys::nng_pipe_get_addr(
-                pipe,
-                nng_sys::NNG_OPT_REMADDR as *const _ as *const c_char,
-                addr.as_mut_ptr(),
-            );
-            match errno {
-                nng_err::NNG_OK => addr.assume_init(),
-                nng_err::NNG_ENOTSUP => {
-                    tracing::warn!("Message pipe does not support REMADDR");
-                    return None;
-                }
-                nng_err::NNG_ENOENT => {
-                    tracing::warn!("Message does not have a pipe");
-                    return None;
-                }
-                err if err.0 & nng_err::NNG_ESYSERR.0 != 0 => {
-                    tracing::warn!(
-                        "nng_pipe_get_addr returned a system error: {}",
-                        io::Error::from_raw_os_error((err.0 & !(nng_err::NNG_ESYSERR.0)) as i32)
-                    );
-                    return None;
-                }
-                _ => {
-                    unreachable!(
-                        "nng_pipe_get_addr documentation claims err \"{errno}\" is never returned"
-                    );
-                }
+        // Get the peer address from the pipe.
+        let mut addr = MaybeUninit::<nng_sys::nng_sockaddr>::uninit();
+        // SAFETY: pipe is valid (from self.pipe()), addr is valid for writing.
+        let errno = unsafe { nng_sys::nng_pipe_peer_addr(pipe, addr.as_mut_ptr()) };
+        let addr = match errno {
+            // SAFETY: nng_pipe_peer_addr initializes addr on success.
+            nng_err::NNG_OK => unsafe { addr.assume_init() },
+            nng_err::NNG_ENOTSUP => {
+                tracing::warn!("Message pipe does not support peer address");
+                return None;
+            }
+            nng_err::NNG_ENOENT => {
+                tracing::warn!("Message does not have a pipe");
+                return None;
+            }
+            err if err.0 & nng_err::NNG_ESYSERR.0 != 0 => {
+                tracing::warn!(
+                    "nng_pipe_peer_addr returned a system error: {}",
+                    io::Error::from_raw_os_error((err.0 & !(nng_err::NNG_ESYSERR.0)) as i32)
+                );
+                return None;
+            }
+            _ => {
+                unreachable!(
+                    "nng_pipe_peer_addr documentation claims err \"{errno}\" is never returned"
+                );
             }
         };
 
-        Addr::from_nng(addr)
+        // Get the URL scheme from the pipe's originating endpoint (listener or dialer).
+        //
+        // NNG does not provide a direct API to get a URL or transport type from a pipe.
+        // There's no `nng_pipe_get_url()` or transport type accessor. The peer address
+        // (`nng_sockaddr`) only contains address family, not the URL scheme. We must
+        // retrieve the scheme from the endpoint that created this pipe.
+        //
+        // In NNG, a pipe represents a single connection and is created by exactly one of:
+        // - A listener: when accepting an incoming connection
+        // - A dialer: when initiating an outgoing connection
+        //
+        // We use nng_listener_id/nng_dialer_id to determine which endpoint created this pipe.
+        // These functions return a positive ID for valid endpoints, or -1 for invalid ones.
+        // Only one will be valid for any given pipe.
+        //
+        // Note on URL ownership: nng_listener_get_url/nng_dialer_get_url return a borrowed
+        // pointer to NNG's internal URL structure (hence `const nng_url **`). This URL is
+        // owned by the listener/dialer and will be freed when that endpoint closes.
+        // We do NOT call nng_url_free here - that is only for URLs created by nng_url_parse().
+        let mut urlp: *const nng_sys::nng_url = core::ptr::null();
+
+        // Try to get URL from listener first, then dialer.
+        // Note: The endpoint could be closed between checking the ID and getting the URL.
+        // nng_listener_get_url and nng_dialer_get_url can only return:
+        // - 0 (NNG_OK): success
+        // - NNG_ENOENT: endpoint is invalid or was closed
+        // See nni_listener_find/nni_dialer_find in nng/src/core/listener.c and dialer.c.
+        const NNG_ENOENT: i32 = nng_sys::nng_err::NNG_ENOENT.0 as i32;
+
+        // SAFETY: pipe is valid (from self.pipe()).
+        let listener = unsafe { nng_sys::nng_pipe_listener(pipe) };
+        // SAFETY: listener is a stack value returned from nng_pipe_listener.
+        if unsafe { nng_sys::nng_listener_id(listener) } > 0 {
+            // SAFETY: listener is valid (positive ID), urlp is valid for writing.
+            let result = unsafe { nng_sys::nng_listener_get_url(listener, &mut urlp) };
+            match result {
+                0 => {} // success, urlp is now set
+                NNG_ENOENT => {
+                    tracing::debug!("Listener was closed while retrieving URL");
+                    return None;
+                }
+                err => {
+                    tracing::error!("nng_listener_get_url returned unexpected error: {err}");
+                    debug_assert!(false, "unexpected error from nng_listener_get_url");
+                    return None;
+                }
+            }
+        } else {
+            // SAFETY: pipe is valid (from self.pipe()).
+            let dialer = unsafe { nng_sys::nng_pipe_dialer(pipe) };
+            // SAFETY: dialer is a stack value returned from nng_pipe_dialer.
+            if unsafe { nng_sys::nng_dialer_id(dialer) } > 0 {
+                // SAFETY: dialer is valid (positive ID), urlp is valid for writing.
+                let result = unsafe { nng_sys::nng_dialer_get_url(dialer, &mut urlp) };
+                match result {
+                    0 => {} // success, urlp is now set
+                    NNG_ENOENT => {
+                        tracing::debug!("Dialer was closed while retrieving URL");
+                        return None;
+                    }
+                    err => {
+                        tracing::error!("nng_dialer_get_url returned unexpected error: {err}");
+                        debug_assert!(false, "unexpected error from nng_dialer_get_url");
+                        return None;
+                    }
+                }
+            } else {
+                // Neither listener nor dialer is valid - pipe may have been closed
+                return None;
+            }
+        }
+
+        let scheme = if !urlp.is_null() {
+            // SAFETY: urlp is non-null and was set by nng_listener_get_url or nng_dialer_get_url.
+            let scheme_ptr = unsafe { nng_sys::nng_url_scheme(urlp) };
+            if !scheme_ptr.is_null() {
+                // SAFETY: scheme_ptr is non-null and points to a valid C string owned by NNG.
+                unsafe { CStr::from_ptr(scheme_ptr) }.to_string_lossy()
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        };
+
+        Url::from_nng(addr, &scheme)
     }
 
     /// Reserves the minimum capacity for at least additional more bytes to be
