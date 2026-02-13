@@ -435,7 +435,12 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         // that holds nng.lib
         dst.join("build/Release")
     } else {
-        dst.join("lib")
+        let lib64 = dst.join("lib64");
+        if lib64.exists() {
+            lib64
+        } else {
+            dst.join("lib")
+        }
     };
 
     let include_dir = dst.join("include");
