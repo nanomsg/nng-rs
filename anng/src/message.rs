@@ -458,7 +458,7 @@ impl Message {
             match result {
                 0 => {} // success, urlp is now set
                 NNG_ENOENT => {
-                    tracing::debug!("Listener was closed while retrieving URL");
+                    tracing::debug!("listener was closed while retrieving URL");
                     return None;
                 }
                 err => unreachable!("unexpected error from nng_listener_get_url: {err}"),
@@ -473,7 +473,7 @@ impl Message {
                 match result {
                     0 => {} // success, urlp is now set
                     NNG_ENOENT => {
-                        tracing::debug!("Dialer was closed while retrieving URL");
+                        tracing::debug!("dialer was closed while retrieving URL");
                         return None;
                     }
                     err => unreachable!("unexpected error from nng_dialer_get_url: {err}"),
