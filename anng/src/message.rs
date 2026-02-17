@@ -461,11 +461,7 @@ impl Message {
                     tracing::debug!("Listener was closed while retrieving URL");
                     return None;
                 }
-                err => {
-                    tracing::error!("nng_listener_get_url returned unexpected error: {err}");
-                    debug_assert!(false, "unexpected error from nng_listener_get_url");
-                    return None;
-                }
+                err => unreachable!("unexpected error from nng_listener_get_url: {err}"),
             }
         } else {
             // SAFETY: pipe is valid (from self.pipe()).
@@ -480,11 +476,7 @@ impl Message {
                         tracing::debug!("Dialer was closed while retrieving URL");
                         return None;
                     }
-                    err => {
-                        tracing::error!("nng_dialer_get_url returned unexpected error: {err}");
-                        debug_assert!(false, "unexpected error from nng_dialer_get_url");
-                        return None;
-                    }
+                    err => unreachable!("unexpected error from nng_dialer_get_url: {err}"),
                 }
             } else {
                 // Neither listener nor dialer is valid - pipe may have been closed
