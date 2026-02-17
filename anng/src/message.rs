@@ -404,8 +404,7 @@ impl Message {
                 return None;
             }
             nng_err::NNG_ENOENT => {
-                tracing::warn!("Message does not have a pipe");
-                return None;
+                unreachable!("pipe was validated by self.pipe()");
             }
             err if err.0 & nng_err::NNG_ESYSERR.0 != 0 => {
                 tracing::warn!(
