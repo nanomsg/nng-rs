@@ -492,7 +492,7 @@ impl Message {
             let scheme_ptr = unsafe { nng_sys::nng_url_scheme(urlp) };
             if !scheme_ptr.is_null() {
                 // SAFETY: scheme_ptr is non-null and points to a valid C string owned by NNG.
-                unsafe { CStr::from_ptr(scheme_ptr) }.to_string_lossy()
+                unsafe { CStr::from_ptr(scheme_ptr) }
             } else {
                 return None;
             }
@@ -500,7 +500,7 @@ impl Message {
             return None;
         };
 
-        Url::from_nng(addr, &scheme)
+        Url::from_nng(addr, scheme)
     }
 
     /// Reserves the minimum capacity for at least additional more bytes to be
