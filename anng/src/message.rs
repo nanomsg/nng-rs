@@ -404,7 +404,10 @@ impl Message {
                 return None;
             }
             nng_err::NNG_ENOENT => {
-                unreachable!("pipe was validated by self.pipe()");
+                // The pipe ID stored in the message is stale - the pipe was closed
+                // between self.pipe() (which only checks the stored ID) and the
+                // nng_pipe_peer_addr call.
+                return None;
             }
             err if err.0 & nng_err::NNG_ESYSERR.0 != 0 => {
                 tracing::warn!(
