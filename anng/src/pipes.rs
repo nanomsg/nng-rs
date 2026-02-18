@@ -192,8 +192,7 @@ impl Url {
                 let sa_port = u16::from_be(addr.sa_port);
                 let ip = Ipv6Addr::from_bits(u128::from_be_bytes(addr.sa_addr));
                 let sock_addr = SocketAddrV6::new(ip, sa_port, 0, addr.sa_scope);
-                write!(url, "{scheme}://{sock_addr}")
-                    .expect("fmt::Write for String is infallible");
+                write!(url, "{scheme}://{sock_addr}").expect("fmt::Write for String is infallible");
             }
             x if x == nng_sys::nng_sockaddr_family::NNG_AF_IPC as u32 => {
                 // SAFETY: we've checked the family
@@ -261,19 +260,21 @@ fn parse_tcp_url(url_str: &str) -> io::Result<SocketAddr> {
     //   tcp, tcp4, tcp6
     // Valid TLS schemes from NNG source (nng/src/sp/transport/tls/tls.c):
     //   tls+tcp, tls+tcp4, tls+tcp6
-    let addr_part = url_str
-        .strip_prefix("tcp://")
-        .or_else(|| url_str.strip_prefix("tcp4://"))
-        .or_else(|| url_str.strip_prefix("tcp6://"))
-        .or_else(|| url_str.strip_prefix("tls+tcp://"))
-        .or_else(|| url_str.strip_prefix("tls+tcp4://"))
-        .or_else(|| url_str.strip_prefix("tls+tcp6://"))
-        .ok_or_else(|| {
-            io::Error::new(
+    let (scheme, addr_part) = url_str.split_once("://").ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("malformed URL: {url_str}"),
+        )
+    })?;
+    match scheme {
+        "tcp" | "tcp4" | "tcp6" | "tls+tcp" | "tls+tcp4" | "tls+tcp6" => {}
+        _ => {
+            return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("unexpected URL scheme in {url_str}"),
-            )
-        })?;
+            ));
+        }
+    }
 
     // Strip IPv6 scope_id if present: [fe80::1%42]:9090 -> [fe80::1]:9090
     // SocketAddr doesn't support scope_id, so this is acceptable data loss.
