@@ -427,6 +427,9 @@ impl Message {
         // (`nng_sockaddr`) only contains address family, not the URL scheme. We must
         // retrieve the scheme from the endpoint that created this pipe.
         //
+        // TODO(flxo): once upstream fixes [2228](https://github.com/nanomsg/nng/issues/2228),
+        //             simplify this.
+        //
         // In NNG, a pipe represents a single connection and is created by exactly one of:
         // - A listener: when accepting an incoming connection
         // - A dialer: when initiating an outgoing connection
