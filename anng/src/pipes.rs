@@ -182,8 +182,8 @@ impl Url {
                 let sa_addr = u32::from_be(addr.sa_addr);
                 let sa_port = u16::from_be(addr.sa_port);
                 let ip = Ipv4Addr::from_bits(sa_addr);
-                // unwrap: fmt::Write for String is infallible
-                write!(url, "{scheme}://{ip}:{sa_port}").unwrap();
+                write!(url, "{scheme}://{ip}:{sa_port}")
+                    .expect("fmt::Write for String is infallible");
             }
             x if x == nng_sys::nng_sockaddr_family::NNG_AF_INET6 as u32 => {
                 // SAFETY: we've checked the family
@@ -191,20 +191,20 @@ impl Url {
                 let sa_port = u16::from_be(addr.sa_port);
                 let ip = Ipv6Addr::from_bits(u128::from_be_bytes(addr.sa_addr));
                 let scope_id = addr.sa_scope;
-                // unwrap: fmt::Write for String is infallible
                 if scope_id != 0 {
-                    write!(url, "{scheme}://[{ip}%{scope_id}]:{sa_port}").unwrap();
+                    write!(url, "{scheme}://[{ip}%{scope_id}]:{sa_port}")
                 } else {
-                    write!(url, "{scheme}://[{ip}]:{sa_port}").unwrap();
+                    write!(url, "{scheme}://[{ip}]:{sa_port}")
                 }
+                .expect("fmt::Write for String is infallible");
             }
             x if x == nng_sys::nng_sockaddr_family::NNG_AF_IPC as u32 => {
                 // SAFETY: we've checked the family
                 let addr = unsafe { &addr.s_ipc };
                 // SAFETY: sa_path is guaranteed to be a C-style string
                 let path = unsafe { CStr::from_ptr(addr.sa_path.as_ptr()) };
-                // unwrap: fmt::Write for String is infallible
-                write!(url, "{scheme}://{}", path.to_string_lossy()).unwrap();
+                write!(url, "{scheme}://{}", path.to_string_lossy())
+                    .expect("fmt::Write for String is infallible");
             }
             x if x == nng_sys::nng_sockaddr_family::NNG_AF_ABSTRACT as u32 => {
                 // SAFETY: we've checked the family
@@ -214,13 +214,12 @@ impl Url {
                 // - ASCII graphic characters (0x21-0x7E) are written literally
                 // - All other bytes (including space 0x20, null 0x00, and high bytes) are
                 //   percent-encoded as %xx
-                // unwrap: fmt::Write for String is infallible
-                write!(url, "{scheme}://").unwrap();
+                write!(url, "{scheme}://").expect("fmt::Write for String is infallible");
                 for &b in name {
                     if b.is_ascii_graphic() {
                         url.push(b as char);
                     } else {
-                        write!(url, "%{b:02x}").unwrap();
+                        write!(url, "%{b:02x}").expect("fmt::Write for String is infallible");
                     }
                 }
             }
@@ -229,8 +228,8 @@ impl Url {
                 let addr = unsafe { &addr.s_inproc };
                 // SAFETY: sa_name is guaranteed to be a C-style string
                 let name = unsafe { CStr::from_ptr(addr.sa_name.as_ptr()) };
-                // unwrap: fmt::Write for String is infallible
-                write!(url, "{scheme}://{}", name.to_string_lossy()).unwrap();
+                write!(url, "{scheme}://{}", name.to_string_lossy())
+                    .expect("fmt::Write for String is infallible");
             }
             _ => {
                 unimplemented!("support for address family {s_family} has not yet been added")
