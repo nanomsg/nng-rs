@@ -198,7 +198,8 @@ impl Url {
             x if x == nng_sys::nng_sockaddr_family::NNG_AF_IPC as u32 => {
                 // SAFETY: we've checked the family
                 let addr = unsafe { &addr.s_ipc };
-                // SAFETY: sa_path is guaranteed to be a C-style string
+                // SAFETY: sa_path is guaranteed to be a C-style string, and we stop using this
+                // reference before we drop the `nng_sockaddr`.
                 let path = unsafe { CStr::from_ptr(addr.sa_path.as_ptr()) };
                 write!(url, "{scheme}://{}", path.to_string_lossy())
                     .expect("fmt::Write for String is infallible");
@@ -223,7 +224,8 @@ impl Url {
             x if x == nng_sys::nng_sockaddr_family::NNG_AF_INPROC as u32 => {
                 // SAFETY: we've checked the family
                 let addr = unsafe { &addr.s_inproc };
-                // SAFETY: sa_name is guaranteed to be a C-style string
+                // SAFETY: sa_name is guaranteed to be a C-style string, and we stop using this
+                // reference before we drop the `nng_sockaddr`.
                 let name = unsafe { CStr::from_ptr(addr.sa_name.as_ptr()) };
                 write!(url, "{scheme}://{}", name.to_string_lossy())
                     .expect("fmt::Write for String is infallible");
