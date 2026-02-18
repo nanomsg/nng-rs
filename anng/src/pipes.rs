@@ -5,6 +5,7 @@ use core::fmt;
 use core::net::Ipv4Addr;
 use core::net::Ipv6Addr;
 use core::net::SocketAddr;
+use core::net::SocketAddrV6;
 use core::ops::Deref;
 use std::borrow::Cow;
 use std::ffi::CString;
@@ -171,9 +172,9 @@ impl Url {
         // - IPC/inproc: typically short paths/names
         let mut url = String::with_capacity(64);
 
-        // NOTE: The Display impl of Ipv4Addr and Ipv6Addr is stable and guaranteed to produce
-        // the canonical text representation (e.g., "127.0.0.1", "::1"), which matches NNG's
-        // expected URL format.
+        // NOTE: The Display impls of Ipv4Addr, Ipv6Addr, and SocketAddrV6 are stable and
+        // guaranteed to produce the canonical text representation (e.g., "127.0.0.1", "::1",
+        // "[::1%42]:9090"), which matches NNG's expected URL format.
         match s_family {
             x if x == nng_sys::nng_sockaddr_family::NNG_AF_UNSPEC as u32 => return None,
             x if x == nng_sys::nng_sockaddr_family::NNG_AF_INET as u32 => {
@@ -190,13 +191,9 @@ impl Url {
                 let addr = unsafe { &addr.s_in6 };
                 let sa_port = u16::from_be(addr.sa_port);
                 let ip = Ipv6Addr::from_bits(u128::from_be_bytes(addr.sa_addr));
-                let scope_id = addr.sa_scope;
-                if scope_id != 0 {
-                    write!(url, "{scheme}://[{ip}%{scope_id}]:{sa_port}")
-                } else {
-                    write!(url, "{scheme}://[{ip}]:{sa_port}")
-                }
-                .expect("fmt::Write for String is infallible");
+                let sock_addr = SocketAddrV6::new(ip, sa_port, 0, addr.sa_scope);
+                write!(url, "{scheme}://{sock_addr}")
+                    .expect("fmt::Write for String is infallible");
             }
             x if x == nng_sys::nng_sockaddr_family::NNG_AF_IPC as u32 => {
                 // SAFETY: we've checked the family
