@@ -503,7 +503,7 @@ impl Message {
             return None;
         };
 
-        Url::from_nng(addr, scheme)
+        Url::from_nng(&addr, scheme)
     }
 
     /// Reserves the minimum capacity for at least additional more bytes to be

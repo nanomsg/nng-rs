@@ -155,7 +155,7 @@ impl Url {
 
     /// Returns `None` if address is not initialized (ie, family is `NNG_AF_UNSPEC`).
     // NOTE(jon): not From, since that'd make nng_sys be part of the public API.
-    pub(crate) fn from_nng(addr: nng_sys::nng_sockaddr, scheme: &CStr) -> Option<Self> {
+    pub(crate) fn from_nng(addr: &nng_sys::nng_sockaddr, scheme: &CStr) -> Option<Self> {
         use core::fmt::Write;
         let scheme = scheme.to_str().ok()?;
 
@@ -477,7 +477,7 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_family: nng_sys::nng_sockaddr_family::NNG_AF_UNSPEC as u16,
         };
-        assert_eq!(Url::from_nng(nng_addr, c"tcp"), None);
+        assert_eq!(Url::from_nng(&nng_addr, c"tcp"), None);
     }
 
     #[test]
@@ -489,7 +489,7 @@ mod tests {
         };
 
         let nng_addr = nng_sys::nng_sockaddr { s_in: sockaddr_in };
-        let url = Url::from_nng(nng_addr, c"tcp").unwrap();
+        let url = Url::from_nng(&nng_addr, c"tcp").unwrap();
 
         assert_eq!(url.as_str(), "tcp://127.0.0.1:8080");
     }
@@ -507,7 +507,7 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_in6: sockaddr_in6,
         };
-        let url = Url::from_nng(nng_addr, c"tcp").unwrap();
+        let url = Url::from_nng(&nng_addr, c"tcp").unwrap();
         assert_eq!(url.as_str(), "tcp://[::1]:9090");
 
         // Test with scope_id (required for link-local addresses like fe80::)
@@ -521,7 +521,7 @@ mod tests {
         let nng_addr_scoped = nng_sys::nng_sockaddr {
             s_in6: sockaddr_in6_scoped,
         };
-        let url_scoped = Url::from_nng(nng_addr_scoped, c"tcp").unwrap();
+        let url_scoped = Url::from_nng(&nng_addr_scoped, c"tcp").unwrap();
         assert_eq!(url_scoped.as_str(), "tcp://[fe80::1%42]:9090");
     }
 
@@ -541,7 +541,7 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_ipc: sockaddr_ipc,
         };
-        let url = Url::from_nng(nng_addr, c"ipc").unwrap();
+        let url = Url::from_nng(&nng_addr, c"ipc").unwrap();
 
         assert_eq!(url.as_str(), "ipc:///tmp/test.sock");
     }
@@ -562,7 +562,7 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_inproc: sockaddr_inproc,
         };
-        let url = Url::from_nng(nng_addr, c"inproc").unwrap();
+        let url = Url::from_nng(&nng_addr, c"inproc").unwrap();
 
         assert_eq!(url.as_str(), "inproc://test-inproc");
     }
@@ -582,7 +582,7 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_abstract: sockaddr_abstract,
         };
-        let url = Url::from_nng(nng_addr, c"abstract").unwrap();
+        let url = Url::from_nng(&nng_addr, c"abstract").unwrap();
 
         assert_eq!(url.as_str(), "abstract://test%00sock%01");
     }
@@ -596,7 +596,7 @@ mod tests {
         };
 
         let nng_addr = nng_sys::nng_sockaddr { s_in: sockaddr_in };
-        let url = Url::from_nng(nng_addr, c"tcp").unwrap();
+        let url = Url::from_nng(&nng_addr, c"tcp").unwrap();
 
         assert_eq!(url.as_str(), "tcp://0.0.0.0:0");
     }
@@ -612,7 +612,7 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_ipc: sockaddr_ipc,
         };
-        let url = Url::from_nng(nng_addr, c"ipc").unwrap();
+        let url = Url::from_nng(&nng_addr, c"ipc").unwrap();
 
         assert_eq!(url.as_str(), "ipc://");
     }
@@ -628,7 +628,7 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_abstract: sockaddr_abstract,
         };
-        let url = Url::from_nng(nng_addr, c"abstract").unwrap();
+        let url = Url::from_nng(&nng_addr, c"abstract").unwrap();
 
         assert_eq!(url.as_str(), "abstract://");
     }
@@ -697,7 +697,7 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_abstract: sockaddr,
         };
-        let url = Url::from_nng(nng_addr, c"abstract").unwrap();
+        let url = Url::from_nng(&nng_addr, c"abstract").unwrap();
         assert_eq!(url.as_str(), "abstract://hello%20world");
 
         // Test with high byte (0xFF)
@@ -714,7 +714,7 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_abstract: sockaddr,
         };
-        let url = Url::from_nng(nng_addr, c"abstract").unwrap();
+        let url = Url::from_nng(&nng_addr, c"abstract").unwrap();
         assert_eq!(url.as_str(), "abstract://test%ff");
     }
 
