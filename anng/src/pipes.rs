@@ -70,10 +70,7 @@ impl<Protocol> Listener<'_, Protocol> {
                 urlp
             }
             x if x == nng_sys::nng_err::NNG_ENOENT.0 as i32 => {
-                return Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "listener not found (invalid or closed)",
-                ));
+                unreachable!("listener cannot be closed while &self is held")
             }
             _ => unreachable!(
                 "nng_listener_get_url can only return NNG_OK or NNG_ENOENT, got {errno}"
