@@ -101,7 +101,7 @@ impl<Protocol> Listener<'_, Protocol> {
                 "URL length {written} exceeds NNG_MAXADDRSTRLEN"
             );
 
-            str::from_utf8(&buf[..written])
+            std::str::from_utf8(&buf[..written])
                 .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "URL is not valid UTF-8"))?
                 .to_string()
         };
