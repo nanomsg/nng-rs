@@ -224,6 +224,8 @@ impl Url {
                 // SAFETY: sa_name is guaranteed to be a C-style string, and we stop using this
                 // reference before we drop the `nng_sockaddr`.
                 let name = unsafe { CStr::from_ptr(addr.sa_name.as_ptr()) };
+                // TODO(flxo): use CStr::display once
+                // https://github.com/rust-lang/rust/issues/139984 is merged.
                 write!(url, "{scheme}://{}", name.to_string_lossy())
                     .expect("fmt::Write for String is infallible");
             }
