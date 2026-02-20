@@ -7,7 +7,6 @@ use core::net::Ipv6Addr;
 use core::net::SocketAddr;
 use core::net::SocketAddrV6;
 use core::ops::Deref;
-use std::borrow::Cow;
 use std::ffi::CString;
 use std::io;
 
@@ -253,8 +252,6 @@ impl From<Url> for String {
 /// Parses a TCP/TLS URL into a [`SocketAddr`].
 ///
 /// Accepts URLs with schemes: `tcp://`, `tcp4://`, `tcp6://`, `tls+tcp://`, `tls+tcp4://`, `tls+tcp6://`
-///
-/// Note: IPv6 scope IDs are stripped during parsing as [`SocketAddr`] does not support them.
 fn parse_tcp_url(url_str: &str) -> io::Result<SocketAddr> {
     // Valid TCP schemes from NNG source (nng/src/sp/transport/tcp/tcp.c):
     //   tcp, tcp4, tcp6
@@ -276,16 +273,7 @@ fn parse_tcp_url(url_str: &str) -> io::Result<SocketAddr> {
         }
     }
 
-    // Strip IPv6 scope_id if present: [fe80::1%42]:9090 -> [fe80::1]:9090
-    // SocketAddr doesn't support scope_id, so this is acceptable data loss.
-    let addr_for_parsing: Cow<'_, str> = if let Some(pct) = addr_part.find('%') {
-        let bracket = addr_part.find(']').unwrap_or(addr_part.len());
-        Cow::Owned(format!("{}{}", &addr_part[..pct], &addr_part[bracket..]))
-    } else {
-        Cow::Borrowed(addr_part)
-    };
-
-    addr_for_parsing.parse::<SocketAddr>().map_err(|e| {
+    addr_part.parse::<SocketAddr>().map_err(|e| {
         io::Error::new(
             io::ErrorKind::InvalidData,
             format!("failed to parse socket address from {addr_part}: {e}"),
@@ -297,8 +285,6 @@ impl<Protocol> TcpListener<'_, Protocol> {
     /// Retrieve the local address that this TCP listener is listening on.
     ///
     /// Parses the URL from [`Listener::local_addr()`] into a [`SocketAddr`].
-    ///
-    /// Note: IPv6 scope IDs are stripped during parsing as [`SocketAddr`] does not support them.
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         // NOTE(flxo): NNG API asymmetry: There is no `nng_listener_get_addr()` to get the sockaddr
         // directly, even though `nng_dialer_get_addr()` exists for dialers. We must go through the URL:
@@ -755,19 +741,23 @@ mod tests {
         );
     }
 
-    /// Test that parse_tcp_url strips IPv6 scope_id.
+    /// Test that parse_tcp_url preserves IPv6 scope_id.
     #[test]
-    fn test_parse_tcp_url_scope_id_stripping() {
+    fn test_parse_tcp_url_scope_id_preservation() {
         use super::parse_tcp_url;
 
-        assert_eq!(
-            parse_tcp_url("tcp://[fe80::1%42]:9090").unwrap(),
-            "[fe80::1]:9090".parse::<SocketAddr>().unwrap()
-        );
-        assert_eq!(
-            parse_tcp_url("tcp6://[fe80::1%eth0]:8080").unwrap(),
-            "[fe80::1]:8080".parse::<SocketAddr>().unwrap()
-        );
+        // Numeric scope ID should be preserved
+        let addr = parse_tcp_url("tcp://[fe80::1%42]:9090").unwrap();
+        assert_eq!(addr.to_string(), "[fe80::1%42]:9090");
+        if let SocketAddr::V6(v6) = addr {
+            assert_eq!(v6.scope_id(), 42);
+        } else {
+            panic!("Expected IPv6 address");
+        }
+
+        // Note: Interface name scope IDs (like %eth0) are not supported by SocketAddr::from_str
+        // and will result in a parse error, which is correct behavior
+        assert!(parse_tcp_url("tcp6://[fe80::1%eth0]:8080").is_err());
     }
 
     /// Test that parse_tcp_url returns appropriate errors.
