@@ -1,16 +1,12 @@
 use crate::Socket;
 use core::ffi::CStr;
 use core::ffi::c_char;
-use core::ffi::c_int;
 use core::fmt;
-use core::mem::MaybeUninit;
 use core::net::Ipv4Addr;
 use core::net::Ipv6Addr;
 use core::net::SocketAddr;
-use core::net::SocketAddrV4;
 use core::net::SocketAddrV6;
 use core::ops::Deref;
-use nng_sys::ErrorCode;
 use std::ffi::CString;
 use std::io;
 
@@ -51,33 +47,66 @@ impl<Protocol> fmt::Debug for Listener<'_, Protocol> {
 }
 
 impl<Protocol> Listener<'_, Protocol> {
-    /// Retrieve the local address that this listener is listening on.
-    pub fn local_addr(&self) -> io::Result<Addr> {
-        // SAFETY: these options are valid for listeners, the listener is valid, we use the
-        // appropriate typed pointers to each type.
-        let addr = unsafe {
-            let mut addr = MaybeUninit::<nng_sys::nng_sockaddr>::uninit();
-            let errno = nng_sys::nng_listener_get_addr(
-                self.listener,
-                nng_sys::NNG_OPT_LOCADDR as *const _ as *const c_char,
-                addr.as_mut_ptr(),
-            );
+    /// Retrieve the local address that this listener is listening on as a URL.
+    ///
+    /// The port (if any) will be the actual bound port (not 0 even if a ephemeral
+    /// port was requested).
+    pub fn local_addr(&self) -> io::Result<Url> {
+        // Note on URL ownership: nng_listener_get_url returns a borrowed pointer to NNG's
+        // internal URL structure (hence `const nng_url **`). This URL is owned by the
+        // listener and will be freed when the listener closes. We do NOT call nng_url_free
+        // here - that is only for URLs created by nng_url_parse().
+        let mut urlp: *const nng_sys::nng_url = core::ptr::null();
 
-            let errno = u32::try_from(errno).expect("errno is never negative");
-            if errno == ErrorCode::ENOTSUP as u32 {
-                return Err(io::Error::new(
-                    io::ErrorKind::AddrNotAvailable,
-                    "listener transport does not support NNG_OPT_LOCADDR",
-                ));
+        // SAFETY: listener is valid, urlp is valid for writing.
+        let errno = unsafe { nng_sys::nng_listener_get_url(self.listener, &mut urlp) };
+
+        // nng_listener_get_url can only fail with NNG_ENOENT if the listener ID is invalid
+        // or the listener has been closed. See nni_listener_find in nng/src/core/listener.c.
+        let url = match errno {
+            0 => {
+                debug_assert!(!urlp.is_null(), "URL pointer should not be null on success");
+                urlp
             }
-            assert_eq!(
-                errno, 0,
-                "all listed error conditions of nng_listener_get_addr are impossible given arguments"
-            );
-            addr.assume_init()
+            x if x == nng_sys::nng_err::NNG_ENOENT.0 as i32 => {
+                unreachable!("listener cannot be closed while &self is held")
+            }
+            _ => unreachable!(
+                "nng_listener_get_url can only return NNG_OK or NNG_ENOENT, got {errno}"
+            ),
         };
 
-        Ok(Addr::from_nng(addr).expect("LOCADDR on listener is never UNSPEC if errno == 0"))
+        // SAFETY: url is valid and returned by nng_listener_get_url.
+        // Use NNG_MAXADDRSTRLEN (144 bytes) as the buffer size - this is the maximum URL
+        // length defined by NNG (NNG_MAXADDRLEN + 16 for scheme). See nng/include/nng/nng.h.
+        const NNG_MAXADDRSTRLEN: usize = 128 + 16; // NNG_MAXADDRLEN + 16
+        let url_str = unsafe {
+            let mut buf = [0u8; NNG_MAXADDRSTRLEN];
+            let written = nng_sys::nng_url_sprintf(buf.as_mut_ptr() as *mut _, buf.len(), url);
+            if written < 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "nng_url_sprintf failed",
+                ));
+            }
+            if written == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "nng_url_sprintf returned empty URL",
+                ));
+            }
+            let written = written as usize;
+            assert!(
+                written < NNG_MAXADDRSTRLEN,
+                "URL length {written} exceeds NNG_MAXADDRSTRLEN"
+            );
+
+            std::str::from_utf8(&buf[..written])
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "URL is not valid UTF-8"))?
+                .to_string()
+        };
+
+        Ok(Url(url_str))
     }
 }
 
@@ -100,193 +129,174 @@ impl<'socket, Protocol> Deref for TcpListener<'socket, Protocol> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
-pub enum Addr {
-    /// Address for intraprocess communication.
-    Inproc {
-        /// This field holds an arbitrary C string, which is the name of the address.
-        ///
-        /// The string must be NUL terminated, but no other restrictions exist.
-        name: CString,
-    },
-    /// Address for interprocess communication.
-    Ipc {
-        /// This field holds the C string corresponding to path name where the IPC socket is
-        /// located.
-        ///
-        /// For systems using UNIX domain sockets, this will be a path name in the file system,
-        /// where the UNIX domain socket is located. For Windows systems, this is the path name of
-        /// the Named Pipe, without the leading \\.pipe\ portion, which will be automatically
-        /// added.
-        path: CString,
-    },
-    /// Address for TCP/IP (v4) communication.
-    Inet(SocketAddrV4),
-    /// Address for TCP/IP (v6) communication.
-    Inet6(SocketAddrV6),
-    /// Address for ZeroTier transport.
-    #[non_exhaustive]
-    Zt,
-    /// Address for an abstract UNIX domain socket.
-    ///
-    /// Abstract sockets are only supported on Linux at present. These sockets have a name that is
-    /// simply an array of bytes, with no special meaning. Abstract sockets also have no presence
-    /// in the file system, do not honor any permissions, and are automatically cleaned up by the
-    /// operating system when no longer in use.
-    Abstract {
-        /// This field holds the name of the abstract socket.
-        ///
-        /// The bytes of name can have any value, including zero.
-        ///
-        /// The name does not include the leading NUL byte used on Linux to discriminate between
-        /// abstract and path name sockets.
-        name: Box<[u8]>,
-    },
-}
+/// A URL representing an NNG address.
+///
+/// This is a simple wrapper around a URL string as returned by NNG.
+/// The URL scheme indicates the transport type (e.g., `tcp://`, `ipc://`, `inproc://`).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Url(String);
 
-impl Addr {
+impl Url {
+    /// Returns the URL string as a reference.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Returns the URL scheme (e.g., "tcp", "ipc", "inproc").
+    pub fn scheme(&self) -> &str {
+        // All Url instances are constructed with a valid "scheme://..." format:
+        // - from_nng() writes "{scheme}://..." via fmt::Write
+        // - local_addr() uses nng_url_sprintf which produces valid URLs
+        self.0
+            .split_once("://")
+            .expect("Url invariant violated: missing '://' separator")
+            .0
+    }
+
     /// Returns `None` if address is not initialized (ie, family is `NNG_AF_UNSPEC`).
     // NOTE(jon): not From, since that'd make nng_sys be part of the public API.
-    pub(crate) fn from_nng(addr: nng_sys::nng_sockaddr) -> Option<Self> {
+    pub(crate) fn from_nng(addr: &nng_sys::nng_sockaddr, scheme: &CStr) -> Option<Self> {
+        use core::fmt::Write;
+        let scheme = scheme.to_str().ok()?;
+
         // SAFETY: first field of every union member is a u16, so s_family is always okay to access
         let s_family = u32::from(unsafe { addr.s_family });
-        // SAFETY: cast is valid since s_family is always one of the listed variants
-        match unsafe { core::mem::transmute::<u32, nng_sys::nng_sockaddr_family>(s_family) } {
-            nng_sys::nng_sockaddr_family::NNG_AF_UNSPEC => None,
-            nng_sys::nng_sockaddr_family::NNG_AF_INET => {
+
+        // Pre-allocate with typical URL size to reduce reallocations.
+        // 64 bytes covers most common cases:
+        // - TCP IPv4 max: "tcp://255.255.255.255:65535" (27 bytes)
+        // - TCP IPv6 max: "tcp://[ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff%4294967295]:65535" (64 bytes)
+        // - IPC/inproc: typically short paths/names
+        let mut url = String::with_capacity(64);
+
+        // NOTE: The Display impls of Ipv4Addr, Ipv6Addr, and SocketAddrV6 are stable and
+        // guaranteed to produce the canonical text representation (e.g., "127.0.0.1", "::1",
+        // "[::1%42]:9090"), which matches NNG's expected URL format.
+        match s_family {
+            x if x == nng_sys::nng_sockaddr_family::NNG_AF_UNSPEC as u32 => return None,
+            x if x == nng_sys::nng_sockaddr_family::NNG_AF_INET as u32 => {
                 // SAFETY: we've checked the family
                 let addr = unsafe { &addr.s_in };
                 let sa_addr = u32::from_be(addr.sa_addr);
                 let sa_port = u16::from_be(addr.sa_port);
                 let ip = Ipv4Addr::from_bits(sa_addr);
-                Some(Self::Inet(SocketAddrV4::new(ip, sa_port)))
+                write!(url, "{scheme}://{ip}:{sa_port}")
+                    .expect("fmt::Write for String is infallible");
             }
-            nng_sys::nng_sockaddr_family::NNG_AF_INET6 => {
+            x if x == nng_sys::nng_sockaddr_family::NNG_AF_INET6 as u32 => {
                 // SAFETY: we've checked the family
                 let addr = unsafe { &addr.s_in6 };
                 let sa_port = u16::from_be(addr.sa_port);
                 let ip = Ipv6Addr::from_bits(u128::from_be_bytes(addr.sa_addr));
-                Some(Self::Inet6(SocketAddrV6::new(
-                    ip,
-                    sa_port,
-                    0,
-                    addr.sa_scope,
-                )))
+                let sock_addr = SocketAddrV6::new(ip, sa_port, 0, addr.sa_scope);
+                write!(url, "{scheme}://{sock_addr}").expect("fmt::Write for String is infallible");
             }
-            nng_sys::nng_sockaddr_family::NNG_AF_IPC => {
+            x if x == nng_sys::nng_sockaddr_family::NNG_AF_IPC as u32 => {
                 // SAFETY: we've checked the family
                 let addr = unsafe { &addr.s_ipc };
                 // SAFETY: sa_path is guaranteed to be a C-style string, and we stop using this
                 // reference before we drop the `nng_sockaddr`.
                 let path = unsafe { CStr::from_ptr(addr.sa_path.as_ptr()) };
-                Some(Self::Ipc {
-                    path: path.to_owned(),
-                })
+                write!(url, "{scheme}://{}", path.to_string_lossy())
+                    .expect("fmt::Write for String is infallible");
             }
-            nng_sys::nng_sockaddr_family::NNG_AF_ABSTRACT => {
+            x if x == nng_sys::nng_sockaddr_family::NNG_AF_ABSTRACT as u32 => {
                 // SAFETY: we've checked the family
                 let addr = unsafe { &addr.s_abstract };
                 let name = &addr.sa_name[..usize::from(addr.sa_len)];
-                Some(Self::Abstract {
-                    name: Vec::from(name).into_boxed_slice(),
-                })
+                // Abstract socket URL encoding:
+                // - ASCII graphic characters (0x21-0x7E) are written literally
+                // - All other bytes (including space 0x20, null 0x00, and high bytes) are
+                //   percent-encoded as %xx
+                write!(url, "{scheme}://").expect("fmt::Write for String is infallible");
+                for &b in name {
+                    if b.is_ascii_graphic() {
+                        url.push(b as char);
+                    } else {
+                        write!(url, "%{b:02x}").expect("fmt::Write for String is infallible");
+                    }
+                }
             }
-            nng_sys::nng_sockaddr_family::NNG_AF_INPROC => {
+            x if x == nng_sys::nng_sockaddr_family::NNG_AF_INPROC as u32 => {
                 // SAFETY: we've checked the family
                 let addr = unsafe { &addr.s_inproc };
                 // SAFETY: sa_name is guaranteed to be a C-style string, and we stop using this
                 // reference before we drop the `nng_sockaddr`.
                 let name = unsafe { CStr::from_ptr(addr.sa_name.as_ptr()) };
-                Some(Self::Inproc {
-                    name: name.to_owned(),
-                })
+                // TODO(flxo): use CStr::display once
+                // https://github.com/rust-lang/rust/issues/139984 is merged.
+                write!(url, "{scheme}://{}", name.to_string_lossy())
+                    .expect("fmt::Write for String is infallible");
             }
-            _family => {
-                unimplemented!("support for family {s_family} has not yet been added")
+            _ => {
+                unimplemented!("support for address family {s_family} has not yet been added")
             }
         }
+
+        Some(Self(url))
     }
 }
 
-impl fmt::Display for Addr {
-    /// Format trait for an empty format, `{}`.
+impl fmt::Display for Url {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Addr::Inproc { name } => {
-                // inproc addresses are guaranteed to be a text string according
-                // to https://nng.nanomsg.org/man/v1.10.0/nng_inproc.7.html
-                write!(f, "inproc://{}", name.to_string_lossy())
-            }
-            Addr::Ipc { path } => {
-                // abstract addresses are handled in the `Addr::Abstract` variant.
-                // see the `Socket Address` section of
-                // https://nng.nanomsg.org/man/v1.10.0/nng_ipc.7.html
-                // so these are always simple paths
-                write!(f, "ipc://{}", path.to_string_lossy())
-            }
-            Addr::Inet(addr) => write!(f, "tcp://{addr}"),
-            Addr::Inet6(addr) => write!(f, "tcp://{addr}"),
-            Addr::Abstract { name } => {
-                write!(f, "abstract://")?;
-                for b in name.as_ref() {
-                    if b.is_ascii_graphic() {
-                        write!(f, "{}", *b as char)?;
-                    } else {
-                        // conform to https://nng.nanomsg.org/man/v1.10.0/nng_ipc.7.html
-                        // and prefix the hex value with `%`
-                        write!(f, "%{:02x}", b)?;
-                    }
-                }
-                Ok(())
-            }
-            // format in URI scheme for consistency with the other variants
-            Addr::Zt => write!(f, "zt://<todo>"),
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<Url> for String {
+    fn from(url: Url) -> String {
+        url.0
+    }
+}
+
+/// Parses a TCP/TLS URL into a [`SocketAddr`].
+///
+/// Accepts URLs with schemes: `tcp://`, `tcp4://`, `tcp6://`, `tls+tcp://`, `tls+tcp4://`, `tls+tcp6://`
+fn parse_tcp_url(url_str: &str) -> io::Result<SocketAddr> {
+    // Valid TCP schemes from NNG source (nng/src/sp/transport/tcp/tcp.c):
+    //   tcp, tcp4, tcp6
+    // Valid TLS schemes from NNG source (nng/src/sp/transport/tls/tls.c):
+    //   tls+tcp, tls+tcp4, tls+tcp6
+    let (scheme, addr_part) = url_str.split_once("://").ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("malformed URL: {url_str}"),
+        )
+    })?;
+    match scheme {
+        "tcp" | "tcp4" | "tcp6" | "tls+tcp" | "tls+tcp4" | "tls+tcp6" => {}
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("unexpected URL scheme in {url_str}"),
+            ));
         }
     }
+
+    addr_part.parse::<SocketAddr>().map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("failed to parse socket address from {addr_part}: {e}"),
+        )
+    })
 }
 
 impl<Protocol> TcpListener<'_, Protocol> {
     /// Retrieve the local address that this TCP listener is listening on.
-    // NOTE(jon): this is entirely just a convenience wrapper to give `SocketAddr` (and to validate
-    // `BOUND_PORT`).
+    ///
+    /// Parses the URL from [`Listener::local_addr()`] into a [`SocketAddr`].
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        let addr = self
+        // NOTE(flxo): NNG API asymmetry: There is no `nng_listener_get_addr()` to get the sockaddr
+        // directly, even though `nng_dialer_get_addr()` exists for dialers. We must go through the URL:
+        //   1. nng_listener_get_url() -> nng_url pointer
+        //   2. nng_url_sprintf() -> URL string
+        //   3. Parse string to extract address (done by callers like TcpListener::local_addr)
+        let url = self
             .0
             .local_addr()
             .expect("TCP supports LOCADDR and doesn't yield UNSPEC");
 
-        // SAFETY: this option is valid for TCP listeners, the listener is valid, we use the
-        // appropriate typed pointers to the type.
-        let port = unsafe {
-            let mut port = MaybeUninit::<c_int>::uninit();
-            let errno = nng_sys::nng_listener_get_int(
-                self.0.listener,
-                nng_sys::NNG_OPT_TCP_BOUND_PORT as *const _ as *const c_char,
-                port.as_mut_ptr(),
-            );
-            assert_eq!(
-                errno, 0,
-                "all listed error conditions of nng_listener_get_int are impossible given arguments"
-            );
-            port.assume_init()
-        };
-
-        match addr {
-            Addr::Inet(v4) => {
-                assert_eq!(port, i32::from(v4.port()));
-                Ok(SocketAddr::V4(v4))
-            }
-            Addr::Inet6(v6) => {
-                assert_eq!(port, i32::from(v6.port()));
-                Ok(SocketAddr::V6(v6))
-            }
-            addr => {
-                unreachable!(
-                    "tcp:// listeners should always be associated with INET family, not {addr}",
-                )
-            }
-        }
+        parse_tcp_url(url.as_str())
     }
 }
 
@@ -402,9 +412,7 @@ impl Default for TcpOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::rstest;
-    use std::ffi::CString;
-    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
+    use std::net::SocketAddrV4;
 
     #[tokio::test]
     async fn listen_tcp_local_addr() {
@@ -421,64 +429,98 @@ mod tests {
         assert_ne!(addr.port(), 0);
     }
 
+    /// Test `Listener::local_addr()` returns a properly formatted URL.
+    /// This tests the base method that uses `nng_url_sprintf`.
+    #[tokio::test]
+    async fn listener_local_addr_url() {
+        let socket = crate::protocols::reqrep0::Rep0::socket().unwrap();
+        let tcp_listener = socket
+            .listen_tcp(
+                std::net::SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
+                &TcpOptions::default(),
+            )
+            .await
+            .unwrap();
+
+        // Access Listener::local_addr() via Deref, which returns Url
+        let url: Url = Listener::local_addr(&tcp_listener).unwrap();
+
+        // Verify URL format
+        assert!(
+            url.as_str().starts_with("tcp://127.0.0.1:"),
+            "Expected tcp://127.0.0.1:PORT, got: {url}"
+        );
+
+        // Verify port is non-zero (ephemeral port was assigned)
+        let port_str = url.as_str().strip_prefix("tcp://127.0.0.1:").unwrap();
+        let port: u16 = port_str.parse().expect("port should be numeric");
+        assert_ne!(port, 0);
+
+        // Verify String conversion works
+        let url_string: String = url.into();
+        assert!(url_string.starts_with("tcp://"));
+    }
+
     #[test]
     fn test_from_nng_unspec() {
         let nng_addr = nng_sys::nng_sockaddr {
             s_family: nng_sys::nng_sockaddr_family::NNG_AF_UNSPEC as u16,
         };
-        assert_eq!(Addr::from_nng(nng_addr), None);
+        assert_eq!(Url::from_nng(&nng_addr, c"tcp"), None);
     }
 
     #[test]
     fn test_from_nng_inet() {
         let sockaddr_in = nng_sys::nng_sockaddr_in {
             sa_family: nng_sys::nng_sockaddr_family::NNG_AF_INET as u16,
-            sa_port: 8080u16.to_be(),       // Network byte order
-            sa_addr: 0x7F000001u32.to_be(), // 127.0.0.1 in network byte order
+            sa_port: 8080u16.to_be(),
+            sa_addr: 0x7F000001u32.to_be(),
         };
 
         let nng_addr = nng_sys::nng_sockaddr { s_in: sockaddr_in };
+        let url = Url::from_nng(&nng_addr, c"tcp").unwrap();
 
-        let addr = Addr::from_nng(nng_addr).unwrap();
-        let Addr::Inet(v4) = addr else {
-            panic!("Expected Inet address, got: {addr:?}");
-        };
-
-        assert_eq!(v4.ip(), &Ipv4Addr::new(127, 0, 0, 1));
-        assert_eq!(v4.port(), 8080);
+        assert_eq!(url.as_str(), "tcp://127.0.0.1:8080");
     }
 
     #[test]
     fn test_from_nng_inet6() {
+        // Test without scope_id
         let sockaddr_in6 = nng_sys::nng_sockaddr_in6 {
             sa_family: nng_sys::nng_sockaddr_family::NNG_AF_INET6 as u16,
             sa_port: 9090u16.to_be(),
-            sa_addr: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // ::1 in bytes
-            sa_scope: 42,
+            sa_addr: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            sa_scope: 0,
         };
 
         let nng_addr = nng_sys::nng_sockaddr {
             s_in6: sockaddr_in6,
         };
+        let url = Url::from_nng(&nng_addr, c"tcp").unwrap();
+        assert_eq!(url.as_str(), "tcp://[::1]:9090");
 
-        let addr = Addr::from_nng(nng_addr).unwrap();
-        let Addr::Inet6(v6) = addr else {
-            panic!("Expected Inet6 address, got: {addr:?}");
+        // Test with scope_id (required for link-local addresses like fe80::)
+        let sockaddr_in6_scoped = nng_sys::nng_sockaddr_in6 {
+            sa_family: nng_sys::nng_sockaddr_family::NNG_AF_INET6 as u16,
+            sa_port: 9090u16.to_be(),
+            sa_addr: [0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], // fe80::1
+            sa_scope: 42,
         };
 
-        assert_eq!(v6.ip(), &Ipv6Addr::LOCALHOST);
-        assert_eq!(v6.port(), 9090);
-        assert_eq!(v6.scope_id(), 42);
+        let nng_addr_scoped = nng_sys::nng_sockaddr {
+            s_in6: sockaddr_in6_scoped,
+        };
+        let url_scoped = Url::from_nng(&nng_addr_scoped, c"tcp").unwrap();
+        assert_eq!(url_scoped.as_str(), "tcp://[fe80::1%42]:9090");
     }
 
     #[test]
     fn test_from_nng_ipc() {
         let mut sockaddr_ipc = nng_sys::nng_sockaddr_ipc {
             sa_family: nng_sys::nng_sockaddr_family::NNG_AF_IPC as u16,
-            sa_path: [0; 128], // NNG_MAXADDRLEN is typically 128
+            sa_path: [0; 128],
         };
 
-        // Set a path - must be null-terminated C string
         let path = c"/tmp/test.sock";
         let path_bytes = path.to_bytes_with_nul();
         for (i, &byte) in path_bytes.iter().enumerate() {
@@ -488,13 +530,9 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_ipc: sockaddr_ipc,
         };
+        let url = Url::from_nng(&nng_addr, c"ipc").unwrap();
 
-        let addr = Addr::from_nng(nng_addr).unwrap();
-        let Addr::Ipc { path: path_cstring } = addr else {
-            panic!("Expected IPC address, got: {addr:?}");
-        };
-
-        assert_eq!(path_cstring.to_str().unwrap(), "/tmp/test.sock");
+        assert_eq!(url.as_str(), "ipc:///tmp/test.sock");
     }
 
     #[test]
@@ -513,13 +551,9 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_inproc: sockaddr_inproc,
         };
+        let url = Url::from_nng(&nng_addr, c"inproc").unwrap();
 
-        let addr = Addr::from_nng(nng_addr).unwrap();
-        let Addr::Inproc { name: name_cstring } = addr else {
-            panic!("Expected Inproc address, got: {addr:?}");
-        };
-
-        assert_eq!(name_cstring.to_str().unwrap(), "test-inproc");
+        assert_eq!(url.as_str(), "inproc://test-inproc");
     }
 
     #[test]
@@ -527,10 +561,9 @@ mod tests {
         let mut sockaddr_abstract = nng_sys::nng_sockaddr_abstract {
             sa_family: nng_sys::nng_sockaddr_family::NNG_AF_ABSTRACT as u16,
             sa_len: 10,
-            sa_name: [0; 107], // Based on NNG source
+            sa_name: [0; 107],
         };
 
-        // Abstract sockets can have arbitrary bytes, including nulls
         let name_bytes = b"test\0sock\x01";
         sockaddr_abstract.sa_len = name_bytes.len() as u16;
         sockaddr_abstract.sa_name[..name_bytes.len()].copy_from_slice(name_bytes);
@@ -538,33 +571,23 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_abstract: sockaddr_abstract,
         };
+        let url = Url::from_nng(&nng_addr, c"abstract").unwrap();
 
-        let addr = Addr::from_nng(nng_addr).unwrap();
-        let Addr::Abstract { name: name_box } = addr else {
-            panic!("Expected Abstract address, got: {addr:?}");
-        };
-
-        assert_eq!(&name_box[..], b"test\0sock\x01");
+        assert_eq!(url.as_str(), "abstract://test%00sock%01");
     }
 
     #[test]
     fn test_from_nng_inet_edge_cases() {
-        // Test with port 0
         let sockaddr_in = nng_sys::nng_sockaddr_in {
             sa_family: nng_sys::nng_sockaddr_family::NNG_AF_INET as u16,
             sa_port: 0u16.to_be(),
-            sa_addr: 0x00000000u32.to_be(), // 0.0.0.0
+            sa_addr: 0x00000000u32.to_be(),
         };
 
         let nng_addr = nng_sys::nng_sockaddr { s_in: sockaddr_in };
+        let url = Url::from_nng(&nng_addr, c"tcp").unwrap();
 
-        let addr = Addr::from_nng(nng_addr).unwrap();
-        let Addr::Inet(v4) = addr else {
-            panic!("Expected Inet address, got: {addr:?}");
-        };
-
-        assert_eq!(v4.ip(), &Ipv4Addr::new(0, 0, 0, 0));
-        assert_eq!(v4.port(), 0);
+        assert_eq!(url.as_str(), "tcp://0.0.0.0:0");
     }
 
     #[test]
@@ -573,20 +596,14 @@ mod tests {
             sa_family: nng_sys::nng_sockaddr_family::NNG_AF_IPC as u16,
             sa_path: [0; 128],
         };
-
-        // Just null terminator
         sockaddr_ipc.sa_path[0] = 0;
 
         let nng_addr = nng_sys::nng_sockaddr {
             s_ipc: sockaddr_ipc,
         };
+        let url = Url::from_nng(&nng_addr, c"ipc").unwrap();
 
-        let addr = Addr::from_nng(nng_addr).unwrap();
-        let Addr::Ipc { path: path_cstring } = addr else {
-            panic!("Expected IPC address, got: {addr:?}");
-        };
-
-        assert_eq!(path_cstring.to_str().unwrap(), "");
+        assert_eq!(url.as_str(), "ipc://");
     }
 
     #[test]
@@ -600,49 +617,164 @@ mod tests {
         let nng_addr = nng_sys::nng_sockaddr {
             s_abstract: sockaddr_abstract,
         };
+        let url = Url::from_nng(&nng_addr, c"abstract").unwrap();
 
-        let addr = Addr::from_nng(nng_addr).unwrap();
-        let Addr::Abstract { name: name_box } = addr else {
-            panic!("Expected Abstract address, got: {addr:?}");
-        };
-
-        assert_eq!(name_box.len(), 0);
+        assert_eq!(url.as_str(), "abstract://");
     }
 
-    #[rstest]
-    #[case(
-        Addr::Inet(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 8080)),
-        "tcp://127.0.0.1:8080",
-        "inet localhost"
-    )]
-    #[case(
-        Addr::Inet(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 8080)),
-        "tcp://0.0.0.0:8080",
-        "inet any"
-    )]
-    #[case(
-        Addr::Inet6(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 8080, 0, 0)),
-        "tcp://[::1]:8080",
-        "inet6 localhost"
-    )]
-    #[case(
-        Addr::Inet6(SocketAddrV6::new(Ipv6Addr::UNSPECIFIED, 8080, 0, 0)),
-        "tcp://[::]:8080",
-        "inet6 any"
-    )]
-    #[case(Addr::Inproc { name: CString::new("myapp").unwrap() }, "inproc://myapp", "inproc printable")]
-    #[case(Addr::Inproc { name: CString::new("my-app_123").unwrap() }, "inproc://my-app_123", "inproc with special chars")]
-    #[case(Addr::Ipc { path: CString::new("/tmp/mysocket").unwrap() }, "ipc:///tmp/mysocket", "ipc printable")]
-    #[case(Addr::Abstract { name: b"myapp".to_vec().into() }, "abstract://myapp", "abstract printable")]
-    #[case(Addr::Abstract { name: vec![0x00, b'a', b'p', b'p'].into() }, "abstract://%00app", "abstract with null prefix")]
-    #[case(Addr::Abstract { name: vec![0x00, b'a', b'p', b'p', 0xFF, b'!'].into() }, "abstract://%00app%ff!", "abstract mixed content")]
-    #[case(Addr::Abstract { name: vec![0x00, 0x01, 0xFF, 0xFE].into() }, "abstract://%00%01%ff%fe", "abstract all non printable")]
-    #[case(Addr::Abstract { name: vec![].into() }, "abstract://", "abstract empty")]
-    #[case(Addr::Abstract { name: b"Hello-World_123!".to_vec().into() }, "abstract://Hello-World_123!", "hex name helper all printable")]
-    #[case(Addr::Abstract { name: b"hello world".to_vec().into() }, "abstract://hello%20world", "hex name helper whitespace encoded")]
-    #[case(Addr::Abstract { name: vec![b'a', b'\t', b'b', b'\n', b'c'].into() }, "abstract://a%09b%0ac", "hex name helper tab and newline")]
-    fn test_addr_to_string(#[case] addr: Addr, #[case] expected: &str, #[case] description: &str) {
-        let addr = addr.to_string();
-        assert_eq!(addr, expected, "{description}");
+    #[test]
+    fn test_url_into_string() {
+        let url = Url("tcp://127.0.0.1:8080".to_string());
+        let s: String = url.into();
+        assert_eq!(s, "tcp://127.0.0.1:8080");
+    }
+
+    #[test]
+    fn test_url_from_for_string() {
+        let url = Url("ipc:///tmp/test.sock".to_string());
+        let s = String::from(url);
+        assert_eq!(s, "ipc:///tmp/test.sock");
+    }
+
+    #[test]
+    fn test_url_scheme() {
+        assert_eq!(Url("tcp://127.0.0.1:8080".to_string()).scheme(), "tcp");
+        assert_eq!(Url("tcp4://127.0.0.1:8080".to_string()).scheme(), "tcp4");
+        assert_eq!(Url("tcp6://[::1]:8080".to_string()).scheme(), "tcp6");
+        assert_eq!(
+            Url("tls+tcp://127.0.0.1:8080".to_string()).scheme(),
+            "tls+tcp"
+        );
+        assert_eq!(Url("ipc:///tmp/test.sock".to_string()).scheme(), "ipc");
+        assert_eq!(Url("inproc://test".to_string()).scheme(), "inproc");
+        assert_eq!(Url("abstract://test".to_string()).scheme(), "abstract");
+    }
+
+    #[tokio::test]
+    async fn listen_tcp_local_addr_ipv6() {
+        use std::net::SocketAddrV6;
+
+        let socket = crate::protocols::reqrep0::Rep0::socket().unwrap();
+        let listener = socket
+            .listen_tcp(
+                SocketAddr::V6(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0)),
+                &TcpOptions::default(),
+            )
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+        assert!(addr.ip().is_ipv6() && addr.ip().is_loopback());
+        assert_ne!(addr.port(), 0);
+    }
+
+    /// Test abstract socket URL encoding for edge cases:
+    /// - Space (0x20) should be percent-encoded
+    /// - High bytes (0xFF) should be percent-encoded
+    #[test]
+    fn test_from_nng_abstract_edge_cases() {
+        // Test with space character (0x20 is not ascii_graphic)
+        let mut sockaddr = nng_sys::nng_sockaddr_abstract {
+            sa_family: nng_sys::nng_sockaddr_family::NNG_AF_ABSTRACT as u16,
+            sa_len: 0,
+            sa_name: [0; 107],
+        };
+
+        let name_with_space = b"hello world";
+        sockaddr.sa_len = name_with_space.len() as u16;
+        sockaddr.sa_name[..name_with_space.len()].copy_from_slice(name_with_space);
+
+        let nng_addr = nng_sys::nng_sockaddr {
+            s_abstract: sockaddr,
+        };
+        let url = Url::from_nng(&nng_addr, c"abstract").unwrap();
+        assert_eq!(url.as_str(), "abstract://hello%20world");
+
+        // Test with high byte (0xFF)
+        let mut sockaddr = nng_sys::nng_sockaddr_abstract {
+            sa_family: nng_sys::nng_sockaddr_family::NNG_AF_ABSTRACT as u16,
+            sa_len: 0,
+            sa_name: [0; 107],
+        };
+
+        let name_with_high_byte = b"test\xff";
+        sockaddr.sa_len = name_with_high_byte.len() as u16;
+        sockaddr.sa_name[..name_with_high_byte.len()].copy_from_slice(name_with_high_byte);
+
+        let nng_addr = nng_sys::nng_sockaddr {
+            s_abstract: sockaddr,
+        };
+        let url = Url::from_nng(&nng_addr, c"abstract").unwrap();
+        assert_eq!(url.as_str(), "abstract://test%ff");
+    }
+
+    /// Test that parse_tcp_url handles all valid TCP/TLS schemes.
+    #[test]
+    fn test_parse_tcp_url_schemes() {
+        use super::parse_tcp_url;
+
+        // Test all TCP schemes (from nng/src/sp/transport/tcp/tcp.c)
+        assert_eq!(
+            parse_tcp_url("tcp://127.0.0.1:8080").unwrap(),
+            "127.0.0.1:8080".parse::<SocketAddr>().unwrap()
+        );
+        assert_eq!(
+            parse_tcp_url("tcp4://192.168.1.1:9090").unwrap(),
+            "192.168.1.1:9090".parse::<SocketAddr>().unwrap()
+        );
+        assert_eq!(
+            parse_tcp_url("tcp6://[::1]:8080").unwrap(),
+            "[::1]:8080".parse::<SocketAddr>().unwrap()
+        );
+
+        // Test all TLS schemes (from nng/src/sp/transport/tls/tls.c)
+        assert_eq!(
+            parse_tcp_url("tls+tcp://10.0.0.1:443").unwrap(),
+            "10.0.0.1:443".parse::<SocketAddr>().unwrap()
+        );
+        assert_eq!(
+            parse_tcp_url("tls+tcp4://10.0.0.2:443").unwrap(),
+            "10.0.0.2:443".parse::<SocketAddr>().unwrap()
+        );
+        assert_eq!(
+            parse_tcp_url("tls+tcp6://[fe80::1]:443").unwrap(),
+            "[fe80::1]:443".parse::<SocketAddr>().unwrap()
+        );
+    }
+
+    /// Test that parse_tcp_url preserves IPv6 scope_id.
+    #[test]
+    fn test_parse_tcp_url_scope_id_preservation() {
+        use super::parse_tcp_url;
+
+        // Numeric scope ID should be preserved
+        let addr = parse_tcp_url("tcp://[fe80::1%42]:9090").unwrap();
+        assert_eq!(addr.to_string(), "[fe80::1%42]:9090");
+        if let SocketAddr::V6(v6) = addr {
+            assert_eq!(v6.scope_id(), 42);
+        } else {
+            panic!("Expected IPv6 address");
+        }
+
+        // Note: Interface name scope IDs (like %eth0) are not supported by SocketAddr::from_str
+        // and will result in a parse error, which is correct behavior
+        assert!(parse_tcp_url("tcp6://[fe80::1%eth0]:8080").is_err());
+    }
+
+    /// Test that parse_tcp_url returns appropriate errors.
+    #[test]
+    fn test_parse_tcp_url_errors() {
+        use super::parse_tcp_url;
+
+        // Unknown scheme
+        let err = parse_tcp_url("ipc:///tmp/socket").unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+
+        // Malformed address
+        let err = parse_tcp_url("tcp://not-an-address").unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+
+        // Empty address
+        let err = parse_tcp_url("tcp://").unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 }

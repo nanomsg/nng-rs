@@ -1,4 +1,4 @@
-use anng::{Message, pipes::Addr};
+use anng::Message;
 use std::{
     ffi::CString,
     io::Write,
@@ -29,17 +29,22 @@ async fn remote_addr_tcp() {
         let mut rep0 = socket.context();
         let (msg, reply) = rep0.receive().await.unwrap();
 
-        // Check remote address - should be inet with localhost
+        // Check remote address - should be a tcp:// URL
         let addr = msg.remote_addr().unwrap();
-        let Addr::Inet(v4) = addr else {
-            panic!("Expected inet address, got: {addr}");
-        };
+        assert!(
+            addr.as_str().starts_with("tcp://"),
+            "Expected tcp:// URL, got: {addr}"
+        );
 
-        assert_eq!(v4.ip(), &Ipv4Addr::LOCALHOST);
-        // Should be some ephemeral port from the client
-        assert_ne!(v4.port(), 0);
-        // and it should _not_ be the listening port.
-        assert_ne!(v4.port(), listener_addr.port());
+        // Parse and verify the address
+        let addr_part = addr.as_str().strip_prefix("tcp://").unwrap();
+        let sock_addr: SocketAddr = addr_part.parse().unwrap();
+        assert!(
+            sock_addr.ip().is_loopback(),
+            "Expected loopback, got: {sock_addr}"
+        );
+        assert_ne!(sock_addr.port(), 0);
+        assert_ne!(sock_addr.port(), listener_addr.port());
 
         reply.reply(msg).await.unwrap();
     }
@@ -52,14 +57,17 @@ async fn remote_addr_tcp() {
         let reply = req0.request(msg).await.unwrap();
         let reply_msg = reply.await.unwrap();
 
-        // Check remote address of the reply - should be inet with the listener address
+        // Check remote address of the reply - should be tcp:// URL with the listener address
         let addr = reply_msg.remote_addr().unwrap();
-        let Addr::Inet(v4) = addr else {
-            panic!("Expected inet address, got: {addr}");
-        };
+        assert!(
+            addr.as_str().starts_with("tcp://"),
+            "Expected tcp:// URL, got: {addr}"
+        );
 
-        assert_eq!(v4.ip(), &Ipv4Addr::LOCALHOST);
-        assert_eq!(v4.port(), listener_addr.port()); // Should be the listener port
+        let addr_part = addr.as_str().strip_prefix("tcp://").unwrap();
+        let sock_addr: SocketAddr = addr_part.parse().unwrap();
+        assert!(sock_addr.ip().is_loopback());
+        assert_eq!(sock_addr.port(), listener_addr.port());
         reply_msg
     }
     .instrument(tracing::info_span!("req0"));
@@ -88,14 +96,9 @@ async fn remote_addr_inproc() {
         let mut rep0 = rep0.context();
         let (msg, reply) = rep0.receive().await.unwrap();
 
-        // Check remote address - should be inproc with the connection name
+        // Check remote address - should be inproc:// URL
         let addr = msg.remote_addr().unwrap();
-        let Addr::Inproc { name } = addr else {
-            panic!("Expected inproc address, got: {addr}");
-        };
-
-        // NNG returns just the address name without the "inproc://" prefix
-        assert_eq!(name, CString::new("test_remote_addr").unwrap());
+        assert_eq!(addr.as_str(), "inproc://test_remote_addr");
 
         reply.reply(msg).await.unwrap();
     }
@@ -108,14 +111,9 @@ async fn remote_addr_inproc() {
         let reply = req0.request(msg).await.unwrap();
         let reply_msg = reply.await.unwrap();
 
-        // Check remote address of the reply - should be inproc with the connection name
+        // Check remote address of the reply - should be inproc:// URL
         let addr = reply_msg.remote_addr().unwrap();
-        let Addr::Inproc { name } = addr else {
-            panic!("Expected inproc address, got: {addr}");
-        };
-
-        // NNG returns just the address name without the "inproc://" prefix
-        assert_eq!(name, CString::new("test_remote_addr").unwrap());
+        assert_eq!(addr.as_str(), "inproc://test_remote_addr");
     }
     .instrument(tracing::info_span!("req0"));
 
