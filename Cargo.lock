@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "nng"
-version = "1.0.1"
+version = "2.0.0-v2pre.1"
 dependencies = [
  "log",
  "nng-sys 0.3.0+1.11.0",
