@@ -131,7 +131,7 @@ pub(crate) struct InnerSocket {
 impl Drop for InnerSocket {
     fn drop(&mut self) {
         // SAFETY: socket is valid and not already closed (socket is live until `self` drops).
-        crate::block_in_place(|| unsafe { nng_sys::nng_close(self.socket) });
+        crate::block_in_place(|| unsafe { nng_sys::nng_socket_close(self.socket) });
     }
 }
 
