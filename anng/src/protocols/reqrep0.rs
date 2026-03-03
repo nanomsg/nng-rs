@@ -278,6 +278,52 @@ impl<'socket> ContextfulSocket<'socket, Req0> {
     }
 }
 
+/// Raw Request socket type
+///
+/// This is the raw version of the REQ0 protocol. It bypasses the strict
+/// Request-Reply state machine, allowing full asynchronous processing.
+///
+/// In Raw mode:
+/// - You can send multiple requests without waiting for replies.
+/// - You must handle message headers manually if needed.
+/// - Useful for load balancing requests to multiple Router sockets.
+#[derive(Debug, Clone, Copy)]
+pub struct Req0Raw;
+
+impl Req0Raw {
+    /// Creates a new Raw REQ0 socket.
+    pub fn socket() -> io::Result<Socket<Req0Raw>> {
+        // SAFETY: nng_req0_open_raw is the correct initialization function.
+        unsafe { super::create_socket(nng_sys::nng_req0_open_raw, Req0Raw) }
+    }
+
+    /// Creates a Raw REQ0 socket and connects to the specified URL.
+    pub async fn dial(url: impl AsRef<CStr>) -> io::Result<Socket<Req0Raw>> {
+        let socket = Self::socket()?;
+        socket.dial(url.as_ref()).await?;
+        Ok(socket)
+    }
+
+    /// Creates a Raw REQ0 socket and listens on the specified URL.
+    pub async fn listen(url: impl AsRef<CStr>) -> io::Result<Socket<Req0Raw>> {
+        let socket = Self::socket()?;
+        socket.listen(url.as_ref()).await?;
+        Ok(socket)
+    }
+}
+
+impl Socket<Req0Raw> {
+    /// Sends a message.
+    pub async fn send(&mut self, message: Message) -> Result<(), (AioError, Message)> {
+        self.send_msg(message).await
+    }
+
+    /// Receives a message.
+    pub async fn recv(&mut self) -> Result<Message, AioError> {
+        self.recv_msg().await
+    }
+}
+
 /// Reply socket type for the server side of Request/Reply communication.
 ///
 /// REP sockets receive requests and send back replies. The protocol enforces that each
@@ -587,5 +633,57 @@ impl Responder<'_, '_> {
         } else {
             Ok(())
         }
+    }
+}
+
+/// Raw Reply socket type
+///
+/// This is the raw version of the REP0 protocol. It bypasses the strict
+/// Request-Reply state machine, allowing full asynchronous processing.
+///
+/// In Raw mode:
+/// - Received messages contain a header with the routing information (Backtrace).
+/// - Sent messages must include this header to route the reply back to the correct client.
+/// - You can receive multiple messages before sending any replies.
+/// - You can send replies in any order.
+#[derive(Debug, Clone, Copy)]
+pub struct Rep0Raw;
+
+impl Rep0Raw {
+    /// Creates a new Raw REP0 socket.
+    pub fn socket() -> io::Result<Socket<Rep0Raw>> {
+        // SAFETY: nng_rep0_open_raw is the correct initialization function.
+        unsafe { super::create_socket(nng_sys::nng_rep0_open_raw, Rep0Raw) }
+    }
+
+    /// Creates a Raw REP0 socket and listens on the specified URL.
+    pub async fn listen(url: impl AsRef<CStr>) -> io::Result<Socket<Rep0Raw>> {
+        let socket = Self::socket()?;
+        socket.listen(url.as_ref()).await?;
+        Ok(socket)
+    }
+
+    /// Creates a Raw REP0 socket and connects to the specified URL.
+    pub async fn dial(url: impl AsRef<CStr>) -> io::Result<Socket<Rep0Raw>> {
+        let socket = Self::socket()?;
+        socket.dial(url.as_ref()).await?;
+        Ok(socket)
+    }
+}
+
+impl Socket<Rep0Raw> {
+    /// Sends a message.
+    ///
+    /// For Raw sockets, the message MUST contain the routing header from the original request.
+    pub async fn send(&mut self, message: Message) -> Result<(), (AioError, Message)> {
+        self.send_msg(message).await
+    }
+
+    /// Receives a message.
+    ///
+    /// For Raw sockets, the message will contain a routing header that MUST be preserved
+    /// if you intend to reply to it.
+    pub async fn recv(&mut self) -> Result<Message, AioError> {
+        self.recv_msg().await
     }
 }

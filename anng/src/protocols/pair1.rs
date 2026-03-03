@@ -257,7 +257,7 @@ impl Socket<Pair1> {
 
         let errno = unsafe {
             nng_sys::nng_socket_set_int(
-                self.socket,
+                self.inner.socket,
                 c"ttl-max".as_ptr() as *const c_char,
                 i32::from(ttl),
             )
