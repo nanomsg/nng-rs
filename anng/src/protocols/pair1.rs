@@ -110,6 +110,7 @@
 
 use crate::{Socket, aio::AioError, message::Message};
 use core::ffi::{CStr, c_char};
+use nng_sys::ErrorCode;
 use std::io;
 
 /// Pair socket type for one-to-one communication.
@@ -264,10 +265,10 @@ impl Socket<Pair1> {
 
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            nng_sys::NNG_ECLOSED => {
+            errno if errno == ErrorCode::ECLOSED as u32 => {
                 unreachable!("socket is still open");
             }
-            nng_sys::NNG_EINVAL => {
+            errno if errno == ErrorCode::EINVAL as u32 => {
                 unreachable!("we've checked the range of the input");
             }
             errno => {

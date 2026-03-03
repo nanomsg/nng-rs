@@ -432,7 +432,12 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         // that holds nng.lib
         dst.join("build/Release")
     } else {
-        dst.join("lib")
+        let lib64 = dst.join("lib64");
+        if lib64.exists() {
+            lib64
+        } else {
+            dst.join("lib")
+        }
     };
 
     let include_dir = dst.join("include");
@@ -467,7 +472,7 @@ fn generate_bindings(include_dirs: &[PathBuf]) {
         })
         .constified_enum("nng_flag_enum")
         // NNG_ESYSERR and NNG_ETRANERR are used like flags
-        .constified_enum("nng_errno_enum")
+        .newtype_enum("nng_err")
         .constified_enum("nng_pipe_ev")
         .use_core()
         .parse_callbacks(Box::new(BindgenCallbacks))

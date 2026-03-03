@@ -19,6 +19,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.2.0-v2pre.2]
+
+### Changed
+
+- Adapt to NNG v2.0.0-alpha.7 API
+  ([#42](https://github.com/nanomsg/nng-rs/pull/42)).
+
+## [0.2.0-v2pre.1]
+
+### Changed
+
+- Migrate to NNG v2 API with improved error handling and initialization
+  ([#37](https://github.com/nanomsg/nng-rs/pull/37)).
+
 ## [0.1.3]
 
 ### Fixed
@@ -49,7 +63,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial public release.
 
-[unreleased]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.3...HEAD
+[unreleased]: https://github.com/nanomsg/nng-rs/compare/anng-v0.2.0-v2pre.2...HEAD
+[0.2.0-v2pre.2]: https://github.com/nanomsg/nng-rs/compare/anng-v0.2.0-v2pre.1...anng-v0.2.0-v2pre.2
+[0.2.0-v2pre.1]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.3...anng-v0.2.0-v2pre.1
 [0.1.3]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.2...anng-v0.1.3
 [0.1.2]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.1...anng-v0.1.2
 [0.1.1]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.0...anng-v0.1.1
