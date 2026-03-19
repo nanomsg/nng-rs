@@ -400,6 +400,7 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
     let static_link = should_link_static(true);
 
     // Run cmake to build nng
+    // NOTE: if you add a .define() here, also add it to CMAKE_VAR_BLACKLIST below.
     let mut config = cmake::Config::new("nng");
     config
         .define("NNG_TESTS", "OFF")
@@ -423,6 +424,37 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
         // Rust always links against MSVC's Release CRT, so if we build nng against the Debug
         // version, we get linker errors. Thus, always build nng in Release to match Rust.
         config.profile("Release");
+    }
+
+    // Forward NNG_CMAKE_* environment variables as CMake defines.
+    // e.g. NNG_CMAKE_NNG_MAX_POLLER_THREADS=4 → -DNNG_MAX_POLLER_THREADS=4
+    for (key, value) in env::vars() {
+        let Some(cmake_var) = key.strip_prefix("NNG_CMAKE_") else {
+            continue;
+        };
+
+        // Variables already controlled by the build script (via cargo features or
+        // build logic above) are rejected to prevent silent conflicts with the
+        // hardcoded .define() calls above.
+        const CMAKE_VAR_BLACKLIST: &[&str] = &[
+            "NNG_TESTS",
+            "NNG_TOOLS",
+            "NNG_ENABLE_STATS",
+            "NNG_ENABLE_TLS",
+            "NNG_ENABLE_NNGCAT",
+            "NNG_ENABLE_COVERAGE",
+            "BUILD_SHARED_LIBS",
+        ];
+        if CMAKE_VAR_BLACKLIST.contains(&cmake_var) {
+            panic!(
+                "{} cannot be set via NNG_CMAKE_*; \
+                 {} is managed by the build script (use cargo features instead if available)",
+                key, cmake_var,
+            );
+        }
+
+        println!("cargo:rerun-if-env-changed={}", key);
+        config.define(cmake_var, &value);
     }
 
     let dst = config.build();

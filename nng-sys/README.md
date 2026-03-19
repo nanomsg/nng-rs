@@ -112,13 +112,14 @@ When using a system-provided NNG library, ensure it was built with the features 
 
 ### Quick Reference
 
-| Variable                          | Purpose                                                  | Example                             |
-| --------------------------------- | -------------------------------------------------------- | ----------------------------------- |
-| `NNG_DIR`                         | Root NNG installation directory                          | `/usr/local`                        |
-| `NNG_LIB_DIR` + `NNG_INCLUDE_DIR` | Separate library and header paths                        | `/opt/nng/lib`, `/opt/nng/include`  |
-| `NNG_STATIC`                      | Force static (`1`) or dynamic (`0`) linking              | `1`                                 |
-| `NNG_NO_VENDOR`                   | Prohibit vendored builds (error if system lib not found) | `1`                                 |
-| `{TARGET}_NNG_*`                  | Target-specific override (cross-compilation)             | `AARCH64_UNKNOWN_LINUX_GNU_NNG_DIR` |
+| Variable                          | Purpose                                                   | Example                              |
+| --------------------------------- | --------------------------------------------------------- | ------------------------------------ |
+| `NNG_DIR`                         | Root NNG installation directory                           | `/usr/local`                         |
+| `NNG_LIB_DIR` + `NNG_INCLUDE_DIR` | Separate library and header paths                         | `/opt/nng/lib`, `/opt/nng/include`   |
+| `NNG_STATIC`                      | Force static (`1`) or dynamic (`0`) linking               | `1`                                  |
+| `NNG_NO_VENDOR`                   | Prohibit vendored builds (error if system lib not found)  | `1`                                  |
+| `{TARGET}_NNG_*`                  | Target-specific override (cross-compilation)              | `AARCH64_UNKNOWN_LINUX_GNU_NNG_DIR`  |
+| `NNG_CMAKE_*`                     | Pass CMake defines to vendored build (prefix is stripped) | `NNG_CMAKE_NNG_MAX_POLLER_THREADS=4` |
 
 ### Build Control
 
@@ -129,6 +130,8 @@ When using a system-provided NNG library, ensure it was built with the features 
   - Matches the pattern from openssl-sys (`OPENSSL_NO_VENDOR`) and libgit2-sys (`LIBGIT2_NO_VENDOR`)
   - Useful for deployments where deep control over exact versions of dependencies is needed
     (e.g., systems that need to deal with compliance, SBOMs, etc.)
+- `NNG_CMAKE_*`: When using the _vendored_ build, arbitrary CMake variables can be set via environment variables
+  prefixed with `NNG_CMAKE_`. The prefix is stripped and the remainder is passed as a `CMake` define.
 
 ### Cross-Compilation
 
