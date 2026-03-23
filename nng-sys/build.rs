@@ -389,36 +389,41 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
     // where nng/src/core/stats.h defines an empty `nni_stat_item` struct when stats are
     // disabled. Until this is fixed upstream, we must always enable stats on MSVC.
     // See: https://github.com/nanomsg/nng/issues/2217
-    let stats = if cfg!(feature = "vendored-stats") || cfg!(target_env = "msvc") {
+    const STATS: &str = if cfg!(feature = "vendored-stats") || cfg!(target_env = "msvc") {
         "ON"
     } else {
         "OFF"
     };
-    let tls = if cfg!(feature = "tls") { "ON" } else { "OFF" };
+    const TLS: &str = if cfg!(feature = "tls") { "ON" } else { "OFF" };
 
     // Determine link type
-    let static_link = should_link_static(true);
+    // NOTE(flxo): `should_link_static` reads an environment variable, so this can't be `const`.
+    let shared_libs = if should_link_static(true) {
+        "OFF"
+    } else {
+        "ON"
+    };
+
+    let cmake_defines: &[(&str, &str)] = &[
+        ("NNG_TESTS", "OFF"),
+        ("NNG_TOOLS", "OFF"),
+        ("NNG_ENABLE_STATS", STATS),
+        ("NNG_ENABLE_TLS", TLS),
+        ("NNG_ENABLE_NNGCAT", "OFF"),
+        ("NNG_ENABLE_COVERAGE", "OFF"),
+        ("BUILD_SHARED_LIBS", shared_libs),
+    ];
 
     // Run cmake to build nng
-    // NOTE: if you add a .define() here, also add it to CMAKE_VAR_BLACKLIST below.
     let mut config = cmake::Config::new("nng");
-    config
-        .define("NNG_TESTS", "OFF")
-        .define("NNG_TOOLS", "OFF")
-        .define("NNG_ENABLE_STATS", stats)
-        .define("NNG_ENABLE_TLS", tls)
-        .define("NNG_ENABLE_NNGCAT", "OFF")
-        .define("NNG_ENABLE_COVERAGE", "OFF")
-        // NOTE: the `cmake` crate sets `CMAKE_INSTALL_PREFIX` to point to `$OUT_DIR/build`, which
-        // is what `.build()` returns (into `dst`) below!
-        .build_target("install");
 
-    // Set BUILD_SHARED_LIBS based on desired linkage
-    if static_link {
-        config.define("BUILD_SHARED_LIBS", "OFF");
-    } else {
-        config.define("BUILD_SHARED_LIBS", "ON");
+    for (key, value) in cmake_defines {
+        config.define(key, value);
     }
+
+    // NOTE: the `cmake` crate sets `CMAKE_INSTALL_PREFIX` to point to `$OUT_DIR/build`, which
+    // is what `.build()` returns (into `dst`) below!
+    config.build_target("install");
 
     if cfg!(target_env = "msvc") {
         // Rust always links against MSVC's Release CRT, so if we build nng against the Debug
@@ -435,17 +440,8 @@ fn build_vendored() -> (LibrarySource, Vec<PathBuf>) {
 
         // Variables already controlled by the build script (via cargo features or
         // build logic above) are rejected to prevent silent conflicts with the
-        // hardcoded .define() calls above.
-        const CMAKE_VAR_BLACKLIST: &[&str] = &[
-            "NNG_TESTS",
-            "NNG_TOOLS",
-            "NNG_ENABLE_STATS",
-            "NNG_ENABLE_TLS",
-            "NNG_ENABLE_NNGCAT",
-            "NNG_ENABLE_COVERAGE",
-            "BUILD_SHARED_LIBS",
-        ];
-        if CMAKE_VAR_BLACKLIST.contains(&cmake_var) {
+        // .define() calls above.
+        if cmake_defines.iter().any(|(key, _)| *key == cmake_var) {
             panic!(
                 "{} cannot be set via NNG_CMAKE_*; \
                  {} is managed by the build script (use cargo features instead if available)",
