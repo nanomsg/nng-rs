@@ -3,6 +3,8 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use nng_sys::nng_err;
+
 use crate::{dialer::Dialer, listener::Listener};
 
 /// An NNG communication pipe.
@@ -66,9 +68,9 @@ impl Pipe {
         // The pipe either closes succesfully, was already closed, or was never open. In
         // any of those scenarios, the pipe is in the desired state. As such, we don't
         // care about the return value.
-        let rv = unsafe { nng_sys::nng_pipe_close(self.handle) };
+        let nng_err(rv) = unsafe { nng_sys::nng_pipe_close(self.handle) };
         assert!(
-            rv == 0 || rv == nng_sys::NNG_ECLOSED as i32,
+            rv == 0 || nng_err(rv) == nng_sys::nng_err::NNG_ECLOSED,
             "Unexpected error code while closing pipe ({})",
             rv
         );
@@ -128,45 +130,6 @@ impl Hash for Pipe {
         let id = unsafe { nng_sys::nng_pipe_id(self.handle) };
         id.hash(state);
     }
-}
-
-#[rustfmt::skip]
-expose_options!{
-	Pipe :: handle -> nng_sys::nng_pipe;
-
-	GETOPT_BOOL = nng_sys::nng_pipe_get_bool;
-	GETOPT_INT = nng_sys::nng_pipe_get_int;
-	GETOPT_MS = nng_sys::nng_pipe_get_ms;
-	GETOPT_SIZE = nng_sys::nng_pipe_get_size;
-	GETOPT_SOCKADDR = nng_sys::nng_pipe_get_addr;
-	GETOPT_STRING = nng_sys::nng_pipe_get_string;
-	GETOPT_UINT64 = nng_sys::nng_pipe_get_uint64;
-
-	SETOPT = crate::util::fake_genopt;
-	SETOPT_BOOL = crate::util::fake_opt;
-	SETOPT_INT = crate::util::fake_opt;
-	SETOPT_MS = crate::util::fake_opt;
-	SETOPT_PTR = crate::util::fake_opt;
-	SETOPT_SIZE = crate::util::fake_opt;
-	SETOPT_STRING =crate::util::fake_opt;
-
-	Gets -> [LocalAddr, RemAddr, RecvMaxSize,
-	         transport::ipc::PeerPid,
-	         transport::tcp::NoDelay,
-	         transport::tcp::KeepAlive,
-	         transport::tls::Verified,
-	         transport::websocket::RequestHeaders,
-	         transport::websocket::ResponseHeaders];
-	Sets -> [];
-}
-
-#[cfg(unix)]
-mod unix_impls {
-    use super::*;
-    use crate::options::{transport::ipc, SetOpt};
-
-    impl SetOpt<ipc::PeerUid> for Pipe {}
-    impl SetOpt<ipc::PeerGid> for Pipe {}
 }
 
 /// An event that happens on a [`Pipe`] instance.

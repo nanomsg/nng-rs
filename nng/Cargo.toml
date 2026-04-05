@@ -27,7 +27,43 @@ ffi-module = []
 log = "0.4.28"
 
 [dependencies.nng-sys]
-version = "0.3.0"
-# TODO(flxo): use path dependency once nng is updated to use nng-sys v0.4
-# path = "../nng-sys"
+version = "0.4.0-v2pre.2"
 default-features = false
+
+[lints.rust]
+improper_ctypes = "forbid"
+bare_trait_objects = "deny"
+missing_debug_implementations = "deny"
+missing_docs = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+wrong_self_convention = { level = "deny", priority = -1 }
+
+# I would like to be able to keep these on, but due to the nature of the crate
+# it just isn't feasible. For example, the "cast_sign_loss" will warn at every
+# i32/u32 conversion. Normally, I would like that, but this library is a safe
+# wrapper around a Bindgen-based binding of a C library, which means the types
+# are a little bit up-in-the-air.
+cast_sign_loss = "allow"
+empty_enum = "allow" # Revisit after RFC1861 and RFC1216.
+cargo_common_metadata = "allow" # Can't control this.
+module_name_repetitions = "allow" # Doesn't recognize public re-exports.
+cast_possible_wrap = "allow"
+
+# I want to enable this but it requires bumping the Rustc version and I don't
+# want to do that just for a clippy lint.
+ptr_as_ptr = "allow"
+
+# In these cases, I just don't like what Clippy suggests.
+use_self = "allow"
+if_not_else = "allow"
+must_use_candidate = "allow"
+missing_const_for_fn = "allow"
+option_if_let_else = "allow" # Semantically backwards when used with non-zero error codes
+wildcard_imports = "allow" # I don't generally like them either but can be used well
+enum_glob_use = "allow" # Same as wildcards
+manual_non_exhaustive = "allow" # Not available in v1.36
+
+# This isn't smart enough to notice that we're converting to a variable type.
+unnecessary_cast = "allow"

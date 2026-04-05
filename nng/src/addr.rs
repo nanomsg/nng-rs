@@ -21,10 +21,6 @@ pub enum SocketAddr {
     Inet6(SocketAddrV6),
 
     #[doc(hidden)]
-    /// Used to represent a ZeroTier address.
-    ZeroTier(SocketAddrZt),
-
-    #[doc(hidden)]
     /// Used to represent an abstract IPC socket address.
     Abstract(Box<[u8]>),
 
@@ -44,7 +40,6 @@ impl fmt::Display for SocketAddr {
             SocketAddr::Ipc(s) => write!(f, "ipc://{}", s.to_string_lossy()),
             SocketAddr::Inet(s) => write!(f, "tcp://{s}"),
             SocketAddr::Inet6(s) => write!(f, "tcp://{s}"),
-            SocketAddr::ZeroTier(s) => write!(f, "zt://{s}"),
             SocketAddr::Abstract(s) => {
                 write!(f, "abstract://")?;
                 // Quick-and-dirty URI-encoding:
@@ -82,9 +77,6 @@ impl From<nng_sys::nng_sockaddr> for SocketAddr {
                     let port = addr.s_in6.sa_port;
                     SocketAddr::Inet6(SocketAddrV6::new(v6_addr, port, 0, 0))
                 }
-                Some(nng_sys::nng_sockaddr_family::NNG_AF_ZT) => {
-                    SocketAddr::ZeroTier(SocketAddrZt::new(&addr.s_zt))
-                }
                 Some(nng_sys::nng_sockaddr_family::NNG_AF_ABSTRACT) => SocketAddr::Abstract(
                     Box::from(&addr.s_abstract.sa_name[..usize::from(addr.s_abstract.sa_len)]),
                 ),
@@ -94,35 +86,6 @@ impl From<nng_sys::nng_sockaddr> for SocketAddr {
                 }
             }
         }
-    }
-}
-
-/// A ZeroTier socket address.
-#[doc(hidden)]
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct SocketAddrZt {
-    pub family: u16,
-    pub nwid: u64,
-    pub nodeid: u64,
-    pub port: u32,
-}
-impl SocketAddrZt {
-    /// Converts an `nng_sockaddr_zt` into its corresponding Rust type.
-    const fn new(addr: &nng_sys::nng_sockaddr_zt) -> SocketAddrZt {
-        SocketAddrZt {
-            family: addr.sa_family,
-            nwid: addr.sa_nwid,
-            nodeid: addr.sa_nodeid,
-            port: addr.sa_port,
-        }
-    }
-}
-impl fmt::Display for SocketAddrZt {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // I have no idea if this output is meaningful at all. This is just vaguely
-        // based off the URI format for ZeroTier, ignoring fields that don't appear in
-        // the specification and guessing how all of the others align.
-        write!(f, "{}.{}:{}", self.nodeid, self.nwid, self.port)
     }
 }
 

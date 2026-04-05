@@ -11,6 +11,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use nng_sys::nng_err;
+
 use crate::{
     aio::Aio,
     error::{Error, Result, SendResult},
@@ -70,15 +72,18 @@ impl Socket {
             }
         };
 
-        rv2res!(
-            rv,
+        rv2res!(rv, {
+            // SAFETY: Null pointers are valid.
+            unsafe {
+                nng_sys::nng_init(ptr::null());
+            }
             Socket {
                 inner: Arc::new(Inner {
                     handle: socket,
-                    pipe_notify: RwLock::new(None)
-                })
+                    pipe_notify: RwLock::new(None),
+                }),
             }
-        )
+        })
     }
 
     /// Initiates a remote connection to a listener.
@@ -450,7 +455,7 @@ impl Socket {
                     &raw const *self.inner as _,
                 )
             })
-            .map(|rv| rv2res!(rv))
+            .map(|nng_err(rv)| rv2res!(rv))
             .fold(Ok(()), std::result::Result::and)
     }
 
@@ -565,58 +570,6 @@ impl Hash for Socket {
     }
 }
 
-#[rustfmt::skip]
-expose_options!{
-	Socket :: inner.handle -> nng_sys::nng_socket;
-
-	GETOPT_BOOL = nng_sys::nng_socket_get_bool;
-	GETOPT_INT = nng_sys::nng_socket_get_int;
-	GETOPT_MS = nng_sys::nng_socket_get_ms;
-	GETOPT_SIZE = nng_sys::nng_socket_get_size;
-	GETOPT_SOCKADDR = nng_sys::nng_socket_get_addr;
-	GETOPT_STRING = nng_sys::nng_socket_get_string;
-	GETOPT_UINT64 = nng_sys::nng_socket_get_uint64;
-
-	SETOPT = nng_sys::nng_socket_set;
-	SETOPT_BOOL = nng_sys::nng_socket_set_bool;
-	SETOPT_INT = nng_sys::nng_socket_set_int;
-	SETOPT_MS = nng_sys::nng_socket_set_ms;
-	SETOPT_PTR = nng_sys::nng_socket_set_ptr;
-	SETOPT_SIZE = nng_sys::nng_socket_set_size;
-	SETOPT_STRING = nng_sys::nng_socket_set_string;
-
-	Gets -> [Raw, MaxTtl, RecvBufferSize,
-	         RecvTimeout, SendBufferSize,
-	         SendTimeout, SocketName,
-	         protocol::pair::Polyamorous,
-	         protocol::reqrep::ResendTime,
-	         protocol::survey::SurveyTime];
-	Sets -> [ReconnectMinTime, ReconnectMaxTime,
-	         RecvBufferSize, RecvMaxSize,
-	         RecvTimeout, SendBufferSize,
-	         SendTimeout, SocketName, MaxTtl,
-	         protocol::pair::Polyamorous,
-	         protocol::reqrep::ResendTime,
-	         protocol::pubsub::Subscribe,
-	         protocol::pubsub::Unsubscribe,
-	         protocol::survey::SurveyTime,
-	         transport::tcp::NoDelay,
-	         transport::tcp::KeepAlive,
-	         transport::tls::CaFile,
-	         transport::tls::CertKeyFile,
-	         transport::websocket::RequestHeaders,
-	         transport::websocket::ResponseHeaders];
-}
-
-#[cfg(unix)]
-mod unix_impls {
-    use super::*;
-    use crate::options::{GetOpt, RecvFd, SendFd};
-
-    impl GetOpt<RecvFd> for Socket {}
-    impl GetOpt<SendFd> for Socket {}
-}
-
 /// A wrapper type around the underlying `nng_socket`.
 ///
 /// This allows us to have mutliple Rust socket types that won't clone the C
@@ -634,9 +587,9 @@ impl Inner {
         // of those mean we have nothing to drop. However, just to be sane
         // about it all, we'll warn the user if we see something odd. If that
         // ever happens, hopefully it will make its way to a bug report.
-        let rv = unsafe { nng_sys::nng_close(self.handle) };
+        let rv = unsafe { nng_sys::nng_socket_close(self.handle) };
         assert!(
-            rv == 0 || rv == nng_sys::NNG_ECLOSED as i32,
+            rv == 0 || nng_err(rv as _) == nng_sys::nng_err::NNG_ECLOSED,
             "Unexpected error code while closing socket ({})",
             rv
         );
@@ -654,6 +607,10 @@ impl fmt::Debug for Inner {
 
 impl Drop for Inner {
     fn drop(&mut self) {
+        // SAFETY: This is paired with an init when the socket was created.
+        unsafe {
+            nng_sys::nng_fini();
+        }
         self.close();
     }
 }
@@ -732,12 +689,13 @@ impl TryFrom<Socket> for RawSocket {
     type Error = CookedSocketError;
 
     fn try_from(socket: Socket) -> std::result::Result<Self, Self::Error> {
-        use crate::options::{Options, Raw};
+        let mut raw = false;
 
-        if socket
-            .get_opt::<Raw>()
-            .expect("Socket should have \"raw\" option available")
-        {
+        // SAFETY: The handle and pointer are both valid.
+        unsafe {
+            nng_sys::nng_socket_raw(socket.inner.handle, &mut raw);
+        }
+        if raw {
             Ok(RawSocket { socket, _priv: () })
         } else {
             Err(CookedSocketError)

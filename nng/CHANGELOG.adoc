@@ -8,11 +8,17 @@ The format is based on https://keepachangelog.com/en/1.0.0/[Keep a Changelog] an
 
 === Added ===
 
+* Added NNG initialization function and associated type.
+
 === Changed ===
+
+* The crate now depends on NNGv2.
 
 === Deprecated ===
 
 === Removed ===
+
+* Anything and everything related to options (NOTE TO SELF: make a replacement).
 
 === Fixed ===
 

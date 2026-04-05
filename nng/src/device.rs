@@ -1,5 +1,7 @@
 use std::num::NonZeroU32;
 
+use nng_sys::nng_err;
+
 use crate::{
     error::{Error, Result},
     socket::RawSocket,
@@ -39,7 +41,7 @@ use crate::{
 /// [`MaxTtl`]: options/enum.MaxTtl.html
 /// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
 pub fn forwarder(s1: RawSocket, s2: RawSocket) -> Result<()> {
-    let rv = unsafe { nng_sys::nng_device(s1.socket.handle(), s2.socket.handle()) };
+    let nng_err(rv) = unsafe { nng_sys::nng_device(s1.socket.handle(), s2.socket.handle()) };
 
     // Appease Clippy.
     drop(s1);
@@ -76,7 +78,7 @@ pub fn forwarder(s1: RawSocket, s2: RawSocket) -> Result<()> {
 /// [`InvalidInput`]: enum.Error.html#variant.InvalidInput
 /// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
 pub fn reflector(s1: RawSocket) -> Result<()> {
-    let rv = unsafe {
+    let nng_err(rv) = unsafe {
         nng_sys::nng_device(
             s1.socket.handle(),
             nng_sys::nng_socket::NNG_SOCKET_INITIALIZER,

@@ -11,6 +11,7 @@ use crate::{
     message::Message,
     socket::Socket,
 };
+use nng_sys::nng_err;
 
 /// A socket context.
 ///
@@ -145,30 +146,6 @@ impl Hash for Context {
     }
 }
 
-#[rustfmt::skip]
-expose_options!{
-	Context :: inner.ctx -> nng_sys::nng_ctx;
-
-	GETOPT_BOOL = nng_sys::nng_ctx_get_bool;
-	GETOPT_INT = nng_sys::nng_ctx_get_int;
-	GETOPT_MS = nng_sys::nng_ctx_get_ms;
-	GETOPT_SIZE = nng_sys::nng_ctx_get_size;
-	GETOPT_SOCKADDR = nng_sys::nng_ctx_get_addr;
-	GETOPT_STRING = nng_sys::nng_ctx_get_string;
-	GETOPT_UINT64 = nng_sys::nng_ctx_get_uint64;
-
-	SETOPT = nng_sys::nng_ctx_set;
-	SETOPT_BOOL = nng_sys::nng_ctx_set_bool;
-	SETOPT_INT = nng_sys::nng_ctx_set_int;
-	SETOPT_MS = nng_sys::nng_ctx_set_ms;
-	SETOPT_PTR = nng_sys::nng_ctx_set_ptr;
-	SETOPT_SIZE = nng_sys::nng_ctx_set_size;
-	SETOPT_STRING = nng_sys::nng_ctx_set_string;
-
-	Gets -> [protocol::reqrep::ResendTime, protocol::survey::SurveyTime];
-	Sets -> [protocol::reqrep::ResendTime, protocol::survey::SurveyTime];
-}
-
 /// A wrapper around an `nng_ctx`.
 #[derive(Debug)]
 struct Inner {
@@ -180,7 +157,7 @@ impl Inner {
         // was never open. Neither of those are an issue for us.
         let rv = unsafe { nng_sys::nng_ctx_close(self.ctx) };
         assert!(
-            rv == 0 || rv == nng_sys::NNG_ECLOSED as i32,
+            rv == 0 || nng_err(rv as _) == nng_sys::nng_err::NNG_ECLOSED,
             "Unexpected error code while closing context ({})",
             rv
         );

@@ -1,5 +1,7 @@
 use std::{error, fmt, io, num::NonZeroU32};
 
+use nng_sys::nng_err;
+
 use crate::message::Message;
 
 /// Specialized `Result` type for use with NNG.
@@ -133,42 +135,40 @@ impl From<NonZeroU32> for Error {
     #[rustfmt::skip]
     fn from(code: NonZeroU32) -> Error
 	{
-		match code.get() {
-			nng_sys::NNG_EINTR        => Error::Interrupted,
-			nng_sys::NNG_ENOMEM       => Error::OutOfMemory,
-			nng_sys::NNG_EINVAL       => Error::InvalidInput,
-			nng_sys::NNG_EBUSY        => Error::Busy,
-			nng_sys::NNG_ETIMEDOUT    => Error::TimedOut,
-			nng_sys::NNG_ECONNREFUSED => Error::ConnectionRefused,
-			nng_sys::NNG_ECLOSED      => Error::Closed,
-			nng_sys::NNG_EAGAIN       => Error::TryAgain,
-			nng_sys::NNG_ENOTSUP      => Error::NotSupported,
-			nng_sys::NNG_EADDRINUSE   => Error::AddressInUse,
-			nng_sys::NNG_ESTATE       => Error::IncorrectState,
-			nng_sys::NNG_ENOENT       => Error::EntryNotFound,
-			nng_sys::NNG_EPROTO       => Error::Protocol,
-			nng_sys::NNG_EUNREACHABLE => Error::DestUnreachable,
-			nng_sys::NNG_EADDRINVAL   => Error::AddressInvalid,
-			nng_sys::NNG_EPERM        => Error::PermissionDenied,
-			nng_sys::NNG_EMSGSIZE     => Error::MessageTooLarge,
-			nng_sys::NNG_ECONNABORTED => Error::ConnectionAborted,
-			nng_sys::NNG_ECONNRESET   => Error::ConnectionReset,
-			nng_sys::NNG_ECANCELED    => Error::Canceled,
-			nng_sys::NNG_ENOFILES     => Error::OutOfFiles,
-			nng_sys::NNG_ENOSPC       => Error::OutOfSpace,
-			nng_sys::NNG_EEXIST       => Error::ResourceExists,
-			nng_sys::NNG_EREADONLY    => Error::ReadOnly,
-			nng_sys::NNG_EWRITEONLY   => Error::WriteOnly,
-			nng_sys::NNG_ECRYPTO      => Error::Crypto,
-			nng_sys::NNG_EPEERAUTH    => Error::PeerAuth,
-			nng_sys::NNG_ENOARG       => Error::NoArgument,
-			nng_sys::NNG_EAMBIGUOUS   => Error::Ambiguous,
-			nng_sys::NNG_EBADTYPE     => Error::BadType,
-			nng_sys::NNG_ECONNSHUT    => Error::ConnectionShutdown,
-			nng_sys::NNG_EINTERNAL    => Error::Internal,
-			c if c & nng_sys::NNG_ESYSERR != 0 => Error::SystemErr(c & !nng_sys::NNG_ESYSERR),
-			c if c & nng_sys::NNG_ETRANERR != 0 => Error::TransportErr(c & !nng_sys::NNG_ETRANERR),
-			c => Error::Unknown(c),
+		match nng_err(code.get() as _) {
+			nng_err::NNG_EINTR        => Error::Interrupted,
+			nng_err::NNG_ENOMEM       => Error::OutOfMemory,
+			nng_err::NNG_EINVAL       => Error::InvalidInput,
+			nng_err::NNG_EBUSY        => Error::Busy,
+			nng_err::NNG_ETIMEDOUT    => Error::TimedOut,
+			nng_err::NNG_ECONNREFUSED => Error::ConnectionRefused,
+			nng_err::NNG_ECLOSED      => Error::Closed,
+			nng_err::NNG_EAGAIN       => Error::TryAgain,
+			nng_err::NNG_ENOTSUP      => Error::NotSupported,
+			nng_err::NNG_EADDRINUSE   => Error::AddressInUse,
+			nng_err::NNG_ESTATE       => Error::IncorrectState,
+			nng_err::NNG_ENOENT       => Error::EntryNotFound,
+			nng_err::NNG_EPROTO       => Error::Protocol,
+			nng_err::NNG_EUNREACHABLE => Error::DestUnreachable,
+			nng_err::NNG_EADDRINVAL   => Error::AddressInvalid,
+			nng_err::NNG_EPERM        => Error::PermissionDenied,
+			nng_err::NNG_EMSGSIZE     => Error::MessageTooLarge,
+			nng_err::NNG_ECONNABORTED => Error::ConnectionAborted,
+			nng_err::NNG_ECONNRESET   => Error::ConnectionReset,
+			nng_err::NNG_ECANCELED    => Error::Canceled,
+			nng_err::NNG_ENOFILES     => Error::OutOfFiles,
+			nng_err::NNG_ENOSPC       => Error::OutOfSpace,
+			nng_err::NNG_EEXIST       => Error::ResourceExists,
+			nng_err::NNG_EREADONLY    => Error::ReadOnly,
+			nng_err::NNG_EWRITEONLY   => Error::WriteOnly,
+			nng_err::NNG_ECRYPTO      => Error::Crypto,
+			nng_err::NNG_EPEERAUTH    => Error::PeerAuth,
+			nng_err::NNG_EBADTYPE     => Error::BadType,
+			nng_err::NNG_ECONNSHUT    => Error::ConnectionShutdown,
+			nng_err::NNG_EINTERNAL    => Error::Internal,
+			nng_err(c) if c & nng_err::NNG_ESYSERR.0 != 0 => Error::SystemErr(c & !nng_err::NNG_ESYSERR.0),
+			nng_err(c) if c & nng_err::NNG_ETRANERR.0 != 0 => Error::TransportErr(c & !nng_err::NNG_ETRANERR.0),
+			c => Error::Unknown(c.0),
 		}
 	}
 }

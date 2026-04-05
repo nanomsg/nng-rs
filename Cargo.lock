@@ -209,14 +209,12 @@ name = "nng"
 version = "1.0.1"
 dependencies = [
  "log",
- "nng-sys 0.3.0+1.11.0",
+ "nng-sys 0.4.0-v2pre.2+v2.0.0-alpha.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "nng-sys"
-version = "0.3.0+1.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a704f444070c59b169a15d18d8503f474a873b1d49b50ddb183ac576f302a657"
+version = "0.4.0-v2pre.2+v2.0.0-alpha.7"
 dependencies = [
  "bindgen",
  "cc",
@@ -229,6 +227,8 @@ dependencies = [
 [[package]]
 name = "nng-sys"
 version = "0.4.0-v2pre.2+v2.0.0-alpha.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1400b22e8b705ada022d2b2b85b2ee2d026f3e32670473a005aa376ac8d533a9"
 dependencies = [
  "bindgen",
  "cc",

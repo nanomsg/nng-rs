@@ -5,6 +5,8 @@ use std::{
     num::NonZeroU32,
 };
 
+use nng_sys::nng_err;
+
 use crate::{
     error::{Error, Result},
     socket::Socket,
@@ -87,7 +89,7 @@ impl Listener {
         // and both of those mean that the drop was successful.
         let rv = unsafe { nng_sys::nng_listener_close(self.handle) };
         assert!(
-            rv == 0 || rv == nng_sys::NNG_ECLOSED as i32,
+            rv == 0 || nng_err(rv as _) == nng_err::NNG_ECLOSED,
             "Unexpected error code while closing listener ({})",
             rv
         );
@@ -142,38 +144,6 @@ impl Hash for Listener {
         let id = unsafe { nng_sys::nng_listener_id(self.handle) };
         id.hash(state);
     }
-}
-
-#[rustfmt::skip]
-expose_options!{
-	Listener :: handle -> nng_sys::nng_listener;
-
-	GETOPT_BOOL = nng_sys::nng_listener_get_bool;
-	GETOPT_INT = nng_sys::nng_listener_get_int;
-	GETOPT_MS = nng_sys::nng_listener_get_ms;
-	GETOPT_SIZE = nng_sys::nng_listener_get_size;
-	GETOPT_SOCKADDR = nng_sys::nng_listener_get_addr;
-	GETOPT_STRING = nng_sys::nng_listener_get_string;
-	GETOPT_UINT64 = nng_sys::nng_listener_get_uint64;
-
-	SETOPT = nng_sys::nng_listener_set;
-	SETOPT_BOOL = nng_sys::nng_listener_set_bool;
-	SETOPT_INT = nng_sys::nng_listener_set_int;
-	SETOPT_MS = nng_sys::nng_listener_set_ms;
-	SETOPT_PTR = nng_sys::nng_listener_set_ptr;
-	SETOPT_SIZE = nng_sys::nng_listener_set_size;
-	SETOPT_STRING = nng_sys::nng_listener_set_string;
-
-	Gets -> [LocalAddr, Raw, RecvBufferSize,
-	         RecvTimeout, SendBufferSize, Url,
-	         SendTimeout, SocketName, MaxTtl,
-	         protocol::reqrep::ResendTime,
-	         protocol::survey::SurveyTime,
-	         transport::tcp::NoDelay,
-	         transport::tcp::KeepAlive,
-	         transport::tcp::BoundPort,
-	         transport::websocket::Protocol];
-	Sets -> [];
 }
 
 /// Configuration utility for nanomsg-next-generation listeners.
@@ -262,57 +232,13 @@ impl ListenerBuilder {
     }
 }
 
-#[rustfmt::skip]
-expose_options!{
-	ListenerBuilder :: handle -> nng_sys::nng_listener;
-
-	GETOPT_BOOL = nng_sys::nng_listener_get_bool;
-	GETOPT_INT = nng_sys::nng_listener_get_int;
-	GETOPT_MS = nng_sys::nng_listener_get_ms;
-	GETOPT_SIZE = nng_sys::nng_listener_get_size;
-	GETOPT_SOCKADDR = nng_sys::nng_listener_get_addr;
-	GETOPT_STRING = nng_sys::nng_listener_get_string;
-	GETOPT_UINT64 = nng_sys::nng_listener_get_uint64;
-
-	SETOPT = nng_sys::nng_listener_setopt;
-	SETOPT_BOOL = nng_sys::nng_listener_setopt_bool;
-	SETOPT_INT = nng_sys::nng_listener_setopt_int;
-	SETOPT_MS = nng_sys::nng_listener_setopt_ms;
-	SETOPT_PTR = nng_sys::nng_listener_setopt_ptr;
-	SETOPT_SIZE = nng_sys::nng_listener_setopt_size;
-	SETOPT_STRING = nng_sys::nng_listener_setopt_string;
-
-	Gets -> [LocalAddr, Raw, RecvBufferSize,
-	         RecvTimeout, SendBufferSize, Url,
-	         SendTimeout, SocketName, MaxTtl,
-	         protocol::reqrep::ResendTime,
-	         protocol::survey::SurveyTime,
-	         transport::tcp::NoDelay,
-	         transport::tcp::KeepAlive,
-	         transport::websocket::Protocol];
-	Sets -> [RecvMaxSize, transport::tcp::NoDelay,
-	         transport::tcp::KeepAlive,
-	         transport::tls::CaFile,
-	         transport::tls::CertKeyFile,
-	         transport::websocket::ResponseHeaders,
-	         transport::websocket::Protocol];
-}
-
-#[cfg(unix)]
-mod unix_impls {
-    use super::*;
-    use crate::options::transport::ipc;
-
-    impl crate::options::SetOpt<ipc::Permissions> for ListenerBuilder {}
-}
-
 impl Drop for ListenerBuilder {
     fn drop(&mut self) {
         // Closing the listener should only ever result in success or ECLOSED
         // and both of those mean that the drop was successful.
         let rv = unsafe { nng_sys::nng_listener_close(self.handle) };
         assert!(
-            rv == 0 || rv == nng_sys::NNG_ECLOSED as i32,
+            rv == 0 || nng_err(rv as _) == nng_err::NNG_ECLOSED,
             "Unexpected error code while closing listener ({})",
             rv
         );

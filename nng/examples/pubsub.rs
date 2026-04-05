@@ -2,10 +2,7 @@
 //!
 //! This pattern is used to allow a single broadcaster to publish messages to many subscribers,
 //! which may choose to limit which messages they receive.
-use nng::{
-    options::{protocol::pubsub::Subscribe, Options},
-    PipeEvent, Protocol, Socket,
-};
+use nng::{PipeEvent, Protocol, Socket};
 use std::{
     convert::TryInto,
     env, process,
@@ -66,8 +63,8 @@ fn subscriber(url: &str) -> Result<(), nng::Error> {
     s.dial(url)?;
 
     println!("SUBSCRIBER: SUBSCRIBING TO ALL TOPICS");
-    let all_topics = vec![];
-    s.set_opt::<Subscribe>(all_topics)?;
+    //let all_topics = vec![];
+    //s.set_opt::<Subscribe>(all_topics)?;
 
     loop {
         let msg = s.recv()?;

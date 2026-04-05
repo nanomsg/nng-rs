@@ -11,6 +11,7 @@ use std::{
 };
 
 use log::error;
+use nng_sys::nng_err;
 
 use crate::{
     ctx::Context,
@@ -172,7 +173,7 @@ impl Aio {
             let res = unsafe {
                 let state = cb_aio.inner.state.load(Ordering::Acquire).into();
                 let aiop = cb_aio.inner.handle.load(Ordering::Relaxed);
-                let rv = nng_sys::nng_aio_result(aiop) as u32;
+                let nng_err(rv) = nng_sys::nng_aio_result(aiop);
 
                 let res = match (state, rv) {
                     (State::Sending, 0) => AioResult::Send(Ok(())),
@@ -218,7 +219,8 @@ impl Aio {
 
         let mut aio: *mut nng_sys::nng_aio = ptr::null_mut();
         let aiop: *mut *mut nng_sys::nng_aio = &mut aio as _;
-        let rv = unsafe { nng_sys::nng_aio_alloc(aiop, Some(Aio::trampoline), callback_ptr as _) };
+        let nng_err(rv) =
+            unsafe { nng_sys::nng_aio_alloc(aiop, Some(Aio::trampoline), callback_ptr as _) };
 
         // NNG should never touch the pointer and return a non-zero code at the same
         // time. That being said, I'm going to be a pessimist and double check. If we do
@@ -231,7 +233,7 @@ impl Aio {
             error!("NNG returned a non-null pointer from a failed function");
             return Err(Error::Unknown(0));
         }
-        validate_ptr(rv, aio)?;
+        validate_ptr(rv as _, aio)?;
         inner.handle.store(aio, Ordering::Release);
         inner.callback.store(callback_ptr, Ordering::Relaxed);
 
@@ -342,7 +344,7 @@ impl Aio {
         let aiop = self.inner.handle.load(Ordering::Relaxed);
         unsafe {
             nng_sys::nng_aio_set_msg(aiop, msg.into_ptr().as_ptr());
-            nng_sys::nng_send_aio(socket.handle(), aiop);
+            nng_sys::nng_socket_send(socket.handle(), aiop);
         }
         Ok(())
     }
@@ -358,7 +360,7 @@ impl Aio {
 
         let aiop = self.inner.handle.load(Ordering::Relaxed);
         unsafe {
-            nng_sys::nng_recv_aio(socket.handle(), aiop);
+            nng_sys::nng_socket_recv(socket.handle(), aiop);
         }
         Ok(())
     }

@@ -6,10 +6,7 @@
 //! This example was derived from [this NNG example][1].
 //!
 //! [1]: https://nanomsg.org/gettingstarted/nng/pair.html
-use nng::{
-    options::{Options, RecvTimeout},
-    Error, Message, Protocol, Socket,
-};
+use nng::{Error, Message, Protocol, Socket};
 use std::{env, io::Write, process, str, thread, time::Duration};
 
 /// Entry point of the application.
@@ -44,7 +41,6 @@ fn node1(url: &str) -> Result<(), Error> {
 
 /// Sends and receives messages on the socket.
 fn send_recv(s: &Socket, name: &str) -> Result<(), Error> {
-    s.set_opt::<RecvTimeout>(Some(Duration::from_millis(100)))?;
     loop {
         // Attempt to reuse the message if we can.
         let mut msg = match s.recv() {

@@ -122,47 +122,7 @@
 //! [4]: https://nanomsg.github.io/nng/man/v1.2.2/nng_rep.7
 //! [5]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-patch-section
 //! [6]: https://github.com/rust-lang/cargo/issues/2980
-
-// The following lints are of critical importance.
-#![forbid(improper_ctypes)]
-// Utilize Clippy to try and keep this crate clean. At some point (cargo#5034, I think?) this
-// specification should be possible in either the Clippy TOML file or in the Cargo TOML file. These
-// should be moved there once possible.
-#![deny(bare_trait_objects)]
-#![deny(missing_debug_implementations)]
-#![deny(missing_docs)]
-#![deny(clippy::all)]
-#![deny(clippy::wrong_self_convention)]
-// Clippy doesn't enable these with "all". Best to keep them warnings.
-#![warn(clippy::nursery)]
-#![warn(clippy::pedantic)]
-#![warn(clippy::cargo)]
-#![warn(clippy::clone_on_ref_ptr)]
-#![warn(clippy::decimal_literal_representation)]
-#![warn(clippy::print_stdout)]
-#![warn(clippy::unimplemented)]
-#![warn(clippy::use_debug)]
-// I would like to be able to keep these on, but due to the nature of the crate it just isn't
-// feasible. For example, the "cast_sign_loss" will warn at every i32/u32 conversion. Normally, I
-// would like that, but this library is a safe wrapper around a Bindgen-based binding of a C
-// library, which means the types are a little bit up-in-the-air.
-#![allow(clippy::cast_sign_loss)]
-#![allow(clippy::empty_enum)] // Revisit after RFC1861 and RFC1216.
-#![allow(clippy::cargo_common_metadata)] // Can't control this.
-#![allow(clippy::module_name_repetitions)] // Doesn't recognize public re-exports.
-#![allow(clippy::cast_possible_wrap)]
-// I want to enable this but it requires bumping the Rustc version and I don't want to do that just
-// for a clippy lint.
-#![allow(clippy::ptr_as_ptr)]
-// In these cases, I just don't like what Clippy suggests.
-#![allow(clippy::use_self)]
-#![allow(clippy::if_not_else)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::missing_const_for_fn)]
-#![allow(clippy::option_if_let_else)] // Semantically backwards when used with non-zero error codes
-#![allow(clippy::wildcard_imports)] // I don't generally like them either but can be used well
-#![allow(clippy::enum_glob_use)] // Same as wildcards
-#![allow(clippy::manual_non_exhaustive)] // Not available in v1.36
+use std::num::NonZeroU16;
 
 #[macro_use]
 mod util;
@@ -178,8 +138,6 @@ mod message;
 mod pipe;
 mod protocol;
 mod socket;
-
-pub mod options;
 
 #[cfg(feature = "ffi-module")]
 /// Raw NNG foreign function interface.
@@ -200,3 +158,102 @@ pub use crate::{
     protocol::Protocol,
     socket::{RawSocket, Socket},
 };
+
+/// A handle to the NNG resources.
+///
+/// This type can be used to configure the parameters of NNG resources or to
+/// control the life of said resources. Every [`Socket`] has an implicit handle
+/// to those resources and will create it with the default values. If one of
+/// these is created before any sockets, it can be used to set runtime tunables
+/// for NNG.
+#[non_exhaustive]
+#[derive(Debug, Default)]
+pub struct Params {
+    /// The number of threads to use for tasks.
+    ///
+    /// These tasks are principally for callback completion. This number cannot
+    /// exceed [`Init::max_task_threads`].
+    pub num_task_threads: Option<NonZeroU16>,
+
+    /// The maximum number of threads to use for tasks.
+    ///
+    /// These tasks are principally used for callback completion. This value can
+    /// be used to provide an upper limit while still allowing the number of
+    /// task threads to be dynamically calculated.
+    pub max_task_threads: Option<NonZeroU16>,
+
+    /// The number of threads used for expiring operations.
+    ///
+    /// Using a larger value will reduce contention on some common locks, and
+    /// may improve performance. This number cannot exceed
+    /// [`Init::max_expire_threads`].
+    pub num_expire_threads: Option<NonZeroU16>,
+
+    /// The maximum number of threads used for expiring operations.
+    ///
+    /// Using a larger value will reduce contention on some common locks, and
+    /// may improve performance. This can be used to provide an upper limit
+    /// while still allowing a dynamic count.
+    pub max_expire_threads: Option<NonZeroU16>,
+
+    /// The number of threads to use for performing I/O.
+    ///
+    /// Not all configurations will support this. Cannot exceed
+    /// [`Init::max_poller_threads`].
+    pub num_poller_threads: Option<NonZeroU16>,
+
+    /// The maximum number of threads to use for performing I/O.
+    ///
+    /// Not all configurations will support this. This allows an upper limit on
+    /// the number of polling threads while still allowing the count to be
+    /// dynamically calculated.
+    pub max_poller_threads: Option<NonZeroU16>,
+
+    /// The number of threads used for asynchronous DNS lookup.
+    pub num_resolver_threads: Option<NonZeroU16>,
+}
+
+impl Params {
+    /// Initializes NNG with the specified tunables.
+    ///
+    /// This initializes NNG with the provided parameters and will prevent NNG
+    /// from releasing certain resources until after the provided handle is
+    /// dropped. Each [`Socket`] implicitly has their own handle and the
+    /// resources will not be released until all [`Socket`] objects are dropped
+    /// as well.
+    ///
+    /// # Errors
+    ///
+    /// If NNG has already been initialized, this will return [`Error::Busy`].
+    pub fn init(self) -> Result<impl Drop> {
+        let params = self.into();
+
+        // SAFETY: We know that this is a valid pointer.
+        let rv = unsafe { nng_sys::nng_init(&params) };
+
+        struct Defer;
+        impl Drop for Defer {
+            fn drop(&mut self) {
+                // SAFETY: We did the initialization above.
+                unsafe { nng_sys::nng_fini() }
+            }
+        }
+
+        rv2res!(rv.0, Defer)
+    }
+}
+
+impl From<Params> for nng_sys::nng_init_params {
+    fn from(params: Params) -> Self {
+        let convert = |n: NonZeroU16| n.get() as i16;
+        nng_sys::nng_init_params {
+            num_task_threads: params.num_task_threads.map_or(0, convert),
+            max_task_threads: params.max_task_threads.map_or(0, convert),
+            num_expire_threads: params.num_expire_threads.map_or(0, convert),
+            max_expire_threads: params.max_expire_threads.map_or(0, convert),
+            num_poller_threads: params.num_poller_threads.map_or(0, convert),
+            max_poller_threads: params.max_poller_threads.map_or(0, convert),
+            num_resolver_threads: params.num_resolver_threads.map_or(0, convert),
+        }
+    }
+}
