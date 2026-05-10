@@ -18,7 +18,7 @@ dependencies = [
  "bytes",
  "lazy_static",
  "lexopt",
- "nng-sys 0.4.0-v2pre.2+v2.0.0-alpha.7",
+ "nng-sys",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -206,29 +206,14 @@ dependencies = [
 
 [[package]]
 name = "nng"
-version = "1.0.1"
+version = "2.0.0-rc.1"
 dependencies = [
- "log",
- "nng-sys 0.4.0-v2pre.2+v2.0.0-alpha.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nng-sys",
 ]
 
 [[package]]
 name = "nng-sys"
 version = "0.4.0-v2pre.2+v2.0.0-alpha.7"
-dependencies = [
- "bindgen",
- "cc",
- "cmake",
- "pkg-config",
- "vcpkg",
- "version_check",
-]
-
-[[package]]
-name = "nng-sys"
-version = "0.4.0-v2pre.2+v2.0.0-alpha.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1400b22e8b705ada022d2b2b85b2ee2d026f3e32670473a005aa376ac8d533a9"
 dependencies = [
  "bindgen",
  "cc",

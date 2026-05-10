@@ -1,0 +1,13 @@
+If this file ends up in `main`, you're a dummy Nate.
+
+* Update Clippy lints
+* Replace documentation on _everything_.
+* Redo the examples
+* Remove the `ffi-module` feature
+	* Clean up features in general
+* Come up with an options implementation
+* Add hooks for logging
+* Add stats information
+
+Finally:
+* Have Claude double-check that I got the changelog correct.
