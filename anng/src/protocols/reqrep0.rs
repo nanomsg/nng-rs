@@ -173,25 +173,11 @@ impl Req0 {
 }
 
 impl Socket<Req0> {
-    /// Sets how long the socket waits for a reply before re-sending the request.
+    /// Sets the socket-wide default resend timeout inherited by future contexts.
     ///
-    /// REQ0 retransmits an outstanding request whenever this duration elapses without a reply,
-    /// guarding against lost requests, dropped replies, or replier restarts. The default is 60
-    /// seconds; resend is checked at the [tick interval](Self::set_resend_tick), so the actual
-    /// retransmit can lag the nominal timeout by up to one tick. Wraps NNG's
-    /// [`NNG_OPT_REQ_RESENDTIME`] option.
-    ///
-    /// [`NNG_OPT_REQ_RESENDTIME`]: nng_sys::NNG_OPT_REQ_RESENDTIME
-    ///
-    /// Passing [`Duration::ZERO`] disables retransmission entirely: the request is sent once
-    /// and the receive future stays pending until either a reply arrives or the socket is
-    /// closed. NNG's `NNG_DURATION_INFINITE` sentinel has the same effect but is negative and
-    /// cannot be expressed as a [`Duration`] — use `Duration::ZERO` to get that behaviour.
-    ///
-    /// This is the socket-wide value. Each context snapshots it at creation time, so changing
-    /// it here only affects contexts created afterwards; pre-existing contexts keep whatever
-    /// value they were created with (and can override per-context via
-    /// [`ContextfulSocket::set_resend_time`]).
+    /// See [`ContextfulSocket::set_resend_time`] for the full semantics. This setter only
+    /// changes the default snapshotted by contexts at creation time; pre-existing contexts
+    /// keep whatever value they were created with.
     ///
     /// # Panics
     ///
