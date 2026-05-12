@@ -218,6 +218,11 @@ impl Socket<Req0> {
     /// Unlike [`set_resend_time`](Self::set_resend_time), this option has no per-context
     /// equivalent and applies to every context on the socket.
     ///
+    /// A shorter tick gives more timely retransmits, but each tick re-scans every outstanding
+    /// request, so very short values can add significant overhead on sockets with many contexts.
+    /// The clock is idle whenever no request is awaiting a reply, so the cost only appears under
+    /// load.
+    ///
     /// # Panics
     ///
     /// Panics if `tick` exceeds `i32::MAX` milliseconds.
