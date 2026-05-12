@@ -185,7 +185,7 @@ impl Socket<Req0> {
     pub fn set_resend_time(&self, timeout: Duration) -> io::Result<()> {
         crate::options::set_socket_ms(
             self.id(),
-            nng_sys::NNG_OPT_REQ_RESENDTIME,
+            crate::options::opt(nng_sys::NNG_OPT_REQ_RESENDTIME),
             timeout,
             "resend time",
         )
@@ -215,7 +215,7 @@ impl Socket<Req0> {
     pub fn set_resend_tick(&self, tick: Duration) -> io::Result<()> {
         crate::options::set_socket_ms(
             self.id(),
-            nng_sys::NNG_OPT_REQ_RESENDTICK,
+            crate::options::opt(nng_sys::NNG_OPT_REQ_RESENDTICK),
             tick,
             "resend tick",
         )
@@ -246,7 +246,7 @@ impl<'socket> ContextfulSocket<'socket, Req0> {
     pub fn set_resend_time(&mut self, timeout: Duration) -> io::Result<()> {
         crate::options::set_ctx_ms(
             self.context.id(),
-            nng_sys::NNG_OPT_REQ_RESENDTIME,
+            crate::options::opt(nng_sys::NNG_OPT_REQ_RESENDTIME),
             timeout,
             "resend time",
         )

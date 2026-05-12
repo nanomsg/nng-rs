@@ -36,16 +36,14 @@ use std::io;
 /// surface if needed.
 pub(crate) fn set_socket_ms(
     socket: nng_sys::nng_socket,
-    option: &'static [u8],
+    option: &CStr,
     duration: Duration,
     label: &str,
 ) -> io::Result<()> {
     let ms = duration_to_nng_ms(duration, label);
-    let option_cstr = CStr::from_bytes_with_nul(option)
-        .unwrap_or_else(|e| panic!("option name is not a valid C string: {e}"));
     // SAFETY: caller guarantees the socket is valid and supports the named option;
-    //         `option_cstr` is built from a `&'static [u8]`, so its `.as_ptr()` is valid for the FFI call.
-    let raw_errno = unsafe { nng_sys::nng_socket_set_ms(socket, option_cstr.as_ptr(), ms) };
+    //         `option` is a borrowed `&CStr`, so its `.as_ptr()` is valid for the FFI call.
+    let raw_errno = unsafe { nng_sys::nng_socket_set_ms(socket, option.as_ptr(), ms) };
     let errno = u32::try_from(raw_errno).expect("errno is never negative");
     check_map_set_ms_errno(errno, label, "nng_socket_set_ms")
 }
@@ -53,18 +51,24 @@ pub(crate) fn set_socket_ms(
 /// Sets a `nng_duration` (ms) option on a context. See [`set_socket_ms`] for invariants.
 pub(crate) fn set_ctx_ms(
     ctx: nng_sys::nng_ctx,
-    option: &'static [u8],
+    option: &CStr,
     duration: Duration,
     label: &str,
 ) -> io::Result<()> {
     let ms = duration_to_nng_ms(duration, label);
-    let option_cstr = CStr::from_bytes_with_nul(option)
-        .unwrap_or_else(|e| panic!("option name is not a valid C string: {e}"));
     // SAFETY: caller guarantees the context is valid and supports the named option;
-    //         `option_str` is built from a `&'static [u8]`, so its `.as_ptr()` is valid for the FFI call.
-    let raw_errno = unsafe { nng_sys::nng_ctx_set_ms(ctx, option_cstr.as_ptr(), ms) };
+    //         `option` is a borrowed `&CStr`, so its `.as_ptr()` is valid for the FFI call.
+    let raw_errno = unsafe { nng_sys::nng_ctx_set_ms(ctx, option.as_ptr(), ms) };
     let errno = u32::try_from(raw_errno).expect("errno is never negative");
     check_map_set_ms_errno(errno, label, "nng_ctx_set_ms")
+}
+
+/// Wraps a nul-terminated `nng_sys::NNG_OPT_*` byte constant as a `&'static CStr`.
+pub(crate) const fn opt(name: &'static [u8]) -> &'static CStr {
+    match CStr::from_bytes_with_nul(name) {
+        Ok(c) => c,
+        Err(_) => panic!("nng option name is not a valid C string"),
+    }
 }
 
 fn duration_to_nng_ms(duration: Duration, label: &str) -> c_int {
