@@ -120,6 +120,8 @@ jobs:
       # since we're trying every combination here, we need to ensure we have
       # all the various tools installed already.
       - name: install tools
+        # TODO(flxo): replace the nng v2 installation from source once it's available
+        # via apt.
         run: sudo apt-get install -y libclang-dev clang cmake ninja-build libmbedtls-dev
       - name: build and install NNG v2 for nng-sys
         run: .github/scripts/install-nng.sh
