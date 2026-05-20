@@ -21,8 +21,8 @@ jobs:
             # clang and cmake for installing NNG, clang-dev for bindgen
             apt: clang cmake libclang-dev
             # until nng v2 is available via apt, we need to manually install nng
-            # for the checks that expect nng to be installed in the system
-            # 
+            # for the checks that expect nng to be installed in the system.
+            #
             # TODO(flxo): remove the manual installation of nng and replace with
             # a `apt install libnng2 libnng-dev` or similar, once the apt
             # packages are available. Same applies for `brew` and others.
@@ -79,10 +79,13 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # tag=v6.0.2
         with:
           submodules: true
-      # the nng crate is not yet upgraded to nng v2. install nng v1.x (libnng1 and libnng-dev)
       - name: Install dependencies
+        # TODO(flxo): replace the manual installation of nng from source once nng v2 is available
+        # via apt.
         run: |
-          sudo apt-get install -y libnng1 libnng-dev
+          sudo apt-get install -y clang cmake
+      - name: Build and install NNG
+        run: .github/scripts/install-nng.sh
       - name: Install stable
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # branch=master
         with:
@@ -91,6 +94,8 @@ jobs:
         run: cargo test -p nng --locked --all-targets --no-default-features
         env:
           NNG_NO_VENDOR: "1"
+          CFLAGS: -I/usr/local/include
+          RUSTFLAGS: -L native=/usr/local/lib
   linux-force-no-vendor:
     name: nng on linux / NNG_NO_VENDOR
     runs-on: ubuntu-latest
