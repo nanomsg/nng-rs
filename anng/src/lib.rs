@@ -108,6 +108,7 @@ mod aio;
 mod context;
 pub mod init;
 mod message;
+pub(crate) mod options;
 pub mod pipes;
 pub mod protocols;
 

@@ -92,7 +92,7 @@
 
 use super::SupportsContext;
 use crate::{ContextfulSocket, Socket, aio::AioError, message::Message};
-use core::ffi::CStr;
+use core::{ffi::CStr, time::Duration};
 use std::{future::Future, io};
 
 /// Request socket type for the client side of Request/Reply communication.
@@ -172,7 +172,93 @@ impl Req0 {
     }
 }
 
+impl Socket<Req0> {
+    /// Sets the socket-wide default resend timeout inherited by future contexts.
+    ///
+    /// See [`ContextfulSocket::set_resend_time`] for the full semantics, including how
+    /// [`None`] disables the resend *timer*. This setter only changes the default snapshotted
+    /// by contexts at creation time; pre-existing contexts keep whatever value they were
+    /// created with.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `timeout` is `Some(duration)` and `duration` exceeds `i32::MAX` milliseconds.
+    pub fn set_resend_time(&self, timeout: Option<Duration>) -> io::Result<()> {
+        crate::options::set_socket_ms_opt(
+            self,
+            crate::options::opt(nng_sys::NNG_OPT_REQ_RESENDTIME),
+            timeout,
+            "resend time",
+        )
+    }
+
+    /// Sets the granularity of the [resend time](Self::set_resend_time) timer.
+    ///
+    /// REQ0 does not arm a per-request timer; it wakes on a fixed tick and re-sends every
+    /// pending request whose resend time has elapsed since the last tick. As a result, the
+    /// effective resend interval is `resend_time` rounded up to the next multiple of `tick`,
+    /// and a request can wait up to one full tick beyond its nominal resend time before going
+    /// out again. Wraps NNG's [`NNG_OPT_REQ_RESENDTICK`] option.
+    ///
+    /// [`NNG_OPT_REQ_RESENDTICK`]: nng_sys::NNG_OPT_REQ_RESENDTICK
+    ///
+    /// Unlike [`set_resend_time`](Self::set_resend_time), this option has no per-context
+    /// equivalent and applies to every context on the socket.
+    ///
+    /// A shorter tick gives more timely retransmits, but each tick re-scans every outstanding
+    /// request, so very short values can add significant overhead on sockets with many contexts.
+    /// The clock is idle whenever no request is awaiting a reply, so the cost only appears under
+    /// load.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `tick` exceeds `i32::MAX` milliseconds.
+    pub fn set_resend_tick(&self, tick: Duration) -> io::Result<()> {
+        crate::options::set_socket_ms(
+            self,
+            crate::options::opt(nng_sys::NNG_OPT_REQ_RESENDTICK),
+            tick,
+            "resend tick",
+        )
+    }
+}
+
 impl<'socket> ContextfulSocket<'socket, Req0> {
+    /// Sets how long this context waits for a reply before re-sending the request on a timer.
+    ///
+    /// REQ0 retransmits an outstanding request whenever this duration elapses without a reply,
+    /// guarding against lost requests, dropped replies, or replier restarts. The context
+    /// inherits the socket value at creation time; this method overrides it for this context
+    /// only and does not affect the socket default or other contexts. Resend is checked at the
+    /// socket-wide [tick interval](Socket::set_resend_tick), so the actual retransmit can lag
+    /// the nominal timeout by up to one tick. Wraps NNG's [`NNG_OPT_REQ_RESENDTIME`] option.
+    ///
+    /// [`NNG_OPT_REQ_RESENDTIME`]: nng_sys::NNG_OPT_REQ_RESENDTIME
+    ///
+    /// # Disabling the resend timer
+    ///
+    /// Passing [`None`] (or, equivalently, [`Some(Duration::ZERO)`](Duration::ZERO)) disables
+    /// the periodic resend *timer*: the request is not re-sent on a fixed schedule while the
+    /// context waits for a reply. This maps to NNG's `NNG_DURATION_INFINITE` sentinel, which is
+    /// negative and therefore cannot be expressed as a [`Duration`] directly.
+    ///
+    /// This does **not** make delivery "exactly once" and does not stop *all* retransmissions:
+    /// NNG still automatically resends the request if the peer it was sent to disconnects, or
+    /// if a new peer becomes available while the requester is waiting for one. Requests should
+    /// therefore remain idempotent even with the timer disabled.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `timeout` is `Some(duration)` and `duration` exceeds `i32::MAX` milliseconds.
+    pub fn set_resend_time(&mut self, timeout: Option<Duration>) -> io::Result<()> {
+        crate::options::set_ctx_ms_opt(
+            &mut self.context,
+            crate::options::opt(nng_sys::NNG_OPT_REQ_RESENDTIME),
+            timeout,
+            "resend time",
+        )
+    }
+
     /// Sends a request and returns a future that will resolve to the reply.
     ///
     /// This method implements the client side of the Request/Reply pattern.
@@ -587,5 +673,84 @@ impl Responder<'_, '_> {
         } else {
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn set_resend_option_socket_smoke() {
+        let socket = Req0::socket().unwrap();
+        // `None` disables the resend timer (maps to NNG_DURATION_INFINITE).
+        socket
+            .set_resend_time(None)
+            .expect("can disable resend timer");
+        // `Some(Duration::ZERO)` is folded into the same "disable timer" behaviour.
+        socket
+            .set_resend_time(Some(Duration::ZERO))
+            .expect("can set resend time");
+        socket
+            .set_resend_time(Some(Duration::from_millis(1)))
+            .expect("can set resend time");
+        socket
+            .set_resend_time(Some(Duration::from_secs(60)))
+            .expect("can set resend time");
+        socket
+            .set_resend_time(Some(Duration::from_millis(i32::MAX as u64)))
+            .expect("can set resend time");
+
+        let socket = Req0::socket().unwrap();
+        socket
+            .set_resend_tick(Duration::ZERO)
+            .expect("can set resend tick");
+        socket
+            .set_resend_tick(Duration::from_millis(1))
+            .expect("can set resend tick");
+        socket
+            .set_resend_tick(Duration::from_secs(1))
+            .expect("can set resend tick");
+        socket
+            .set_resend_tick(Duration::from_millis(i32::MAX as u64))
+            .expect("can set resend tick");
+
+        let mut ctx = socket.context();
+        ctx.set_resend_time(None).expect("can disable resend timer");
+        ctx.set_resend_time(Some(Duration::ZERO))
+            .expect("can set resend time");
+        ctx.set_resend_time(Some(Duration::from_millis(50)))
+            .expect("can set resend time");
+        ctx.set_resend_time(Some(Duration::from_secs(60)))
+            .expect("can set resend time");
+    }
+
+    #[test]
+    #[should_panic(expected = "resend time is too large")]
+    fn set_resend_time_socket_overflow_panics() {
+        let socket = Req0::socket().unwrap();
+        let _ = socket.set_resend_time(Some(Duration::from_millis(i32::MAX as u64 + 1)));
+    }
+
+    #[test]
+    #[should_panic(expected = "resend time is too large")]
+    fn set_resend_time_socket_duration_max_panics() {
+        let socket = Req0::socket().unwrap();
+        let _ = socket.set_resend_time(Some(Duration::MAX));
+    }
+
+    #[test]
+    #[should_panic(expected = "resend tick is too large")]
+    fn set_resend_tick_socket_overflow_panics() {
+        let socket = Req0::socket().unwrap();
+        let _ = socket.set_resend_tick(Duration::from_millis(i32::MAX as u64 + 1));
+    }
+
+    #[test]
+    #[should_panic(expected = "resend time is too large")]
+    fn set_resend_time_context_overflow_panics() {
+        let socket = Req0::socket().unwrap();
+        let mut ctx = socket.context();
+        let _ = ctx.set_resend_time(Some(Duration::from_millis(i32::MAX as u64 + 1)));
     }
 }
