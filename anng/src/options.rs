@@ -41,8 +41,8 @@ pub(crate) fn set_socket_ms(
     label: &str,
 ) -> io::Result<()> {
     let ms = duration_to_nng_ms(duration, label);
-    // SAFETY: caller guarantees the socket is valid and supports the named option;
-    //         `option` is a borrowed `&CStr`, so its `.as_ptr()` is valid for the FFI call.
+    // SAFETY: `option` is a borrowed `&CStr` pointing to valid, NUL-terminated memory.
+    //         The `socket` handle is a safe u32 identifier verified internally by NNG.
     let raw_errno = unsafe { nng_sys::nng_socket_set_ms(socket, option.as_ptr(), ms) };
     let errno = u32::try_from(raw_errno).expect("errno is never negative");
     check_map_set_ms_errno(errno, label, "nng_socket_set_ms")
@@ -62,8 +62,8 @@ pub(crate) fn set_socket_ms_opt(
     label: &str,
 ) -> io::Result<()> {
     let ms = duration_opt_to_nng_ms(duration, label);
-    // SAFETY: caller guarantees the socket is valid and supports the named option;
-    //         `option` is a borrowed `&CStr`, so its `.as_ptr()` is valid for the FFI call.
+    // SAFETY: `option` is a borrowed `&CStr` pointing to valid, NUL-terminated memory.
+    //         The `socket` handle is a safe u32 identifier verified internally by NNG.
     let raw_errno = unsafe { nng_sys::nng_socket_set_ms(socket, option.as_ptr(), ms) };
     let errno = u32::try_from(raw_errno).expect("errno is never negative");
     check_map_set_ms_errno(errno, label, "nng_socket_set_ms")
@@ -78,8 +78,8 @@ pub(crate) fn set_ctx_ms_opt(
     label: &str,
 ) -> io::Result<()> {
     let ms = duration_opt_to_nng_ms(duration, label);
-    // SAFETY: caller guarantees the context is valid and supports the named option;
-    //         `option` is a borrowed `&CStr`, so its `.as_ptr()` is valid for the FFI call.
+    // SAFETY: `option` is a borrowed `&CStr` pointing to valid, NUL-terminated memory.
+    //         The `ctx` handle is a safe u32 identifier verified internally by NNG.
     let raw_errno = unsafe { nng_sys::nng_ctx_set_ms(ctx, option.as_ptr(), ms) };
     let errno = u32::try_from(raw_errno).expect("errno is never negative");
     check_map_set_ms_errno(errno, label, "nng_ctx_set_ms")
