@@ -185,7 +185,7 @@ impl Socket<Req0> {
     /// Panics if `timeout` is `Some(duration)` and `duration` exceeds `i32::MAX` milliseconds.
     pub fn set_resend_time(&self, timeout: Option<Duration>) -> io::Result<()> {
         crate::options::set_socket_ms_opt(
-            self.id(),
+            self,
             crate::options::opt(nng_sys::NNG_OPT_REQ_RESENDTIME),
             timeout,
             "resend time",
@@ -215,7 +215,7 @@ impl Socket<Req0> {
     /// Panics if `tick` exceeds `i32::MAX` milliseconds.
     pub fn set_resend_tick(&self, tick: Duration) -> io::Result<()> {
         crate::options::set_socket_ms(
-            self.id(),
+            self,
             crate::options::opt(nng_sys::NNG_OPT_REQ_RESENDTICK),
             tick,
             "resend tick",
@@ -252,7 +252,7 @@ impl<'socket> ContextfulSocket<'socket, Req0> {
     /// Panics if `timeout` is `Some(duration)` and `duration` exceeds `i32::MAX` milliseconds.
     pub fn set_resend_time(&mut self, timeout: Option<Duration>) -> io::Result<()> {
         crate::options::set_ctx_ms_opt(
-            self.context.id(),
+            &mut self.context,
             crate::options::opt(nng_sys::NNG_OPT_REQ_RESENDTIME),
             timeout,
             "resend time",
@@ -716,8 +716,7 @@ mod tests {
             .expect("can set resend tick");
 
         let mut ctx = socket.context();
-        ctx.set_resend_time(None)
-            .expect("can disable resend timer");
+        ctx.set_resend_time(None).expect("can disable resend timer");
         ctx.set_resend_time(Some(Duration::ZERO))
             .expect("can set resend time");
         ctx.set_resend_time(Some(Duration::from_millis(50)))

@@ -34,16 +34,18 @@ use std::io;
 /// as negative numbers. They cannot be expressed via [`Duration`] and are deliberately not
 /// supported by this helper — protocol-level helpers should expose them through their own API
 /// surface if needed.
-pub(crate) fn set_socket_ms(
-    socket: nng_sys::nng_socket,
+pub(crate) fn set_socket_ms<Protocol>(
+    socket: &crate::Socket<Protocol>,
     option: &CStr,
     duration: Duration,
     label: &str,
 ) -> io::Result<()> {
     let ms = duration_to_nng_ms(duration, label);
     // SAFETY: `option` is a borrowed `&CStr` pointing to valid, NUL-terminated memory.
-    //         The `socket` handle is a safe u32 identifier verified internally by NNG.
-    let raw_errno = unsafe { nng_sys::nng_socket_set_ms(socket, option.as_ptr(), ms) };
+    //         The handle comes from a borrowed `&Socket`, so the socket is statically
+    //         guaranteed to be live for the duration of this call (it cannot be closed
+    //         until its `Drop`), which is what lets the `ECLOSED` arm stay `unreachable!`.
+    let raw_errno = unsafe { nng_sys::nng_socket_set_ms(socket.id(), option.as_ptr(), ms) };
     let errno = u32::try_from(raw_errno).expect("errno is never negative");
     check_map_set_ms_errno(errno, label, "nng_socket_set_ms")
 }
@@ -55,32 +57,36 @@ pub(crate) fn set_socket_ms(
 /// from "disable the duration-driven behaviour". `None` (and `Some(Duration::ZERO)`) map to
 /// `NNG_DURATION_INFINITE`, which NNG treats as "no timer"; a positive `Some(duration)` maps to
 /// that many milliseconds. See [`set_socket_ms`] for the shared invariants and panic conditions.
-pub(crate) fn set_socket_ms_opt(
-    socket: nng_sys::nng_socket,
+pub(crate) fn set_socket_ms_opt<Protocol>(
+    socket: &crate::Socket<Protocol>,
     option: &CStr,
     duration: Option<Duration>,
     label: &str,
 ) -> io::Result<()> {
     let ms = duration_opt_to_nng_ms(duration, label);
     // SAFETY: `option` is a borrowed `&CStr` pointing to valid, NUL-terminated memory.
-    //         The `socket` handle is a safe u32 identifier verified internally by NNG.
-    let raw_errno = unsafe { nng_sys::nng_socket_set_ms(socket, option.as_ptr(), ms) };
+    //         The handle comes from a borrowed `&Socket`, so the socket is statically
+    //         guaranteed to be live for the duration of this call (see [`set_socket_ms`]).
+    let raw_errno = unsafe { nng_sys::nng_socket_set_ms(socket.id(), option.as_ptr(), ms) };
     let errno = u32::try_from(raw_errno).expect("errno is never negative");
     check_map_set_ms_errno(errno, label, "nng_socket_set_ms")
 }
 
 /// Sets a `nng_duration` (ms) option on a context, mapping "no duration" to the NNG
 /// `NNG_DURATION_INFINITE` sentinel. See [`set_socket_ms_opt`] for semantics.
-pub(crate) fn set_ctx_ms_opt(
-    ctx: nng_sys::nng_ctx,
+pub(crate) fn set_ctx_ms_opt<Protocol>(
+    ctx: &mut crate::context::Context<'_, Protocol>,
     option: &CStr,
     duration: Option<Duration>,
     label: &str,
 ) -> io::Result<()> {
     let ms = duration_opt_to_nng_ms(duration, label);
     // SAFETY: `option` is a borrowed `&CStr` pointing to valid, NUL-terminated memory.
-    //         The `ctx` handle is a safe u32 identifier verified internally by NNG.
-    let raw_errno = unsafe { nng_sys::nng_ctx_set_ms(ctx, option.as_ptr(), ms) };
+    //         The handle comes from a borrowed `&mut Context`, so the context is statically
+    //         guaranteed to be live and exclusively held for the duration of this call (it
+    //         cannot be closed until its `Drop`), which is what lets the `ECLOSED` arm stay
+    //         `unreachable!`.
+    let raw_errno = unsafe { nng_sys::nng_ctx_set_ms(ctx.id(), option.as_ptr(), ms) };
     let errno = u32::try_from(raw_errno).expect("errno is never negative");
     check_map_set_ms_errno(errno, label, "nng_ctx_set_ms")
 }
