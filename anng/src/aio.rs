@@ -108,7 +108,7 @@ impl Aio {
                 // we have to do that so that we can correctly handle the contained message, if
                 // any. note that we _don't_ use nng_aio_stop, because that permanently stops
                 // the AIO and disallows future operations (returns NNG_ESTOPPED).
-                tracing::warn!("wait cancelled");
+                tracing::trace!("wait cancelled");
                 crate::block_in_place(|| unsafe {
                     nng_sys::nng_aio_cancel(self.0.aio.as_ptr());
                     nng_sys::nng_aio_wait(self.0.aio.as_ptr());
