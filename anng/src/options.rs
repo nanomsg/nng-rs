@@ -7,13 +7,13 @@
 //!
 //! ## Future maintenance
 //!
-//! Today only `_set_ms` exists, so we have one pair (`set_socket_ms`, `set_ctx_ms`) that share
-//! ~90% of their bodies. When a second value type lands (`_set_int`, `_set_bool`, `_set_size`,
-//! `_set_string`), do **not** keep copy-pasting: that's the moment to extract a private trait
-//! over the handle (e.g. `trait OptionTarget { fn set_ms(...); fn set_int(...); ... }`) with
-//! impls for `nng_socket` and `nng_ctx`, and rewrite the helpers as a single generic over the
-//! trait. Doing it now (with one value type) would be premature; doing it after the third would
-//! be painful.
+//! Today only `_set_ms` exists, in plain (`set_socket_ms`) and optional/infinite-aware
+//! (`set_socket_ms_opt`, `set_ctx_ms_opt`) flavours that share most of their bodies. When a
+//! second value type lands (`_set_int`, `_set_bool`, `_set_size`, `_set_string`), do **not** keep
+//! copy-pasting: that's the moment to extract a private trait over the handle (e.g. `trait
+//! OptionTarget { fn set_ms(...); fn set_int(...); ... }`) with impls for `nng_socket` and
+//! `nng_ctx`, and rewrite the helpers as a single generic over the trait. Doing it now (with one
+//! value type) would be premature; doing it after the third would be painful.
 
 use core::{
     ffi::{CStr, c_int},
@@ -48,14 +48,36 @@ pub(crate) fn set_socket_ms(
     check_map_set_ms_errno(errno, label, "nng_socket_set_ms")
 }
 
-/// Sets a `nng_duration` (ms) option on a context. See [`set_socket_ms`] for invariants.
-pub(crate) fn set_ctx_ms(
-    ctx: nng_sys::nng_ctx,
+/// Sets a `nng_duration` (ms) option on a socket, mapping "no duration" to the NNG
+/// `NNG_DURATION_INFINITE` sentinel.
+///
+/// This is the [`set_socket_ms`] variant for options that distinguish "set a finite duration"
+/// from "disable the duration-driven behaviour". `None` (and `Some(Duration::ZERO)`) map to
+/// `NNG_DURATION_INFINITE`, which NNG treats as "no timer"; a positive `Some(duration)` maps to
+/// that many milliseconds. See [`set_socket_ms`] for the shared invariants and panic conditions.
+pub(crate) fn set_socket_ms_opt(
+    socket: nng_sys::nng_socket,
     option: &CStr,
-    duration: Duration,
+    duration: Option<Duration>,
     label: &str,
 ) -> io::Result<()> {
-    let ms = duration_to_nng_ms(duration, label);
+    let ms = duration_opt_to_nng_ms(duration, label);
+    // SAFETY: caller guarantees the socket is valid and supports the named option;
+    //         `option` is a borrowed `&CStr`, so its `.as_ptr()` is valid for the FFI call.
+    let raw_errno = unsafe { nng_sys::nng_socket_set_ms(socket, option.as_ptr(), ms) };
+    let errno = u32::try_from(raw_errno).expect("errno is never negative");
+    check_map_set_ms_errno(errno, label, "nng_socket_set_ms")
+}
+
+/// Sets a `nng_duration` (ms) option on a context, mapping "no duration" to the NNG
+/// `NNG_DURATION_INFINITE` sentinel. See [`set_socket_ms_opt`] for semantics.
+pub(crate) fn set_ctx_ms_opt(
+    ctx: nng_sys::nng_ctx,
+    option: &CStr,
+    duration: Option<Duration>,
+    label: &str,
+) -> io::Result<()> {
+    let ms = duration_opt_to_nng_ms(duration, label);
     // SAFETY: caller guarantees the context is valid and supports the named option;
     //         `option` is a borrowed `&CStr`, so its `.as_ptr()` is valid for the FFI call.
     let raw_errno = unsafe { nng_sys::nng_ctx_set_ms(ctx, option.as_ptr(), ms) };
@@ -77,6 +99,21 @@ fn duration_to_nng_ms(duration: Duration, label: &str) -> c_int {
         panic!("{label} is too large: {duration:?}");
     }
     ms as c_int
+}
+
+/// Converts an optional duration to a `nng_duration`, mapping the "disabled" cases to
+/// `NNG_DURATION_INFINITE`.
+///
+/// `None` means "disable the duration-driven behaviour" and maps to `NNG_DURATION_INFINITE`.
+/// `Some(Duration::ZERO)` is treated the same way: a literal `0` would tell NNG to act with a
+/// zero-length timer, which is almost never what a caller asking for "zero" actually wants, so we
+/// fold it into the infinite sentinel as well. Any positive duration is bounds-checked and
+/// converted to milliseconds by [`duration_to_nng_ms`].
+fn duration_opt_to_nng_ms(duration: Option<Duration>, label: &str) -> c_int {
+    match duration {
+        None | Some(Duration::ZERO) => nng_sys::NNG_DURATION_INFINITE,
+        Some(duration) => duration_to_nng_ms(duration, label),
+    }
 }
 
 fn check_map_set_ms_errno(errno: u32, label: &str, fn_name: &str) -> io::Result<()> {
@@ -140,5 +177,35 @@ mod tests {
     fn duration_to_nng_ms_rejects_overflow() {
         // Duration::MAX is the worst case a caller can hand us; it must be caught.
         duration_to_nng_ms(Duration::MAX, "test");
+    }
+
+    #[test]
+    fn duration_opt_none_maps_to_infinite() {
+        assert_eq!(
+            duration_opt_to_nng_ms(None, "test"),
+            nng_sys::NNG_DURATION_INFINITE,
+        );
+    }
+
+    #[test]
+    fn duration_opt_zero_maps_to_infinite() {
+        assert_eq!(
+            duration_opt_to_nng_ms(Some(Duration::ZERO), "test"),
+            nng_sys::NNG_DURATION_INFINITE,
+        );
+    }
+
+    #[test]
+    fn duration_opt_positive_maps_to_ms() {
+        assert_eq!(
+            duration_opt_to_nng_ms(Some(Duration::from_millis(50)), "test"),
+            50,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "test is too large")]
+    fn duration_opt_rejects_overflow() {
+        duration_opt_to_nng_ms(Some(Duration::MAX), "test");
     }
 }
