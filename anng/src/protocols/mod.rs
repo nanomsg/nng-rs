@@ -238,15 +238,6 @@ pub(crate) async fn add_dialer_to_socket(
         // the dialing.
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(()),
-            err if err == ErrorCode::ECANCELED as u32 => {
-                // `nng_dialer_start` runs inside `spawn_blocking`. dropping the dial future
-                // (e.g. via `tokio::select!`) detaches this worker and releases the
-                // `&'socket self` borrow, letting the caller drop its `Socket`. nng then
-                // cancels the in-flight I/O on the socket and surfaces `ECANCELED`. the
-                // caller is gone and does not care about the result.
-                tracing::debug!("dial future dropped while (now-cancelled) dial still running");
-                Err(io::Error::from(AioError::Cancelled))
-            }
             err if err == ErrorCode::ECLOSED as u32 || err == ErrorCode::ESTOPPED as u32 => {
                 // the socket (`ECLOSED`) or the whole nng runtime (`ESTOPPED`, e.g. via
                 // `nng_fini`) was torn down underneath the dial. this most commonly happens
@@ -263,6 +254,15 @@ pub(crate) async fn add_dialer_to_socket(
             }
             err if err == ErrorCode::ESTATE as u32 => {
                 unreachable!("the dialer has not been started");
+            }
+            err if err == ErrorCode::ECANCELED as u32 => {
+                // this can happen if the dial future is dropped (such as if the future is
+                // cancelled), and that _also_ drops the referenced socket. if this occurrs, any
+                // I/O operation on the socket is cancelled by nng, and thus we get that error.
+                // we don't need to _do_ anything with it though, since we _know_ the caller has
+                // gone away (and thus doesn't care about our return value).
+                tracing::warn!("socket dropped while (now-cancelled) dial future still running");
+                Err(io::Error::from(AioError::Cancelled))
             }
             err if err == ErrorCode::EAGAIN as u32 => {
                 // this is returned from `getaddrinfo` if there's a temporary failure in name
