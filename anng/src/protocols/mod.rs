@@ -282,6 +282,12 @@ pub(crate) async fn add_dialer_to_socket(
             err if err == ErrorCode::ENOMEM as u32 => {
                 panic!("OOM");
             }
+            err if err == ErrorCode::ETIMEDOUT as u32 => {
+                // route through the outer TimedOut variant so the From<AioError> for io::Error
+                // impl maps this to io::ErrorKind::TimedOut (the NngError(ETIMEDOUT) arm is
+                // marked unreachable!).
+                Err(io::Error::from(AioError::TimedOut))
+            }
             err if err == ErrorCode::EADDRINVAL as u32
                 || err == ErrorCode::ECONNABORTED as u32
                 || err == ErrorCode::ECONNREFUSED as u32
@@ -289,7 +295,6 @@ pub(crate) async fn add_dialer_to_socket(
                 || err == ErrorCode::EINVAL as u32
                 || err == ErrorCode::EPEERAUTH as u32
                 || err == ErrorCode::EPROTO as u32
-                || err == ErrorCode::ETIMEDOUT as u32
                 || err == ErrorCode::EUNREACHABLE as u32 =>
             {
                 Err(io::Error::from(AioError::Operation(
