@@ -244,7 +244,7 @@ impl<Protocol> fmt::Debug for Socket<Protocol> {
 /// `nng_aio_cancel` and waiting for operations to fully terminate.
 pub struct ContextfulSocket<'socket, Protocol> {
     aio: Aio,
-    context: Context<'socket, Protocol>,
+    pub(crate) context: Context<'socket, Protocol>,
 }
 
 // manual impl to avoid Protocol: Debug bound

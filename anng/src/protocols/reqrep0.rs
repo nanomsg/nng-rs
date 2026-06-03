@@ -682,47 +682,70 @@ mod tests {
 
     #[test]
     fn set_resend_option_socket_smoke() {
+        let read_socket_ms = |socket: &Socket<Req0>, opt: &[u8]| -> i32 {
+            let mut ms: i32 = 0;
+            let rc =
+                unsafe { nng_sys::nng_socket_get_ms(socket.id(), opt.as_ptr().cast(), &mut ms) };
+            assert_eq!(rc, 0, "nng_socket_get_ms failed: {rc}");
+            ms
+        };
+        let read_ctx_ms = |ctx: &mut ContextfulSocket<Req0>, opt: &[u8]| -> i32 {
+            let mut ms: i32 = 0;
+            let rc =
+                unsafe { nng_sys::nng_ctx_get_ms(ctx.context.id(), opt.as_ptr().cast(), &mut ms) };
+            assert_eq!(rc, 0, "nng_ctx_get_ms failed: {rc}");
+            ms
+        };
+
         let socket = Req0::socket().unwrap();
         // `None` disables the resend timer (maps to NNG_DURATION_INFINITE).
         socket
             .set_resend_time(None)
             .expect("can disable resend timer");
+        assert_eq!(
+            read_socket_ms(&socket, nng_sys::NNG_OPT_REQ_RESENDTIME),
+            nng_sys::NNG_DURATION_INFINITE,
+        );
         // `Some(Duration::ZERO)` is folded into the same "disable timer" behaviour.
         socket
             .set_resend_time(Some(Duration::ZERO))
             .expect("can set resend time");
-        socket
-            .set_resend_time(Some(Duration::from_millis(1)))
-            .expect("can set resend time");
-        socket
-            .set_resend_time(Some(Duration::from_secs(60)))
-            .expect("can set resend time");
-        socket
-            .set_resend_time(Some(Duration::from_millis(i32::MAX as u64)))
-            .expect("can set resend time");
+        assert_eq!(
+            read_socket_ms(&socket, nng_sys::NNG_OPT_REQ_RESENDTIME),
+            nng_sys::NNG_DURATION_INFINITE,
+        );
+        for ms in [1, 60_000, i32::MAX] {
+            socket
+                .set_resend_time(Some(Duration::from_millis(ms as u64)))
+                .expect("can set resend time");
+            assert_eq!(read_socket_ms(&socket, nng_sys::NNG_OPT_REQ_RESENDTIME), ms);
+        }
 
         let socket = Req0::socket().unwrap();
-        socket
-            .set_resend_tick(Duration::ZERO)
-            .expect("can set resend tick");
-        socket
-            .set_resend_tick(Duration::from_millis(1))
-            .expect("can set resend tick");
-        socket
-            .set_resend_tick(Duration::from_secs(1))
-            .expect("can set resend tick");
-        socket
-            .set_resend_tick(Duration::from_millis(i32::MAX as u64))
-            .expect("can set resend tick");
+        for ms in [0, 1, 1_000, i32::MAX] {
+            socket
+                .set_resend_tick(Duration::from_millis(ms as u64))
+                .expect("can set resend tick");
+            assert_eq!(read_socket_ms(&socket, nng_sys::NNG_OPT_REQ_RESENDTICK), ms);
+        }
 
         let mut ctx = socket.context();
         ctx.set_resend_time(None).expect("can disable resend timer");
+        assert_eq!(
+            read_ctx_ms(&mut ctx, nng_sys::NNG_OPT_REQ_RESENDTIME),
+            nng_sys::NNG_DURATION_INFINITE,
+        );
         ctx.set_resend_time(Some(Duration::ZERO))
             .expect("can set resend time");
-        ctx.set_resend_time(Some(Duration::from_millis(50)))
-            .expect("can set resend time");
-        ctx.set_resend_time(Some(Duration::from_secs(60)))
-            .expect("can set resend time");
+        assert_eq!(
+            read_ctx_ms(&mut ctx, nng_sys::NNG_OPT_REQ_RESENDTIME),
+            nng_sys::NNG_DURATION_INFINITE,
+        );
+        for ms in [50, 60_000] {
+            ctx.set_resend_time(Some(Duration::from_millis(ms as u64)))
+                .expect("can set resend time");
+            assert_eq!(read_ctx_ms(&mut ctx, nng_sys::NNG_OPT_REQ_RESENDTIME), ms);
+        }
     }
 
     #[test]
