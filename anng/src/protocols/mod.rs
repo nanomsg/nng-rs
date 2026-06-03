@@ -238,19 +238,28 @@ pub(crate) async fn add_dialer_to_socket(
         // the dialing.
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(()),
-            err if err == ErrorCode::ECLOSED as u32 || err == ErrorCode::ESTOPPED as u32 => {
-                // the socket (`ECLOSED`) or the whole nng runtime (`ESTOPPED`, e.g. via
-                // `nng_fini`) was torn down underneath the dial. this most commonly happens
-                // when the dial future was dropped and the caller dropped its `Socket`, in
-                // which case the detached worker's return value is discarded. but it can also
-                // happen while a caller is *still* awaiting (another path closed the socket,
-                // or the runtime was deinitialised), and that caller must be told the real
-                // failure rather than a spurious `Cancelled`. surface the genuine error;
-                // tokio discards it for the dropped-future case.
-                tracing::debug!(errno = err, "socket or runtime torn down during dial");
-                Err(io::Error::from(AioError::Operation(
-                    ErrorKind::from_nz_u32(NonZeroU32::new(err).expect("0 is checked above")),
-                )))
+            err if err == ErrorCode::ECLOSED as u32 => {
+                // the socket was closed underneath the dial. while the dial future is still
+                // awaiting it holds `&'socket self`, and `Socket::drop` needs `&mut self`,
+                // so the borrow checker prevents the socket from being closed out from under
+                // us. the only way to reach `ECLOSED` here is therefore: the dial future was
+                // dropped, the worker detached, and the caller subsequently dropped the
+                // `Socket`. in that case nobody is listening for our return value, so map
+                // this like `ECANCELED`.
+                tracing::debug!("socket closed after dial future was dropped");
+                Err(io::Error::from(AioError::Cancelled))
+            }
+            err if err == ErrorCode::ESTOPPED as u32 => {
+                // the whole nng runtime was torn down (e.g. via `nng_fini` /
+                // `deinit_nng`). that API is `unsafe` and its contract requires all sockets
+                // to be closed first, so a correct caller won't hit this mid-await. but a
+                // misuse — or a racy shutdown sequence — can tear down the runtime while a
+                // dial is still in flight. surface the real error so a caller that is still
+                // awaiting learns the truth; for the dropped-future case tokio discards it.
+                tracing::warn!("nng runtime torn down during dial");
+                Err(io::Error::from(AioError::Operation(ErrorKind::NngError(
+                    ErrorCode::ESTOPPED,
+                ))))
             }
             err if err == ErrorCode::ESTATE as u32 => {
                 unreachable!("the dialer has not been started");
