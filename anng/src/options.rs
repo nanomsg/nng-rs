@@ -54,9 +54,10 @@ pub(crate) fn set_socket_ms<Protocol>(
 /// `NNG_DURATION_INFINITE` sentinel.
 ///
 /// This is the [`set_socket_ms`] variant for options that distinguish "set a finite duration"
-/// from "disable the duration-driven behaviour". `None` (and `Some(Duration::ZERO)`) map to
-/// `NNG_DURATION_INFINITE`, which NNG treats as "no timer"; a positive `Some(duration)` maps to
-/// that many milliseconds. See [`set_socket_ms`] for the shared invariants and panic conditions.
+/// from "disable the duration-driven behaviour". `None` maps to `NNG_DURATION_INFINITE`, which
+/// NNG treats as "no timer"; `Some(duration)` is forwarded as-is (including `Duration::ZERO`,
+/// which NNG interprets as a zero-length timer). See [`set_socket_ms`] for the shared invariants
+/// and panic conditions.
 pub(crate) fn set_socket_ms_opt<Protocol>(
     socket: &crate::Socket<Protocol>,
     option: &CStr,
@@ -107,18 +108,16 @@ fn duration_to_nng_ms(duration: Duration, label: &str) -> c_int {
     ms as c_int
 }
 
-/// Converts an optional duration to a `nng_duration`, mapping the "disabled" cases to
+/// Converts an optional duration to a `nng_duration`, mapping [`None`] to
 /// `NNG_DURATION_INFINITE`.
 ///
 /// `None` means "disable the duration-driven behaviour" and maps to `NNG_DURATION_INFINITE`.
-/// `Some(Duration::ZERO)` is treated the same way: a literal `0` would tell NNG to act with a
-/// zero-length timer, which is almost never what a caller asking for "zero" actually wants, so we
-/// fold it into the infinite sentinel as well. Any positive duration is bounds-checked and
-/// converted to milliseconds by [`duration_to_nng_ms`].
+/// `Some(duration)` is bounds-checked and converted to milliseconds by [`duration_to_nng_ms`];
+/// `Some(Duration::ZERO)` is forwarded as a literal `0`, which NNG treats as a zero-length timer.
 fn duration_opt_to_nng_ms(duration: Option<Duration>, label: &str) -> c_int {
     match duration {
-        None | Some(Duration::ZERO) => nng_sys::NNG_DURATION_INFINITE,
         Some(duration) => duration_to_nng_ms(duration, label),
+        None => nng_sys::NNG_DURATION_INFINITE,
     }
 }
 
@@ -194,11 +193,8 @@ mod tests {
     }
 
     #[test]
-    fn duration_opt_zero_maps_to_infinite() {
-        assert_eq!(
-            duration_opt_to_nng_ms(Some(Duration::ZERO), "test"),
-            nng_sys::NNG_DURATION_INFINITE,
-        );
+    fn duration_opt_zero_maps_to_zero() {
+        assert_eq!(duration_opt_to_nng_ms(Some(Duration::ZERO), "test"), 0);
     }
 
     #[test]

@@ -237,10 +237,10 @@ impl<'socket> ContextfulSocket<'socket, Req0> {
     ///
     /// # Disabling the resend timer
     ///
-    /// Passing [`None`] (or, equivalently, [`Some(Duration::ZERO)`](Duration::ZERO)) disables
-    /// the periodic resend *timer*: the request is not re-sent on a fixed schedule while the
-    /// context waits for a reply. This maps to NNG's `NNG_DURATION_INFINITE` sentinel, which is
-    /// negative and therefore cannot be expressed as a [`Duration`] directly.
+    /// Passing [`None`] disables the periodic resend *timer*: the request is not re-sent on a
+    /// fixed schedule while the context waits for a reply. This maps to NNG's
+    /// `NNG_DURATION_INFINITE` sentinel, which is negative and therefore cannot be expressed as
+    /// a [`Duration`] directly.
     ///
     /// This does **not** make delivery "exactly once" and does not stop *all* retransmissions:
     /// NNG still automatically resends the request if the peer it was sent to disconnects, or
@@ -706,15 +706,7 @@ mod tests {
             read_socket_ms(&socket, nng_sys::NNG_OPT_REQ_RESENDTIME),
             nng_sys::NNG_DURATION_INFINITE,
         );
-        // `Some(Duration::ZERO)` is folded into the same "disable timer" behaviour.
-        socket
-            .set_resend_time(Some(Duration::ZERO))
-            .expect("can set resend time");
-        assert_eq!(
-            read_socket_ms(&socket, nng_sys::NNG_OPT_REQ_RESENDTIME),
-            nng_sys::NNG_DURATION_INFINITE,
-        );
-        for ms in [1, 60_000, i32::MAX] {
+        for ms in [0, 1, 60_000, i32::MAX] {
             socket
                 .set_resend_time(Some(Duration::from_millis(ms as u64)))
                 .expect("can set resend time");
@@ -735,13 +727,7 @@ mod tests {
             read_ctx_ms(&mut ctx, nng_sys::NNG_OPT_REQ_RESENDTIME),
             nng_sys::NNG_DURATION_INFINITE,
         );
-        ctx.set_resend_time(Some(Duration::ZERO))
-            .expect("can set resend time");
-        assert_eq!(
-            read_ctx_ms(&mut ctx, nng_sys::NNG_OPT_REQ_RESENDTIME),
-            nng_sys::NNG_DURATION_INFINITE,
-        );
-        for ms in [50, 60_000] {
+        for ms in [0, 50, 60_000] {
             ctx.set_resend_time(Some(Duration::from_millis(ms as u64)))
                 .expect("can set resend time");
             assert_eq!(read_ctx_ms(&mut ctx, nng_sys::NNG_OPT_REQ_RESENDTIME), ms);
