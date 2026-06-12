@@ -156,6 +156,16 @@ pub(crate) async fn add_listener_to_socket(
         err if err == ErrorCode::ESTATE as u32 => {
             unreachable!("the listener is not already started");
         }
+        err if err == ErrorCode::ESTOPPED as u32 => {
+            // the whole nng runtime was torn down (e.g. via `nng_fini` / `deinit_nng`)
+            // while we were starting the listener. that API is `unsafe` and its contract
+            // requires all sockets to be closed first, so a correct caller won't hit this,
+            // but a misuse — or a racy shutdown sequence — can surface it here.
+            tracing::warn!("nng runtime torn down during listener start");
+            return Err(io::Error::from(AioError::Operation(ErrorKind::NngError(
+                ErrorCode::ESTOPPED,
+            ))));
+        }
         err if err == ErrorCode::EADDRINUSE as u32 || err == ErrorCode::EPERM as u32 => {
             return Err(io::Error::from(AioError::Operation(
                 ErrorKind::from_nz_u32(NonZeroU32::new(err).expect("0 is checked above")),
