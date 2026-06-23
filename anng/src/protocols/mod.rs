@@ -256,7 +256,7 @@ pub(crate) async fn add_dialer_to_socket(
                 // dropped, the worker detached, and the caller subsequently dropped the
                 // `Socket`. in that case nobody is listening for our return value, so map
                 // this like `ECANCELED`.
-                tracing::debug!("socket closed after dial future was dropped");
+                tracing::warn!("socket closed after dial future was dropped");
                 Err(io::Error::from(AioError::Cancelled))
             }
             err if err == ErrorCode::ESTOPPED as u32 => {
