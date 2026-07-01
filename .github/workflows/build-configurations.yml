@@ -56,7 +56,7 @@ jobs:
             apt: clang cmake libmbedtls-dev
             env: {}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # tag=v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # tag=v7.0.0
         with:
           submodules: true
       - name: Install dependencies
@@ -76,7 +76,7 @@ jobs:
     name: nng on linux / not vendored or bindgen
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # tag=v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # tag=v7.0.0
         with:
           submodules: true
       - name: Install dependencies
@@ -100,7 +100,7 @@ jobs:
     name: nng on linux / NNG_NO_VENDOR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # tag=v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # tag=v7.0.0
         with:
           submodules: true
       # we test this by not installing nng, and checking that building _fails_
@@ -138,7 +138,7 @@ jobs:
             brew: cmake
             env: {}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # tag=v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # tag=v7.0.0
         with:
           submodules: true
       - name: Install dependencies
@@ -173,7 +173,7 @@ jobs:
           #   features: --features vendored
           #   choco: llvm cmake
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # tag=v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # tag=v7.0.0
         with:
           submodules: true
       - name: Install dependencies
