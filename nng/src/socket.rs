@@ -52,6 +52,14 @@ impl Socket {
     /// [`NotSupported`]: enum.Error.html#variant.NotSupported
     /// [`OutOfMemory`]: enum.Error.html#variant.OutOfMemory
     pub fn new(t: Protocol) -> Result<Socket> {
+        // NNG v2 requires the library to be initialized before any socket is
+        // opened. Calling `nng_init(NULL)` is idempotent and applies default
+        // tuning when no params have been supplied yet.
+        // SAFETY: Null pointers are valid.
+        unsafe {
+            nng_sys::nng_init(ptr::null());
+        }
+
         // Create the uninitialized nng_socket
         let mut socket = nng_sys::nng_socket::NNG_SOCKET_INITIALIZER;
 
@@ -73,10 +81,6 @@ impl Socket {
         };
 
         rv2res!(rv, {
-            // SAFETY: Null pointers are valid.
-            unsafe {
-                nng_sys::nng_init(ptr::null());
-            }
             Socket {
                 inner: Arc::new(Inner {
                     handle: socket,
