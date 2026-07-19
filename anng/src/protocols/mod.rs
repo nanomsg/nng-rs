@@ -239,7 +239,27 @@ pub(crate) async fn add_dialer_to_socket(
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(()),
             err if err == ErrorCode::ECLOSED as u32 => {
-                unreachable!("the socket is still valid");
+                // the socket was closed underneath the dial. while the dial future is still
+                // awaiting it holds `&'socket self`, and `Socket::drop` needs `&mut self`,
+                // so the borrow checker prevents the socket from being closed out from under
+                // us. the only way to reach `ECLOSED` here is therefore: the dial future was
+                // dropped, the worker detached, and the caller subsequently dropped the
+                // `Socket`. in that case nobody is listening for our return value, so map
+                // this like `ECANCELED`.
+                tracing::debug!("socket closed after dial future was dropped");
+                Err(io::Error::from(AioError::Cancelled))
+            }
+            err if err == ErrorCode::ESTOPPED as u32 => {
+                // the whole nng runtime was torn down (e.g. via `nng_fini` /
+                // `deinit_nng`). that API is `unsafe` and its contract requires all sockets
+                // to be closed first, so a correct caller won't hit this mid-await. but a
+                // misuse — or a racy shutdown sequence — can tear down the runtime while a
+                // dial is still in flight. surface the real error so a caller that is still
+                // awaiting learns the truth; for the dropped-future case tokio discards it.
+                tracing::warn!("nng runtime torn down during dial");
+                Err(io::Error::from(AioError::Operation(ErrorKind::NngError(
+                    ErrorCode::ESTOPPED,
+                ))))
             }
             err if err == ErrorCode::ESTATE as u32 => {
                 unreachable!("the dialer has not been started");
@@ -271,7 +291,14 @@ pub(crate) async fn add_dialer_to_socket(
             err if err == ErrorCode::ENOMEM as u32 => {
                 panic!("OOM");
             }
+            err if err == ErrorCode::ETIMEDOUT as u32 => {
+                // route through the outer TimedOut variant so the From<AioError> for io::Error
+                // impl maps this to io::ErrorKind::TimedOut (the NngError(ETIMEDOUT) arm is
+                // marked unreachable!).
+                Err(io::Error::from(AioError::TimedOut))
+            }
             err if err == ErrorCode::EADDRINVAL as u32
+                || err == ErrorCode::ECONNABORTED as u32
                 || err == ErrorCode::ECONNREFUSED as u32
                 || err == ErrorCode::ECONNRESET as u32
                 || err == ErrorCode::EINVAL as u32
