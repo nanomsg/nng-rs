@@ -264,9 +264,15 @@ pub(crate) async fn add_dialer_to_socket(
                 // so the borrow checker prevents the socket from being closed out from under
                 // us. the only way to reach `ECLOSED` here is therefore: the dial future was
                 // dropped, the worker detached, and the caller subsequently dropped the
-                // `Socket`. in that case nobody is listening for our return value, so map
-                // this like `ECANCELED`.
-                tracing::warn!("socket closed after dial future was dropped");
+                // `Socket`. concretely: the future is most commonly dropped by `select!` /
+                // `tokio::time::timeout` cancellation; that releases the `&'socket self`
+                // borrow, which lets the caller drop the `Socket`, whose `Drop` impl calls
+                // `nng_socket_close` and so closes the socket under the still-running detached
+                // worker. note this does *not* involve a panic or `nng_fini`/`deinit_nng`
+                // tearing down the runtime — that path returns `ESTOPPED` and is handled
+                // below. in this case nobody is listening for our return value, so map this
+                // like `ECANCELED`.
+                tracing::debug!("socket closed after dial future was dropped");
                 Err(io::Error::from(AioError::Cancelled))
             }
             err if err == ErrorCode::ESTOPPED as u32 => {
@@ -290,7 +296,7 @@ pub(crate) async fn add_dialer_to_socket(
                 // I/O operation on the socket is cancelled by nng, and thus we get that error.
                 // we don't need to _do_ anything with it though, since we _know_ the caller has
                 // gone away (and thus doesn't care about our return value).
-                tracing::warn!("socket dropped while (now-cancelled) dial future still running");
+                tracing::debug!("socket dropped while (now-cancelled) dial future still running");
                 Err(io::Error::from(AioError::Cancelled))
             }
             err if err == ErrorCode::EAGAIN as u32 => {
