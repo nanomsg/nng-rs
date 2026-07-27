@@ -135,9 +135,10 @@ pub(crate) async fn add_listener_to_socket(
         let errno = unsafe { nng_sys::nng_listener_close(listener) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            err if err == ErrorCode::ECLOSED as u32 => {
-                unreachable!("the listener handle is valid");
-            }
+            // the listener/socket was already closed (e.g. the nng runtime was torn down via
+            // the `unsafe` `deinit_nng`/`nng_fini`); there is nothing left to clean up, and we
+            // return the pre_start error below regardless.
+            err if err == ErrorCode::ECLOSED as u32 => {}
             errno => {
                 unreachable!(
                     "nng_listener_close documentation claims errno {errno} is never returned"
@@ -151,7 +152,16 @@ pub(crate) async fn add_listener_to_socket(
     match u32::try_from(errno).expect("errno is never negative") {
         0 => {}
         err if err == ErrorCode::ECLOSED as u32 => {
-            unreachable!("the listener handle is valid");
+            // the socket (and thus this listener) was closed out from under us. unlike the
+            // dialer, `add_listener_to_socket` is fully synchronous — no `spawn_blocking`, no
+            // `await` — so there is no dropped-future path here. the only way to reach `ECLOSED`
+            // is a teardown of the nng runtime via the `unsafe` `deinit_nng`/`nng_fini` while
+            // the socket was still open. surface the real error to the caller, who is still
+            // awaiting the result.
+            tracing::warn!("socket closed during listener start");
+            return Err(io::Error::from(AioError::Operation(ErrorKind::NngError(
+                ErrorCode::ECLOSED,
+            ))));
         }
         err if err == ErrorCode::ESTATE as u32 => {
             unreachable!("the listener is not already started");
