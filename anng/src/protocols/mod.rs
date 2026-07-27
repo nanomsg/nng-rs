@@ -194,8 +194,8 @@ pub(crate) async fn add_listener_to_socket(
 /// # Safety
 ///
 /// The socket must be a valid, open NNG socket.
-pub(crate) async fn add_dialer_to_socket(
-    socket: nng_sys::nng_socket,
+pub(crate) async fn add_dialer_to_socket<Protocol>(
+    socket: &Socket<Protocol>,
     url: &CStr,
     pre_start: impl FnOnce(nng_sys::nng_dialer) -> io::Result<()>,
 ) -> io::Result<nng_sys::nng_dialer> {
@@ -206,7 +206,8 @@ pub(crate) async fn add_dialer_to_socket(
     let mut dialer = MaybeUninit::<nng_sys::nng_dialer>::uninit();
 
     // SAFETY: dialer pointer is valid for writing, socket is valid, and addr is valid C string.
-    let errno = unsafe { nng_sys::nng_dialer_create(dialer.as_mut_ptr(), socket, url.as_ptr()) };
+    let errno =
+        unsafe { nng_sys::nng_dialer_create(dialer.as_mut_ptr(), socket.socket, url.as_ptr()) };
     match u32::try_from(errno).expect("errno is never negative") {
         0 => {}
         err if err == ErrorCode::ENOMEM as u32 => {
@@ -260,20 +261,21 @@ pub(crate) async fn add_dialer_to_socket(
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(()),
             err if err == ErrorCode::ECLOSED as u32 => {
-                // the socket was closed underneath the dial. while the dial future is still
-                // awaiting it holds `&'socket self`, and `Socket::drop` needs `&mut self`,
-                // so the borrow checker prevents the socket from being closed out from under
-                // us. the only way to reach `ECLOSED` here is therefore: the dial future was
-                // dropped, the worker detached, and the caller subsequently dropped the
-                // `Socket`. concretely: the future is most commonly dropped by `select!` /
-                // `tokio::time::timeout` cancellation; that releases the `&'socket self`
-                // borrow, which lets the caller drop the `Socket`, whose `Drop` impl calls
+                // the socket was closed underneath the dial. this function borrows the socket
+                // as `&Socket` for the lifetime of the returned future, and
+                // `Socket::drop` needs `&mut self`, so the borrow checker prevents the socket
+                // from being closed out from under us while the future is alive. the only way
+                // to reach `ECLOSED` here is therefore: the dial future was dropped, the
+                // `spawn_blocking` worker detached, and the caller subsequently dropped the
+                // `Socket`. the future can be dropped by any cancellation (`select!`,
+                // `tokio::time::timeout`, `FuturesUnordered`, ...); that releases the borrow,
+                // which lets the caller drop the `Socket`, whose `Drop` impl calls
                 // `nng_socket_close` and so closes the socket under the still-running detached
                 // worker. note this does *not* involve a panic or `nng_fini`/`deinit_nng`
                 // tearing down the runtime — that path returns `ESTOPPED` and is handled
                 // below. in this case nobody is listening for our return value, so map this
                 // like `ECANCELED`.
-                tracing::debug!("socket closed after dial future was dropped");
+                tracing::warn!("socket closed after dial future was dropped");
                 Err(io::Error::from(AioError::Cancelled))
             }
             err if err == ErrorCode::ESTOPPED as u32 => {
@@ -297,7 +299,7 @@ pub(crate) async fn add_dialer_to_socket(
                 // I/O operation on the socket is cancelled by nng, and thus we get that error.
                 // we don't need to _do_ anything with it though, since we _know_ the caller has
                 // gone away (and thus doesn't care about our return value).
-                tracing::debug!("socket dropped while (now-cancelled) dial future still running");
+                tracing::warn!("socket dropped while (now-cancelled) dial future still running");
                 Err(io::Error::from(AioError::Cancelled))
             }
             err if err == ErrorCode::EAGAIN as u32 => {

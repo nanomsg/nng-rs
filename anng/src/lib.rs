@@ -445,7 +445,7 @@ impl<Protocol> Socket<Protocol> {
         url: impl AsRef<CStr>,
         options: &pipes::PipeOptions,
     ) -> io::Result<pipes::Dialer<'socket, Protocol>> {
-        let dialer = crate::protocols::add_dialer_to_socket(self.socket, url.as_ref(), |_dialer| {
+        let dialer = crate::protocols::add_dialer_to_socket(self, url.as_ref(), |_dialer| {
             let pipes::PipeOptions {} = options;
             Ok(())
         })
