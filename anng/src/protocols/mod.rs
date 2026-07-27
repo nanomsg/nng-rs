@@ -96,8 +96,8 @@ pub(crate) unsafe fn create_socket<Protocol: core::fmt::Debug>(
 }
 
 /// Adds a listener to an existing socket.
-pub(crate) async fn add_listener_to_socket(
-    socket: nng_sys::nng_socket,
+pub(crate) async fn add_listener_to_socket<Protocol>(
+    socket: &Socket<Protocol>,
     url: &CStr,
     pre_start: impl FnOnce(nng_sys::nng_listener) -> io::Result<()>,
 ) -> io::Result<nng_sys::nng_listener> {
@@ -105,7 +105,7 @@ pub(crate) async fn add_listener_to_socket(
 
     // SAFETY: listener pointer is valid for writing, socket is valid, addr is valid C string.
     let errno =
-        unsafe { nng_sys::nng_listener_create(listener.as_mut_ptr(), socket, url.as_ptr()) };
+        unsafe { nng_sys::nng_listener_create(listener.as_mut_ptr(), socket.socket, url.as_ptr()) };
     match u32::try_from(errno).expect("errno is never negative") {
         0 => {}
         err if err == ErrorCode::ENOMEM as u32 => {

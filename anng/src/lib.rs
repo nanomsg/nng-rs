@@ -497,7 +497,7 @@ impl<Protocol> Socket<Protocol> {
         options: &pipes::PipeOptions,
     ) -> io::Result<pipes::Listener<'socket, Protocol>> {
         let listener =
-            crate::protocols::add_listener_to_socket(self.socket, url.as_ref(), |_listener| {
+            crate::protocols::add_listener_to_socket(self, url.as_ref(), |_listener| {
                 let pipes::PipeOptions {} = options;
                 Ok(())
             })
