@@ -190,10 +190,6 @@ pub(crate) async fn add_listener_to_socket(
 }
 
 /// Adds a dialer to an existing socket.
-///
-/// # Safety
-///
-/// The socket must be a valid, open NNG socket.
 pub(crate) async fn add_dialer_to_socket<Protocol>(
     socket: &Socket<Protocol>,
     url: &CStr,
