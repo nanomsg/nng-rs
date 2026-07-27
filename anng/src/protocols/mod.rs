@@ -232,9 +232,10 @@ pub(crate) async fn add_dialer_to_socket(
         let errno = unsafe { nng_sys::nng_dialer_close(dialer) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            err if err == ErrorCode::ECLOSED as u32 => {
-                unreachable!("the dialer handle is valid");
-            }
+            // the dialer/socket was already closed (e.g. the nng runtime was torn down via
+            // the `unsafe` `deinit_nng`/`nng_fini`); there is nothing left to clean up, and we
+            // return the pre_start error below regardless.
+            err if err == ErrorCode::ECLOSED as u32 => {}
             errno => {
                 unreachable!(
                     "nng_dialer_close documentation claims errno {errno} is never returned"
@@ -292,7 +293,7 @@ pub(crate) async fn add_dialer_to_socket(
             }
             err if err == ErrorCode::ECANCELED as u32 => {
                 // this can happen if the dial future is dropped (such as if the future is
-                // cancelled), and that _also_ drops the referenced socket. if this occurrs, any
+                // cancelled), and that _also_ drops the referenced socket. if this occurs, any
                 // I/O operation on the socket is cancelled by nng, and thus we get that error.
                 // we don't need to _do_ anything with it though, since we _know_ the caller has
                 // gone away (and thus doesn't care about our return value).
