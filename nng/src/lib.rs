@@ -172,7 +172,7 @@ pub struct Params {
     /// The number of threads to use for tasks.
     ///
     /// These tasks are principally for callback completion. This number cannot
-    /// exceed [`Init::max_task_threads`].
+    /// exceed [`Params::max_task_threads`].
     pub num_task_threads: Option<NonZeroU16>,
 
     /// The maximum number of threads to use for tasks.
@@ -186,7 +186,7 @@ pub struct Params {
     ///
     /// Using a larger value will reduce contention on some common locks, and
     /// may improve performance. This number cannot exceed
-    /// [`Init::max_expire_threads`].
+    /// [`Params::max_expire_threads`].
     pub num_expire_threads: Option<NonZeroU16>,
 
     /// The maximum number of threads used for expiring operations.
@@ -199,7 +199,7 @@ pub struct Params {
     /// The number of threads to use for performing I/O.
     ///
     /// Not all configurations will support this. Cannot exceed
-    /// [`Init::max_poller_threads`].
+    /// [`Params::max_poller_threads`].
     pub num_poller_threads: Option<NonZeroU16>,
 
     /// The maximum number of threads to use for performing I/O.
