@@ -21,9 +21,9 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//! // Server side
-//! tokio::spawn(async {
-//!     let socket = reqrep0::Rep0::listen(c"inproc://quick-start").await?;
+//! // Server side - listen before the client dials
+//! let socket = reqrep0::Rep0::listen(c"inproc://quick-start").await?;
+//! tokio::spawn(async move {
 //!     let mut ctx = socket.context();
 //!     loop {
 //!         let (request, responder) = ctx.receive().await?;
@@ -36,7 +36,6 @@
 //!     }
 //!     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 //! });
-//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 //!
 //! // Client side
 //! let socket = reqrep0::Req0::dial(c"inproc://quick-start").await?;
@@ -61,9 +60,9 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//! // Publisher
-//! tokio::spawn(async {
-//!     let mut socket = pubsub0::Pub0::listen(c"inproc://pubsub").await?;
+//! // Publisher - listen before the subscriber dials
+//! let mut socket = pubsub0::Pub0::listen(c"inproc://pubsub").await?;
+//! tokio::spawn(async move {
 //!     loop {
 //!         let mut msg = Message::with_capacity(100);
 //!         write!(&mut msg, "news: Breaking news!")?;
@@ -73,7 +72,6 @@
 //!     }
 //!     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 //! });
-//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 //!
 //! // Subscriber
 //! let socket = pubsub0::Sub0::dial(c"inproc://pubsub").await?;

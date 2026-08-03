@@ -29,20 +29,22 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//! // Server, in one task
-//! # tokio::spawn(async {
+//! // The server must listen before the client dials, otherwise the dial is refused.
 //! let socket = reqrep0::Rep0::listen(c"inproc://demo").await?;
-//! let mut ctx = socket.context();
 //!
-//! let (request, responder) = ctx.receive().await?;
-//! println!("Got request: {:?}", request.as_slice());
+//! // Server, in one task
+//! tokio::spawn(async move {
+//!     let mut ctx = socket.context();
 //!
-//! let mut reply = Message::with_capacity(100);
-//! write!(&mut reply, "Hello back!")?;
-//! // TODO: In production, handle error and retry with returned responder and message
-//! responder.reply(reply).await.unwrap();
-//! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
-//! # });
+//!     let (request, responder) = ctx.receive().await?;
+//!     println!("Got request: {:?}", request.as_slice());
+//!
+//!     let mut reply = Message::with_capacity(100);
+//!     write!(&mut reply, "Hello back!")?;
+//!     // TODO: In production, handle error and retry with returned responder and message
+//!     responder.reply(reply).await.unwrap();
+//!     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+//! });
 //!
 //! // Client, in another (concurrent) task
 //! let socket = reqrep0::Req0::dial(c"inproc://demo").await?;
@@ -115,11 +117,11 @@ use std::{future::Future, io};
 /// # use std::io::Write;
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-/// # tokio::spawn(async {
-/// #     let socket = Rep0::listen(c"inproc://req0-usage-doctest").await?;
-/// #     let mut ctx = socket.context();
+/// # let replier = Rep0::listen(c"inproc://req0-usage-doctest").await?;
+/// # tokio::spawn(async move {
+/// #     let mut ctx = replier.context();
 /// #     loop {
-/// #         let (request, responder) = ctx.receive().await?;
+/// #         let (_request, responder) = ctx.receive().await?;
 /// #         let reply = anng::Message::from(&b"Reply from server"[..]);
 /// #         responder.reply(reply).await.unwrap();
 /// #     }
@@ -303,11 +305,12 @@ impl<'socket> ContextfulSocket<'socket, Req0> {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// # tokio::spawn(async {
-    /// #     let socket = reqrep0::Rep0::listen(c"inproc://request-doctest").await?;
-    /// #     let mut ctx = socket.context();
+    /// # // The replier must listen before the requester dials.
+    /// # let replier = reqrep0::Rep0::listen(c"inproc://request-doctest").await?;
+    /// # tokio::spawn(async move {
+    /// #     let mut ctx = replier.context();
     /// #     loop {
-    /// #         let (request, responder) = ctx.receive().await?;
+    /// #         let (_request, responder) = ctx.receive().await?;
     /// #         let mut reply = Message::with_capacity(100);
     /// #         write!(&mut reply, "Hello back!")?;
     /// #         responder.reply(reply).await.unwrap();
@@ -387,6 +390,10 @@ impl<'socket> ContextfulSocket<'socket, Req0> {
 /// # use anng::protocols::reqrep0::{Rep0, Req0};
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+/// // Listen for client connections
+/// let socket = Rep0::listen(c"inproc://rep0-usage-demo").await?;
+/// let mut ctx = socket.context();
+/// # // Only dial once the listener above is up, otherwise the dial is refused.
 /// # tokio::spawn(async {
 /// #     let socket = Req0::dial(c"inproc://rep0-usage-demo").await?;
 /// #     let mut ctx = socket.context();
@@ -395,9 +402,6 @@ impl<'socket> ContextfulSocket<'socket, Req0> {
 /// #     let _reply = reply_future.await?;
 /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 /// # });
-/// // Listen for client connections
-/// let socket = Rep0::listen(c"inproc://rep0-usage-demo").await?;
-/// let mut ctx = socket.context();
 ///
 /// // Handle request-reply cycle
 /// let (request, responder) = ctx.receive().await?;
@@ -563,6 +567,9 @@ impl<'socket> ContextfulSocket<'socket, Rep0> {
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+/// let socket = reqrep0::Rep0::listen(c"inproc://service").await?;
+/// let mut ctx = socket.context();
+/// # // Only dial once the listener above is up, otherwise the dial is refused.
 /// # tokio::spawn(async {
 /// #     let socket = reqrep0::Req0::dial(c"inproc://service").await?;
 /// #     let mut ctx = socket.context();
@@ -571,8 +578,6 @@ impl<'socket> ContextfulSocket<'socket, Rep0> {
 /// #     let _reply = reply_future.await?;
 /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 /// # });
-/// let socket = reqrep0::Rep0::listen(c"inproc://service").await?;
-/// let mut ctx = socket.context();
 ///
 /// let (request, responder) = ctx.receive().await?;
 ///
@@ -633,6 +638,9 @@ impl Responder<'_, '_> {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// let socket = reqrep0::Rep0::listen(c"inproc://replies").await?;
+    /// let mut ctx = socket.context();
+    /// # // Only dial once the listener above is up, otherwise the dial is refused.
     /// # tokio::spawn(async {
     /// #     let socket = reqrep0::Req0::dial(c"inproc://replies").await?;
     /// #     let mut ctx = socket.context();
@@ -641,8 +649,6 @@ impl Responder<'_, '_> {
     /// #     let _reply = reply_future.await?;
     /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     /// # });
-    /// let socket = reqrep0::Rep0::listen(c"inproc://replies").await?;
-    /// let mut ctx = socket.context();
     ///
     /// let (request, responder) = ctx.receive().await?;
     ///

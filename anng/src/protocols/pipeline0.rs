@@ -36,17 +36,17 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//! // Pusher (work distributor), in one task
-//! # tokio::spawn(async {
+//! // The pusher must listen before the puller dials, otherwise the dial is refused.
 //! let mut push_socket = pipeline0::Push0::listen(c"inproc://work-queue").await?;
 //!
-//! let mut task = Message::with_capacity(100);
-//! write!(&mut task, "process_data(42)")?;
-//! // TODO: In production, handle error and retry with returned message
-//! push_socket.push(task).await.unwrap();
-//! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
-//! # });
-//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+//! // Pusher (work distributor), in one task
+//! tokio::spawn(async move {
+//!     let mut task = Message::with_capacity(100);
+//!     write!(&mut task, "process_data(42)")?;
+//!     // TODO: In production, handle error and retry with returned message
+//!     push_socket.push(task).await.unwrap();
+//!     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+//! });
 //!
 //! // Puller (worker), in another task
 //! let mut pull_socket = pipeline0::Pull0::dial(c"inproc://work-queue").await?;
@@ -65,6 +65,9 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+//! // The distributor must listen before any worker dials
+//! let mut distributor = pipeline0::Push0::listen(c"inproc://pipeline-loadbalance-demo").await?;
+//!
 //! // Start multiple workers
 //! for worker_id in 0..2 {
 //!     tokio::spawn(async move {
@@ -80,7 +83,6 @@
 //! }
 //!
 //! // Distribute work
-//! let mut distributor = pipeline0::Push0::listen(c"inproc://pipeline-loadbalance-demo").await?;
 //! for i in 0..2 {
 //!     let mut task = Message::with_capacity(50);
 //!     write!(&mut task, "task_{}", i)?;
