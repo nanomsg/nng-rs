@@ -70,10 +70,10 @@ There is no fallback to a vendored version.
 
 This crate uses the format `<crate version>+<nng version>` following [Semantic Versioning 2.0.0](https://semver.org/#spec-item-10).
 
-**Example:** `0.3.0+1.11.0`
+**Example:** `0.3.0+1.12.0`
 
 - `0.3.0` - The crate's own semantic version, indicating API compatibility
-- `+1.11.0` - Build metadata showing the wrapped NNG library version
+- `+1.12.0` - Build metadata showing the wrapped NNG library version
 
 ### How Versions Change
 
