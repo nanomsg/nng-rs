@@ -254,6 +254,10 @@ impl From<Params> for nng_sys::nng_init_params {
             num_poller_threads: params.num_poller_threads.map_or(0, convert),
             max_poller_threads: params.max_poller_threads.map_or(0, convert),
             num_resolver_threads: params.num_resolver_threads.map_or(0, convert),
+            // Use NNG's default allocator.
+            malloc_fn: None,
+            calloc_fn: None,
+            free_fn: None,
         }
     }
 }

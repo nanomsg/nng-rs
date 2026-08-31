@@ -130,6 +130,10 @@ pub fn init_nng(config: Option<NngConfig>) -> Result<(), InitError> {
                 num_poller_threads: pool_num_to_i16(cfg.poller_threads),
                 max_poller_threads: pool_max_to_i16(cfg.poller_threads),
                 num_resolver_threads: cfg.num_resolver_threads.map_or(0, |n| n.get()),
+                // Use NNG's default allocator.
+                malloc_fn: None,
+                calloc_fn: None,
+                free_fn: None,
             };
             // SAFETY: params is valid and properly initialized
             unsafe { nng_sys::nng_init(&params) }
