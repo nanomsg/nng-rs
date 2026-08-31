@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adapt to NNG v2.0.0-beta.2 API. `nng_init_params` gained allocator hooks,
   which are left unset so NNG uses its default allocator.
+- `Message::remote_addr` now resolves the URL scheme via `nng_pipe_get_scheme`
+  instead of probing the pipe's listener and dialer, adopting the upstream fix
+  for [nng#2228](https://github.com/nanomsg/nng/issues/2228).
 
 ## [0.2.0-v2pre.2]
 
