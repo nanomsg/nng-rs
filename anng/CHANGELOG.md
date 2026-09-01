@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bump `nng-sys` to 0.3.1+1.12.4
+  ([#69](https://github.com/nanomsg/nng-rs/pull/69)).
+
 ### Deprecated
 
 ### Removed

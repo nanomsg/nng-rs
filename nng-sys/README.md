@@ -70,22 +70,22 @@ There is no fallback to a vendored version.
 
 This crate uses the format `<crate version>+<nng version>` following [Semantic Versioning 2.0.0](https://semver.org/#spec-item-10).
 
-**Example:** `0.3.0+1.11.0`
+**Example:** `0.3.1+1.12.4`
 
-- `0.3.0` - The crate's own semantic version, indicating API compatibility
-- `+1.11.0` - Build metadata showing the wrapped NNG library version
+- `0.3.1` - The crate's own semantic version, indicating API compatibility
+- `+1.12.4` - Build metadata showing the wrapped NNG library version
 
 ### How Versions Change
 
 | Scenario                    | Example Version | Explanation                                                                                |
 | --------------------------- | --------------- | ------------------------------------------------------------------------------------------ |
-| Patch fix in crate bindings | `0.3.1+1.11.0`  | Bug fixes, no API changes                                                                  |
-| Update to newer NNG version | `0.3.2+1.12.0`  | Compatible update to the NNG library                                                       |
-| Breaking change in bindings | `0.4.0+1.12.0`  | Breaking API changes introduced by e.g. a `bindgen` upgrade (pre-1.0, minor acts as major) |
+| Patch fix in crate bindings | `0.3.2+1.12.4`  | Bug fixes, no API changes                                                                  |
+| Update to newer NNG version | `0.3.3+1.13.0`  | Compatible update to the NNG library                                                       |
+| Breaking change in bindings | `0.4.0+1.13.0`  | Breaking API changes introduced by e.g. a `bindgen` upgrade (pre-1.0, minor acts as major) |
 | NNG major version update    | `0.5.0+2.0.0`   | A backwards-incompatible NNG release also results in a major version bump                                      |
 
 **Note:** Cargo ignores the `+<nng version>` build metadata suffix when resolving dependencies,
-so version `0.3.0+1.11.0` and `0.3.0+1.12.0` are considered equivalent by Cargo and cannot coexist.
+so version `0.3.1+1.12.4` and `0.3.1+1.13.0` are considered equivalent by Cargo and cannot coexist.
 
 **Note:** Versions of this crate prior to `0.3.0` used a different scheme (`<NNG_version>-rc.<crate_version>`).
 This legacy format has been replaced to allow for proper semantic versioning of the crate's API.

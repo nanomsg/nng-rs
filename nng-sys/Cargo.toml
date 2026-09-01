@@ -1,6 +1,6 @@
 [package]
 name = "nng-sys"
-version = "0.3.0+1.11.0"
+version = "0.3.1+1.12.4"
 authors = [
     "Nathan Kent <nate@nkent.net>",
     "Jake W <jeikabu@gmail.com>",
