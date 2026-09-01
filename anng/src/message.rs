@@ -2,7 +2,7 @@ use crate::{AioError, pipes::Url};
 use bytes::{Buf, BufMut};
 use core::{
     cmp::max,
-    ffi::c_void,
+    ffi::{c_char, c_void},
     fmt,
     mem::MaybeUninit,
     ops::{Deref, DerefMut},
@@ -423,85 +423,31 @@ impl Message {
             }
         };
 
-        // Get the URL scheme from the pipe's originating endpoint (listener or dialer).
+        // Get the URL scheme of the endpoint (listener or dialer) that created this pipe.
+        // The peer address (`nng_sockaddr`) only carries the address family, not the scheme.
         //
-        // NNG does not provide a direct API to get a URL or transport type from a pipe.
-        // There's no `nng_pipe_get_url()` or transport type accessor. The peer address
-        // (`nng_sockaddr`) only contains address family, not the URL scheme. We must
-        // retrieve the scheme from the endpoint that created this pipe.
-        //
-        // TODO(flxo): once upstream fixes [2228](https://github.com/nanomsg/nng/issues/2228),
-        //             simplify this.
-        //
-        // In NNG, a pipe represents a single connection and is created by exactly one of:
-        // - A listener: when accepting an incoming connection
-        // - A dialer: when initiating an outgoing connection
-        //
-        // We use nng_listener_id/nng_dialer_id to determine which endpoint created this pipe.
-        // These functions return a positive ID for valid endpoints, or -1 for invalid ones.
-        // Only one will be valid for any given pipe.
-        //
-        // Note on URL ownership: nng_listener_get_url/nng_dialer_get_url return a borrowed
-        // pointer to NNG's internal URL structure (hence `const nng_url **`). This URL is
-        // owned by the listener/dialer and will be freed when that endpoint closes.
-        // We do NOT call nng_url_free here - that is only for URLs created by nng_url_parse().
-        let mut urlp: *const nng_sys::nng_url = core::ptr::null();
-
-        // Try to get URL from listener first, then dialer.
-        // Note: The endpoint could be closed between checking the ID and getting the URL.
-        // nng_listener_get_url and nng_dialer_get_url can only return:
-        // - 0 (NNG_OK): success
-        // - NNG_ENOENT: endpoint is invalid or was closed
-        // See nni_listener_find/nni_dialer_find in nng/src/core/listener.c and dialer.c.
-        const NNG_ENOENT: i32 = nng_sys::nng_err::NNG_ENOENT.0 as i32;
-
-        // SAFETY: pipe is valid (from self.pipe()).
-        let listener = unsafe { nng_sys::nng_pipe_listener(pipe) };
-        // SAFETY: listener is a stack value returned from nng_pipe_listener.
-        if unsafe { nng_sys::nng_listener_id(listener) } > 0 {
-            // SAFETY: listener is valid (positive ID), urlp is valid for writing.
-            let result = unsafe { nng_sys::nng_listener_get_url(listener, &mut urlp) };
-            match result {
-                0 => {} // success, urlp is now set
-                NNG_ENOENT => {
-                    tracing::debug!("listener was closed while retrieving URL");
-                    return None;
-                }
-                err => unreachable!("unexpected error from nng_listener_get_url: {err}"),
-            }
-        } else {
-            // SAFETY: pipe is valid (from self.pipe()).
-            let dialer = unsafe { nng_sys::nng_pipe_dialer(pipe) };
-            // SAFETY: dialer is a stack value returned from nng_pipe_dialer.
-            if unsafe { nng_sys::nng_dialer_id(dialer) } > 0 {
-                // SAFETY: dialer is valid (positive ID), urlp is valid for writing.
-                let result = unsafe { nng_sys::nng_dialer_get_url(dialer, &mut urlp) };
-                match result {
-                    0 => {} // success, urlp is now set
-                    NNG_ENOENT => {
-                        tracing::debug!("dialer was closed while retrieving URL");
-                        return None;
-                    }
-                    err => unreachable!("unexpected error from nng_dialer_get_url: {err}"),
-                }
-            } else {
-                // Neither listener nor dialer is valid - pipe may have been closed
-                return None;
+        // Note on ownership: NNG hands back a pointer into its static table of recognised
+        // schemes (`nni_schemes` in nng/src/core/url.c), not into per-endpoint storage. It is
+        // valid for the lifetime of the process and must not be freed.
+        let mut scheme_ptr: *const c_char = core::ptr::null();
+        // SAFETY: pipe is valid (from self.pipe()), scheme_ptr is valid for writing.
+        let errno = unsafe { nng_sys::nng_pipe_get_scheme(pipe, &mut scheme_ptr) };
+        match errno {
+            nng_err::NNG_OK => {}
+            // The pipe was closed between self.pipe() and here.
+            nng_err::NNG_ENOENT => return None,
+            // The pipe has neither a dialer nor a listener, so there is no scheme.
+            nng_err::NNG_ENOTSUP => return None,
+            _ => {
+                unreachable!(
+                    "nng_pipe_get_scheme documentation claims err \"{errno}\" is never returned"
+                );
             }
         }
 
-        let scheme = if !urlp.is_null() {
-            // SAFETY: urlp is non-null and was set by nng_listener_get_url or nng_dialer_get_url.
-            let scheme_ptr = unsafe { nng_sys::nng_url_scheme(urlp) };
-            if !scheme_ptr.is_null() {
-                // SAFETY: scheme_ptr is non-null and points to a valid C string owned by NNG.
-                unsafe { CStr::from_ptr(scheme_ptr) }
-            } else {
-                return None;
-            }
-        } else {
-            return None;
-        };
+        // SAFETY: nng_pipe_get_scheme writes `scheme_ptr` and returns NNG_OK only when the
+        // scheme is non-null, so on this path it points to a valid C string owned by NNG.
+        let scheme = unsafe { CStr::from_ptr(scheme_ptr) };
 
         Url::from_nng(&addr, scheme)
     }

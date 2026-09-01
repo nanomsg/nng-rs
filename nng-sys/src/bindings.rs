@@ -3,7 +3,7 @@
 pub const NNG_MAJOR_VERSION: u32 = 2;
 pub const NNG_MINOR_VERSION: u32 = 0;
 pub const NNG_PATCH_VERSION: u32 = 0;
-pub const NNG_RELEASE_SUFFIX: &[u8; 4] = b"dev\0";
+pub const NNG_RELEASE_SUFFIX: &[u8; 5] = b"beta\0";
 pub const NNG_MAXADDRLEN: u32 = 128;
 pub const NNG_DURATION_INFINITE: i32 = -1;
 pub const NNG_DURATION_DEFAULT: i32 = -2;
@@ -25,6 +25,9 @@ pub const NNG_OPT_TCP_NODELAY: &[u8; 12] = b"tcp-nodelay\0";
 pub const NNG_OPT_TCP_KEEPALIVE: &[u8; 14] = b"tcp-keepalive\0";
 pub const NNG_OPT_BOUND_PORT: &[u8; 11] = b"bound-port\0";
 pub const NNG_OPT_UDP_COPY_MAX: &[u8; 13] = b"udp:copy-max\0";
+pub const NNG_OPT_UDP_CONN_RETRY: &[u8; 15] = b"udp:conn-retry\0";
+pub const NNG_OPT_UDP_CONN_EXPIRE: &[u8; 16] = b"udp:conn-expire\0";
+pub const NNG_OPT_UDP_MAX_PEERS: &[u8; 14] = b"udp:max-peers\0";
 pub const NNG_OPT_IPC_PERMISSIONS: &[u8; 16] = b"ipc:permissions\0";
 pub const NNG_OPT_PEER_UID: &[u8; 13] = b"ipc:peer-uid\0";
 pub const NNG_OPT_IPC_PEER_UID: &[u8; 13] = b"ipc:peer-uid\0";
@@ -914,7 +917,7 @@ unsafe extern "C" {
         arg1: *mut nng_aio,
         arg2: ::core::ffi::c_uint,
         arg3: *mut ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int;
+    ) -> nng_err;
 }
 unsafe extern "C" {
     pub fn nng_aio_get_input(
@@ -927,7 +930,7 @@ unsafe extern "C" {
         arg1: *mut nng_aio,
         arg2: ::core::ffi::c_uint,
         arg3: *mut ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int;
+    ) -> nng_err;
 }
 unsafe extern "C" {
     pub fn nng_aio_get_output(
@@ -946,7 +949,7 @@ unsafe extern "C" {
         arg1: *mut nng_aio,
         arg2: ::core::ffi::c_uint,
         arg3: *const nng_iov,
-    ) -> ::core::ffi::c_int;
+    ) -> nng_err;
 }
 unsafe extern "C" {
     pub fn nng_aio_reset(arg1: *mut nng_aio);
@@ -963,6 +966,9 @@ unsafe extern "C" {
         arg2: nng_aio_cancelfn,
         arg3: *mut ::core::ffi::c_void,
     ) -> bool;
+}
+unsafe extern "C" {
+    pub fn nng_aio_skip_callback(arg1: *mut nng_aio, arg2: *mut bool);
 }
 unsafe extern "C" {
     pub fn nng_sleep_aio(arg1: nng_duration, arg2: *mut nng_aio);
@@ -1177,6 +1183,9 @@ unsafe extern "C" {
         arg2: *const ::core::ffi::c_char,
         arg3: *mut usize,
     ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_pipe_get_scheme(arg1: nng_pipe, arg2: *mut *const ::core::ffi::c_char) -> nng_err;
 }
 unsafe extern "C" {
     pub fn nng_pipe_peer_addr(arg1: nng_pipe, arg2: *mut nng_sockaddr) -> nng_err;
@@ -1710,6 +1719,13 @@ pub struct nng_init_params {
     pub num_poller_threads: i16,
     pub max_poller_threads: i16,
     pub num_resolver_threads: i16,
+    pub malloc_fn:
+        ::core::option::Option<unsafe extern "C" fn(arg1: usize) -> *mut ::core::ffi::c_void>,
+    pub calloc_fn: ::core::option::Option<
+        unsafe extern "C" fn(arg1: usize, arg2: usize) -> *mut ::core::ffi::c_void,
+    >,
+    pub free_fn:
+        ::core::option::Option<unsafe extern "C" fn(arg1: *mut ::core::ffi::c_void, arg2: usize)>,
 }
 unsafe extern "C" {
     pub fn nng_init(params: *const nng_init_params) -> nng_err;

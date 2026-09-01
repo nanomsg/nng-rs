@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+## [0.2.0-v2pre.3]
+
+### Changed
+
+- Adapt to NNG v2.0.0-beta.2 API. `nng_init_params` gained allocator hooks,
+  which are left unset so NNG uses its default allocator.
+- `Message::remote_addr` now resolves the URL scheme via `nng_pipe_get_scheme`
+  instead of probing the pipe's listener and dialer, adopting the upstream fix
+  for [nng#2228](https://github.com/nanomsg/nng/issues/2228).
+
 ## [0.2.0-v2pre.2]
 
 ### Changed
@@ -63,7 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial public release.
 
-[unreleased]: https://github.com/nanomsg/nng-rs/compare/anng-v0.2.0-v2pre.2...HEAD
+[unreleased]: https://github.com/nanomsg/nng-rs/compare/anng-v0.2.0-v2pre.3...HEAD
+[0.2.0-v2pre.3]: https://github.com/nanomsg/nng-rs/compare/anng-v0.2.0-v2pre.2...anng-v0.2.0-v2pre.3
 [0.2.0-v2pre.2]: https://github.com/nanomsg/nng-rs/compare/anng-v0.2.0-v2pre.1...anng-v0.2.0-v2pre.2
 [0.2.0-v2pre.1]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.3...anng-v0.2.0-v2pre.1
 [0.1.3]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.2...anng-v0.1.3

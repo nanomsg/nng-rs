@@ -27,7 +27,8 @@ ffi-module = []
 log = "0.4.28"
 
 [dependencies.nng-sys]
-version = "0.4.0-v2pre.2"
+version = "0.4.0-v2pre.3"
+path = "../nng-sys"
 default-features = false
 
 [lints.rust]
