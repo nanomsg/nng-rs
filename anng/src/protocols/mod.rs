@@ -135,10 +135,9 @@ pub(crate) async fn add_listener_to_socket<Protocol>(
         let errno = unsafe { nng_sys::nng_listener_close(listener) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            // the listener/socket was already closed (e.g. the nng runtime was torn down via
-            // the `unsafe` `deinit_nng`/`nng_fini`); there is nothing left to clean up, and we
-            // return the pre_start error below regardless.
-            err if err == ErrorCode::ECLOSED as u32 => {}
+            err if err == ErrorCode::ECLOSED as u32 => {
+                unreachable!("the listener handle is valid");
+            }
             errno => {
                 unreachable!(
                     "nng_listener_close documentation claims errno {errno} is never returned"
@@ -151,30 +150,11 @@ pub(crate) async fn add_listener_to_socket<Protocol>(
     let errno = unsafe { nng_sys::nng_listener_start(listener, 0) };
     match u32::try_from(errno).expect("errno is never negative") {
         0 => {}
-        err if err == ErrorCode::ECLOSED as u32 => {
-            // the socket (and thus this listener) was closed out from under us. unlike the
-            // dialer, `add_listener_to_socket` is fully synchronous — no `spawn_blocking`, no
-            // `await` — so there is no dropped-future path here. the only way to reach `ECLOSED`
-            // is a teardown of the nng runtime via the `unsafe` `deinit_nng`/`nng_fini` while
-            // the socket was still open. surface the real error to the caller, who is still
-            // awaiting the result.
-            tracing::warn!("socket closed during listener start");
-            return Err(io::Error::from(AioError::Operation(ErrorKind::NngError(
-                ErrorCode::ECLOSED,
-            ))));
+        err if err == ErrorCode::ECLOSED as u32 || err == ErrorCode::ESTOPPED as u32 => {
+            unreachable!("the listener handle is valid and nng is not torn down");
         }
         err if err == ErrorCode::ESTATE as u32 => {
             unreachable!("the listener is not already started");
-        }
-        err if err == ErrorCode::ESTOPPED as u32 => {
-            // the whole nng runtime was torn down (e.g. via `nng_fini` / `deinit_nng`)
-            // while we were starting the listener. that API is `unsafe` and its contract
-            // requires all sockets to be closed first, so a correct caller won't hit this,
-            // but a misuse — or a racy shutdown sequence — can surface it here.
-            tracing::warn!("nng runtime torn down during listener start");
-            return Err(io::Error::from(AioError::Operation(ErrorKind::NngError(
-                ErrorCode::ESTOPPED,
-            ))));
         }
         err if err == ErrorCode::EADDRINUSE as u32 || err == ErrorCode::EPERM as u32 => {
             return Err(io::Error::from(AioError::Operation(
@@ -229,10 +209,9 @@ pub(crate) async fn add_dialer_to_socket<Protocol>(
         let errno = unsafe { nng_sys::nng_dialer_close(dialer) };
         match u32::try_from(errno).expect("errno is never negative") {
             0 => {}
-            // the dialer/socket was already closed (e.g. the nng runtime was torn down via
-            // the `unsafe` `deinit_nng`/`nng_fini`); there is nothing left to clean up, and we
-            // return the pre_start error below regardless.
-            err if err == ErrorCode::ECLOSED as u32 => {}
+            err if err == ErrorCode::ECLOSED as u32 => {
+                unreachable!("the dialer handle is valid");
+            }
             errno => {
                 unreachable!(
                     "nng_dialer_close documentation claims errno {errno} is never returned"
@@ -256,47 +235,25 @@ pub(crate) async fn add_dialer_to_socket<Protocol>(
         // the dialing.
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(()),
-            err if err == ErrorCode::ECLOSED as u32 => {
-                // the socket was closed underneath the dial. this function borrows the socket
-                // as `&Socket` for the lifetime of the returned future, and
-                // `Socket::drop` needs `&mut self`, so the borrow checker prevents the socket
-                // from being closed out from under us while the future is alive. the only way
-                // to reach `ECLOSED` here is therefore: the dial future was dropped, the
-                // `spawn_blocking` worker detached, and the caller subsequently dropped the
-                // `Socket`. the future can be dropped by any cancellation (`select!`,
-                // `tokio::time::timeout`, `FuturesUnordered`, ...); that releases the borrow,
-                // which lets the caller drop the `Socket`, whose `Drop` impl calls
-                // `nng_socket_close` and so closes the socket under the still-running detached
-                // worker. note this does *not* involve a panic or `nng_fini`/`deinit_nng`
-                // tearing down the runtime — that path returns `ESTOPPED` and is handled
-                // below. in this case nobody is listening for our return value, so map this
-                // like `ECANCELED`.
-                tracing::warn!("socket closed after dial future was dropped");
+            err if err == ErrorCode::ECLOSED as u32 || err == ErrorCode::ECANCELED as u32 => {
+                // we hold the socket as `&Socket` for the lifetime of the returned future, so
+                // it cannot be dropped while a caller is still awaiting us. the only way to get
+                // here is therefore: the dial future was cancelled (`select!`,
+                // `tokio::time::timeout`, `FuturesUnordered`, ...), which detached this worker
+                // and released the borrow, and the caller then dropped the `Socket`. nng
+                // reports the in-flight dial as cancelled or the socket as closed. either way
+                // nobody is waiting for our return value.
+                tracing::warn!(
+                    errno = err,
+                    "socket dropped while dial future still running"
+                );
                 Err(io::Error::from(AioError::Cancelled))
             }
             err if err == ErrorCode::ESTOPPED as u32 => {
-                // the whole nng runtime was torn down (e.g. via `nng_fini` /
-                // `deinit_nng`). that API is `unsafe` and its contract requires all sockets
-                // to be closed first, so a correct caller won't hit this mid-await. but a
-                // misuse — or a racy shutdown sequence — can tear down the runtime while a
-                // dial is still in flight. surface the real error so a caller that is still
-                // awaiting learns the truth; for the dropped-future case tokio discards it.
-                tracing::warn!("nng runtime torn down during dial");
-                Err(io::Error::from(AioError::Operation(ErrorKind::NngError(
-                    ErrorCode::ESTOPPED,
-                ))))
+                unreachable!("nng is not torn down while a socket is open");
             }
             err if err == ErrorCode::ESTATE as u32 => {
                 unreachable!("the dialer has not been started");
-            }
-            err if err == ErrorCode::ECANCELED as u32 => {
-                // this can happen if the dial future is dropped (such as if the future is
-                // cancelled), and that _also_ drops the referenced socket. if this occurs, any
-                // I/O operation on the socket is cancelled by nng, and thus we get that error.
-                // we don't need to _do_ anything with it though, since we _know_ the caller has
-                // gone away (and thus doesn't care about our return value).
-                tracing::warn!("socket dropped while (now-cancelled) dial future still running");
-                Err(io::Error::from(AioError::Cancelled))
             }
             err if err == ErrorCode::EAGAIN as u32 => {
                 // this is returned from `getaddrinfo` if there's a temporary failure in name
