@@ -437,10 +437,7 @@ impl Message {
             // The pipe was closed between self.pipe() and here.
             nng_err::NNG_ENOENT => return None,
             // The pipe has neither a dialer nor a listener, so there is no scheme.
-            nng_err::NNG_ENOTSUP => {
-                tracing::warn!("Message pipe does not expose a URL scheme");
-                return None;
-            }
+            nng_err::NNG_ENOTSUP => return None,
             _ => {
                 unreachable!(
                     "nng_pipe_get_scheme documentation claims err \"{errno}\" is never returned"
