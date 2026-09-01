@@ -31,20 +31,20 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//! // Publisher, in one task
-//! # tokio::spawn(async {
+//! // The publisher must listen before the subscriber dials, otherwise the dial is refused.
 //! let mut pub_socket = pubsub0::Pub0::listen(c"inproc://news").await?;
 //!
-//! # loop {
-//! let mut msg = Message::with_capacity(100);
-//! write!(&mut msg, "news.sports: Team wins!")?;
-//! // TODO: In production, handle error and retry with returned message
-//! pub_socket.publish(msg).await.unwrap();
-//! # tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-//! # }
-//! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
-//! # });
-//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+//! // Publisher, in one task
+//! tokio::spawn(async move {
+//! #   loop {
+//!     let mut msg = Message::with_capacity(100);
+//!     write!(&mut msg, "news.sports: Team wins!")?;
+//!     // TODO: In production, handle error and retry with returned message
+//!     pub_socket.publish(msg).await.unwrap();
+//! #   tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+//! #   }
+//!     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+//! });
 //!
 //! // Subscriber, in another task
 //! let sub_socket = pubsub0::Sub0::dial(c"inproc://news").await?;
@@ -65,8 +65,8 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//! # tokio::spawn(async {
 //! # let mut pub_socket = pubsub0::Pub0::listen(c"inproc://pubsub-topic-filter-demo").await?;
+//! # tokio::spawn(async move {
 //! # loop {
 //! #     let mut msg = Message::with_capacity(100);
 //! #     write!(&mut msg, "news.sports: Team wins!")?;
@@ -75,7 +75,6 @@
 //! # }
 //! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 //! # });
-//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 //! let sub_socket = pubsub0::Sub0::dial(c"inproc://pubsub-topic-filter-demo").await?;
 //! let mut sub = sub_socket.context();
 //!
@@ -129,8 +128,8 @@ use std::io;
 /// # use std::io::Write;
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-/// # tokio::spawn(async {
-/// #     let mut pub_socket = Pub0::listen(c"inproc://sub0-usage-doctest").await?;
+/// # let mut pub_socket = Pub0::listen(c"inproc://sub0-usage-doctest").await?;
+/// # tokio::spawn(async move {
 /// #     loop {
 /// #         let mut msg = anng::Message::with_capacity(100);
 /// #         write!(&mut msg, "news.breaking: Important update!")?;
@@ -139,7 +138,6 @@ use std::io;
 /// #     }
 /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 /// # });
-/// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 /// // Connect to publisher
 /// let socket = Sub0::dial(c"inproc://sub0-usage-doctest").await?;
 /// let mut ctx = socket.context();
@@ -219,8 +217,8 @@ impl<'socket> ContextfulSocket<'socket, Sub0> {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// # tokio::spawn(async {
-    /// #     let mut pub_socket = pubsub0::Pub0::listen(c"inproc://next-doctest-feed").await?;
+    /// # let mut pub_socket = pubsub0::Pub0::listen(c"inproc://next-doctest-feed").await?;
+    /// # tokio::spawn(async move {
     /// #     loop {
     /// #         let mut msg = anng::Message::with_capacity(100);
     /// #         write!(&mut msg, "news.sports: Team wins championship!")?;
@@ -229,7 +227,6 @@ impl<'socket> ContextfulSocket<'socket, Sub0> {
     /// #     }
     /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     /// # });
-    /// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     /// let socket = pubsub0::Sub0::dial(c"inproc://next-doctest-feed").await?;
     /// let mut sub = socket.context();
     ///
@@ -314,8 +311,8 @@ impl<'socket> ContextfulSocket<'socket, Sub0> {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// # tokio::spawn(async {
-    /// #     let mut pub_socket = pubsub0::Pub0::listen(c"inproc://sub0-disable-filtering-demo").await?;
+    /// # let mut pub_socket = pubsub0::Pub0::listen(c"inproc://sub0-disable-filtering-demo").await?;
+    /// # tokio::spawn(async move {
     /// #     loop {
     /// #         let mut msg = anng::Message::with_capacity(100);
     /// #         write!(&mut msg, "test message")?;
@@ -324,7 +321,6 @@ impl<'socket> ContextfulSocket<'socket, Sub0> {
     /// #     }
     /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     /// # });
-    /// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     /// let socket = pubsub0::Sub0::dial(c"inproc://sub0-disable-filtering-demo").await?;
     /// let mut sub = socket.context();
     ///

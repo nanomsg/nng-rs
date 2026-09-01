@@ -33,32 +33,33 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-//! // Surveyor, in one task
-//! # tokio::spawn(async {
+//! // The surveyor must listen before the respondent dials, otherwise the dial is refused.
 //! let socket = survey0::Surveyor0::listen(c"inproc://survey").await?;
-//! let mut ctx = socket.context();
 //!
-//! loop {
-//!     let mut survey = Message::with_capacity(100);
-//!     write!(&mut survey, "Who wants to be leader?")?;
+//! // Surveyor, in one task
+//! tokio::spawn(async move {
+//!     let mut ctx = socket.context();
 //!
-//!     let timeout = std::time::Duration::from_millis(200);
-//!     // TODO: In production, handle error and retry with returned message
-//!     let mut responses = ctx.survey(survey, timeout).await.unwrap();
-//!     // Collect responses for the configured timeout period
-//!     while let Some(response) = responses.next().await {
-//!         match response {
-//!             Ok(msg) => println!("Response: {:?}", msg.as_slice()),
-//!             Err(e) => {
-//!                 println!("Survey error: {:?}", e);
-//!                 break;
+//!     loop {
+//!         let mut survey = Message::with_capacity(100);
+//!         write!(&mut survey, "Who wants to be leader?")?;
+//!
+//!         let timeout = std::time::Duration::from_millis(200);
+//!         // TODO: In production, handle error and retry with returned message
+//!         let mut responses = ctx.survey(survey, timeout).await.unwrap();
+//!         // Collect responses for the configured timeout period
+//!         while let Some(response) = responses.next().await {
+//!             match response {
+//!                 Ok(msg) => println!("Response: {:?}", msg.as_slice()),
+//!                 Err(e) => {
+//!                     println!("Survey error: {:?}", e);
+//!                     break;
+//!                 }
 //!             }
 //!         }
 //!     }
-//! }
-//! # Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
-//! # });
-//! # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+//!     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+//! });
 //!
 //! // Respondent, in another task
 //! let socket = survey0::Respondent0::dial(c"inproc://survey").await?;
@@ -237,19 +238,20 @@ impl<'socket> ContextfulSocket<'socket, Surveyor0> {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// let socket = survey0::Surveyor0::listen(c"inproc://vote").await?;
+    /// let mut ctx = socket.context();
+    /// # // Only dial once the listener above is up, otherwise the dial is refused.
     /// # tokio::spawn(async {
     /// #     let socket = survey0::Respondent0::dial(c"inproc://vote").await?;
     /// #     let mut ctx = socket.context();
     /// #     loop {
-    /// #         let (survey, responder) = ctx.next_survey().await?;
+    /// #         let (_survey, responder) = ctx.next_survey().await?;
     /// #         let mut response = Message::with_capacity(50);
     /// #         write!(&mut response, "Yes")?;
     /// #         responder.respond(response).await.unwrap();
     /// #     }
     /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     /// # });
-    /// let socket = survey0::Surveyor0::listen(c"inproc://vote").await?;
-    /// let mut ctx = socket.context();
     ///
     /// let mut survey = Message::with_capacity(100);
     /// write!(&mut survey, "Should we upgrade to version 2.0?")?;
@@ -317,18 +319,19 @@ impl SurveyResponses<'_, '_> {
     /// # use std::time::Duration;
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    /// # let socket = survey0::Surveyor0::listen(c"inproc://test").await?;
+    /// # let mut ctx = socket.context();
+    /// # // Only dial once the listener above is up, otherwise the dial is refused.
     /// # tokio::spawn(async {
     /// #     let socket = survey0::Respondent0::dial(c"inproc://test").await?;
     /// #     let mut ctx = socket.context();
     /// #     loop {
-    /// #         let (survey, responder) = ctx.next_survey().await?;
+    /// #         let (_survey, responder) = ctx.next_survey().await?;
     /// #         let response = Message::from(&b"test response"[..]);
     /// #         responder.respond(response).await.unwrap();
     /// #     }
     /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     /// # });
-    /// # let socket = survey0::Surveyor0::listen(c"inproc://test").await?;
-    /// # let mut ctx = socket.context();
     /// # let survey = Message::from(&b"test"[..]);
     /// let timeout = Duration::from_secs(1);
     /// let mut responses = ctx.survey(survey, timeout).await.unwrap();
@@ -427,9 +430,9 @@ impl SurveyResponses<'_, '_> {
 /// # use std::io::Write;
 /// # #[tokio::main]
 /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-/// # tokio::spawn(async {
-/// #     let socket = Surveyor0::listen(c"inproc://respondent0-usage-doctest").await?;
-/// #     let mut ctx = socket.context();
+/// # let surveyor = Surveyor0::listen(c"inproc://respondent0-usage-doctest").await?;
+/// # tokio::spawn(async move {
+/// #     let mut ctx = surveyor.context();
 /// #     loop {
 /// #         let mut survey = Message::with_capacity(50);
 /// #         write!(&mut survey, "health-check")?;
@@ -439,7 +442,6 @@ impl SurveyResponses<'_, '_> {
 /// #     }
 /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
 /// # });
-/// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 /// // Connect to surveyor
 /// let socket = Respondent0::dial(c"inproc://respondent0-usage-doctest").await?;
 /// let mut ctx = socket.context();
@@ -522,9 +524,9 @@ impl<'socket> ContextfulSocket<'socket, Respondent0> {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// # tokio::spawn(async {
-    /// #     let socket = survey0::Surveyor0::listen(c"inproc://service-discovery").await?;
-    /// #     let mut ctx = socket.context();
+    /// # let surveyor = survey0::Surveyor0::listen(c"inproc://service-discovery").await?;
+    /// # tokio::spawn(async move {
+    /// #     let mut ctx = surveyor.context();
     /// #     loop {
     /// #         let mut survey = Message::with_capacity(50);
     /// #         write!(&mut survey, "health-check")?;
@@ -534,7 +536,6 @@ impl<'socket> ContextfulSocket<'socket, Respondent0> {
     /// #     }
     /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     /// # });
-    /// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     /// let socket = survey0::Respondent0::dial(c"inproc://service-discovery").await?;
     /// let mut ctx = socket.context();
     ///
@@ -631,9 +632,9 @@ impl SurveyResponder<'_, '_> {
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    /// # tokio::spawn(async {
-    /// #     let socket = survey0::Surveyor0::listen(c"inproc://status").await?;
-    /// #     let mut ctx = socket.context();
+    /// # let surveyor = survey0::Surveyor0::listen(c"inproc://status").await?;
+    /// # tokio::spawn(async move {
+    /// #     let mut ctx = surveyor.context();
     /// #     loop {
     /// #         let survey = Message::from(&b"status check"[..]);
     /// #         let timeout = std::time::Duration::from_secs(1);
@@ -642,7 +643,6 @@ impl SurveyResponder<'_, '_> {
     /// #     }
     /// #     Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     /// # });
-    /// # tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     /// let socket = survey0::Respondent0::dial(c"inproc://status").await?;
     /// let mut ctx = socket.context();
     ///
