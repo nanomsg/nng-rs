@@ -150,8 +150,11 @@ pub(crate) async fn add_listener_to_socket<Protocol>(
     let errno = unsafe { nng_sys::nng_listener_start(listener, 0) };
     match u32::try_from(errno).expect("errno is never negative") {
         0 => {}
-        err if err == ErrorCode::ECLOSED as u32 || err == ErrorCode::ESTOPPED as u32 => {
-            unreachable!("the listener handle is valid and nng is not torn down");
+        err if err == ErrorCode::ECLOSED as u32 => {
+            unreachable!("the listener handle is valid");
+        }
+        err if err == ErrorCode::ESTOPPED as u32 => {
+            unreachable!("nng is not torn down");
         }
         err if err == ErrorCode::ESTATE as u32 => {
             unreachable!("the listener is not already started");
