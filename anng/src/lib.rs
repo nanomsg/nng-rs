@@ -444,7 +444,7 @@ impl<Protocol> Socket<Protocol> {
         url: impl AsRef<CStr>,
         options: &pipes::PipeOptions,
     ) -> io::Result<pipes::Dialer<'socket, Protocol>> {
-        let dialer = crate::protocols::add_dialer_to_socket(self.socket, url.as_ref(), |_dialer| {
+        let dialer = crate::protocols::add_dialer_to_socket(self, url.as_ref(), |_dialer| {
             let pipes::PipeOptions {} = options;
             Ok(())
         })
@@ -495,12 +495,11 @@ impl<Protocol> Socket<Protocol> {
         url: impl AsRef<CStr>,
         options: &pipes::PipeOptions,
     ) -> io::Result<pipes::Listener<'socket, Protocol>> {
-        let listener =
-            crate::protocols::add_listener_to_socket(self.socket, url.as_ref(), |_listener| {
-                let pipes::PipeOptions {} = options;
-                Ok(())
-            })
-            .await?;
+        let listener = crate::protocols::add_listener_to_socket(self, url.as_ref(), |_listener| {
+            let pipes::PipeOptions {} = options;
+            Ok(())
+        })
+        .await?;
         Ok(pipes::Listener {
             socket: self,
             listener,

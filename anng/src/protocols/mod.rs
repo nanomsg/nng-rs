@@ -96,8 +96,8 @@ pub(crate) unsafe fn create_socket<Protocol: core::fmt::Debug>(
 }
 
 /// Adds a listener to an existing socket.
-pub(crate) async fn add_listener_to_socket(
-    socket: nng_sys::nng_socket,
+pub(crate) async fn add_listener_to_socket<Protocol>(
+    socket: &Socket<Protocol>,
     url: &CStr,
     pre_start: impl FnOnce(nng_sys::nng_listener) -> io::Result<()>,
 ) -> io::Result<nng_sys::nng_listener> {
@@ -105,7 +105,7 @@ pub(crate) async fn add_listener_to_socket(
 
     // SAFETY: listener pointer is valid for writing, socket is valid, addr is valid C string.
     let errno =
-        unsafe { nng_sys::nng_listener_create(listener.as_mut_ptr(), socket, url.as_ptr()) };
+        unsafe { nng_sys::nng_listener_create(listener.as_mut_ptr(), socket.socket, url.as_ptr()) };
     match u32::try_from(errno).expect("errno is never negative") {
         0 => {}
         err if err == ErrorCode::ENOMEM as u32 => {
@@ -153,6 +153,9 @@ pub(crate) async fn add_listener_to_socket(
         err if err == ErrorCode::ECLOSED as u32 => {
             unreachable!("the listener handle is valid");
         }
+        err if err == ErrorCode::ESTOPPED as u32 => {
+            unreachable!("nng is not torn down");
+        }
         err if err == ErrorCode::ESTATE as u32 => {
             unreachable!("the listener is not already started");
         }
@@ -170,12 +173,8 @@ pub(crate) async fn add_listener_to_socket(
 }
 
 /// Adds a dialer to an existing socket.
-///
-/// # Safety
-///
-/// The socket must be a valid, open NNG socket.
-pub(crate) async fn add_dialer_to_socket(
-    socket: nng_sys::nng_socket,
+pub(crate) async fn add_dialer_to_socket<Protocol>(
+    socket: &Socket<Protocol>,
     url: &CStr,
     pre_start: impl FnOnce(nng_sys::nng_dialer) -> io::Result<()>,
 ) -> io::Result<nng_sys::nng_dialer> {
@@ -186,7 +185,8 @@ pub(crate) async fn add_dialer_to_socket(
     let mut dialer = MaybeUninit::<nng_sys::nng_dialer>::uninit();
 
     // SAFETY: dialer pointer is valid for writing, socket is valid, and addr is valid C string.
-    let errno = unsafe { nng_sys::nng_dialer_create(dialer.as_mut_ptr(), socket, url.as_ptr()) };
+    let errno =
+        unsafe { nng_sys::nng_dialer_create(dialer.as_mut_ptr(), socket.socket, url.as_ptr()) };
     match u32::try_from(errno).expect("errno is never negative") {
         0 => {}
         err if err == ErrorCode::ENOMEM as u32 => {
@@ -238,20 +238,33 @@ pub(crate) async fn add_dialer_to_socket(
         // the dialing.
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(()),
+            // the next three arms are one situation seen three ways: our future was cancelled
+            // (`select!`, `tokio::time::timeout`, ...), which detached this worker and released
+            // the `&Socket` borrow, and the caller then dropped the `Socket`. teardown is not
+            // atomic from here — `nni_dialer_close` unregisters the dialer, and reaping it then
+            // stops the connect aio we are parked on — so which errno we see depends purely on
+            // where the threads interleave. nobody is waiting for our return value either way.
+            err if err == ErrorCode::ECANCELED as u32 => {
+                tracing::warn!("socket dropped while dial future still running (ECANCELED)");
+                Err(io::Error::from(AioError::Cancelled))
+            }
             err if err == ErrorCode::ECLOSED as u32 => {
-                unreachable!("the socket is still valid");
+                tracing::warn!("socket closed while dial future still running (ECLOSED)");
+                Err(io::Error::from(AioError::Operation(ErrorKind::NngError(
+                    ErrorCode::ECLOSED,
+                ))))
+            }
+            err if err == ErrorCode::ESTOPPED as u32 => {
+                // also what nng returns once it has been torn down entirely (`nng_fini`).
+                tracing::warn!(
+                    "socket stopped or nng torn down while dial future still running (ESTOPPED)"
+                );
+                Err(io::Error::from(AioError::Operation(ErrorKind::NngError(
+                    ErrorCode::ESTOPPED,
+                ))))
             }
             err if err == ErrorCode::ESTATE as u32 => {
                 unreachable!("the dialer has not been started");
-            }
-            err if err == ErrorCode::ECANCELED as u32 => {
-                // this can happen if the dial future is dropped (such as if the future is
-                // cancelled), and that _also_ drops the referenced socket. if this occurrs, any
-                // I/O operation on the socket is cancelled by nng, and thus we get that error.
-                // we don't need to _do_ anything with it though, since we _know_ the caller has
-                // gone away (and thus doesn't care about our return value).
-                tracing::warn!("socket dropped while (now-cancelled) dial future still running");
-                Err(io::Error::from(AioError::Cancelled))
             }
             err if err == ErrorCode::EAGAIN as u32 => {
                 // this is returned from `getaddrinfo` if there's a temporary failure in name
@@ -271,7 +284,9 @@ pub(crate) async fn add_dialer_to_socket(
             err if err == ErrorCode::ENOMEM as u32 => {
                 panic!("OOM");
             }
+            err if err == ErrorCode::ETIMEDOUT as u32 => Err(io::Error::from(AioError::TimedOut)),
             err if err == ErrorCode::EADDRINVAL as u32
+                || err == ErrorCode::ECONNABORTED as u32
                 || err == ErrorCode::ECONNREFUSED as u32
                 || err == ErrorCode::ECONNRESET as u32
                 || err == ErrorCode::EINVAL as u32
