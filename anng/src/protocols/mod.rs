@@ -235,22 +235,26 @@ pub(crate) async fn add_dialer_to_socket<Protocol>(
         // the dialing.
         match u32::try_from(errno).expect("errno is never negative") {
             0 => Ok(()),
-            err if err == ErrorCode::ECLOSED as u32 || err == ErrorCode::ECANCELED as u32 => {
+            err if err == ErrorCode::ECLOSED as u32
+                || err == ErrorCode::ECANCELED as u32
+                || err == ErrorCode::ESTOPPED as u32 =>
+            {
                 // we hold the socket as `&Socket` for the lifetime of the returned future, so
                 // it cannot be dropped while a caller is still awaiting us. the only way to get
                 // here is therefore: the dial future was cancelled (`select!`,
                 // `tokio::time::timeout`, `FuturesUnordered`, ...), which detached this worker
                 // and released the borrow, and the caller then dropped the `Socket`. nng
-                // reports the in-flight dial as cancelled or the socket as closed. either way
-                // nobody is waiting for our return value.
+                // reports the in-flight dial as cancelled, stopped, or the socket as closed.
+                // either way nobody is waiting for our return value.
+                //
+                // `ESTOPPED` is also what nng returns once it has been torn down entirely
+                // (`nng_fini`), which is likewise not a condition anyone is waiting on a result
+                // for.
                 tracing::warn!(
                     errno = err,
-                    "socket dropped while dial future still running"
+                    "socket dropped or nng torn down while dial future still running"
                 );
                 Err(io::Error::from(AioError::Cancelled))
-            }
-            err if err == ErrorCode::ESTOPPED as u32 => {
-                unreachable!("nng is not torn down while a socket is open");
             }
             err if err == ErrorCode::ESTATE as u32 => {
                 unreachable!("the dialer has not been started");
