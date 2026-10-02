@@ -114,7 +114,7 @@ jobs:
         with:
           toolchain: stable
       - name: cargo install cargo-hack
-        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # tag=v2.82.7
+        uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # tag=v2.87.21
         with:
           tool: cargo-hack
       # since we're trying every combination here, we need to ensure we have
