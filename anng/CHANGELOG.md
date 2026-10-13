@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Adapt to NNG v2.0.0-rc.1 (`nng-sys` 0.4.0-v2pre.4). Upstream removed
+  `NNG_OPT_LOCADDR` and the `nng_*_set_addr`/`nng_dialer_get_addr` functions in
+  favour of `nng_dialer_bind`.
+
 ### Deprecated
 
 ### Removed
