@@ -50,6 +50,7 @@ use std::io;
 use std::num::NonZeroU32;
 
 pub mod bus0;
+pub mod pair0;
 pub mod pair1;
 pub mod pipeline0;
 pub mod pubsub0;
