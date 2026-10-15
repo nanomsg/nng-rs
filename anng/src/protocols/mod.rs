@@ -48,6 +48,7 @@ use std::io;
 
 pub mod bus0;
 pub mod pair1;
+pub mod pair0;
 pub mod pipeline0;
 pub mod reqrep0;
 pub mod survey0;
