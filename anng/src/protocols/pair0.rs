@@ -1,5 +1,8 @@
 //! Pair pattern (pair0 protocol).
 //!
+//! **Note**: This is version 0 of the pair protocol, which can be used to communicate with legacy
+//! nanomsg systems or other implementations.
+//!
 //! This module implements the Pair messaging pattern, which provides one-to-one
 //! communication between exactly two endpoints. In a pair topology, only two
 //! nodes can be connected at any time, forming a simple bidirectional channel.
@@ -109,7 +112,7 @@
 //! ```
 
 use crate::{Socket, aio::AioError, message::Message};
-use core::ffi::{CStr, c_char};
+use core::ffi::CStr;
 use std::io;
 
 /// Pair socket type for one-to-one communication.
