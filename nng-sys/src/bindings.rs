@@ -14,7 +14,6 @@ pub const NNG_OPT_RECVBUF: &[u8; 12] = b"recv-buffer\0";
 pub const NNG_OPT_SENDBUF: &[u8; 12] = b"send-buffer\0";
 pub const NNG_OPT_RECVTIMEO: &[u8; 13] = b"recv-timeout\0";
 pub const NNG_OPT_SENDTIMEO: &[u8; 13] = b"send-timeout\0";
-pub const NNG_OPT_LOCADDR: &[u8; 14] = b"local-address\0";
 pub const NNG_OPT_MAXTTL: &[u8; 8] = b"ttl-max\0";
 pub const NNG_OPT_RECVMAXSZ: &[u8; 14] = b"recv-size-max\0";
 pub const NNG_OPT_RECONNMINT: &[u8; 19] = b"reconnect-time-min\0";
@@ -29,6 +28,8 @@ pub const NNG_OPT_UDP_CONN_RETRY: &[u8; 15] = b"udp:conn-retry\0";
 pub const NNG_OPT_UDP_CONN_EXPIRE: &[u8; 16] = b"udp:conn-expire\0";
 pub const NNG_OPT_UDP_MAX_PEERS: &[u8; 14] = b"udp:max-peers\0";
 pub const NNG_OPT_IPC_PERMISSIONS: &[u8; 16] = b"ipc:permissions\0";
+pub const NNG_OPT_IPC_OWNER: &[u8; 10] = b"ipc:owner\0";
+pub const NNG_OPT_IPC_GROUP: &[u8; 10] = b"ipc:group\0";
 pub const NNG_OPT_PEER_UID: &[u8; 13] = b"ipc:peer-uid\0";
 pub const NNG_OPT_IPC_PEER_UID: &[u8; 13] = b"ipc:peer-uid\0";
 pub const NNG_OPT_PEER_GID: &[u8; 13] = b"ipc:peer-gid\0";
@@ -43,6 +44,7 @@ pub const NNG_OPT_WS_HEADER_RESET: &[u8; 13] = b"ws:hdr-reset\0";
 pub const NNG_OPT_WS_HEADER_KEY: &[u8; 11] = b"ws:hdr-key\0";
 pub const NNG_OPT_WS_HEADER_VALUE: &[u8; 11] = b"ws:hdr-val\0";
 pub const NNG_OPT_WS_REQUEST_URI: &[u8; 15] = b"ws:request-uri\0";
+pub const NNG_OPT_WS_TREE: &[u8; 8] = b"ws:tree\0";
 pub const NNG_OPT_WS_SENDMAXFRAME: &[u8; 15] = b"ws:txframe-max\0";
 pub const NNG_OPT_WS_RECVMAXFRAME: &[u8; 15] = b"ws:rxframe-max\0";
 pub const NNG_OPT_WS_PROTOCOL: &[u8; 12] = b"ws:protocol\0";
@@ -496,6 +498,9 @@ unsafe extern "C" {
     pub fn nng_dialer_start(arg1: nng_dialer, arg2: ::core::ffi::c_int) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
+    pub fn nng_dialer_bind(arg1: nng_dialer, arg2: *const nng_sockaddr) -> ::core::ffi::c_int;
+}
+unsafe extern "C" {
     pub fn nng_dialer_start_aio(arg1: nng_dialer, arg2: ::core::ffi::c_int, arg3: *mut nng_aio);
 }
 unsafe extern "C" {
@@ -556,13 +561,6 @@ unsafe extern "C" {
     ) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
-    pub fn nng_dialer_set_addr(
-        arg1: nng_dialer,
-        arg2: *const ::core::ffi::c_char,
-        arg3: *const nng_sockaddr,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
     pub fn nng_dialer_set_tls(arg1: nng_dialer, arg2: *mut nng_tls_config) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
@@ -605,13 +603,6 @@ unsafe extern "C" {
         arg1: nng_dialer,
         arg2: *const ::core::ffi::c_char,
         arg3: *mut nng_duration,
-    ) -> ::core::ffi::c_int;
-}
-unsafe extern "C" {
-    pub fn nng_dialer_get_addr(
-        arg1: nng_dialer,
-        arg2: *const ::core::ffi::c_char,
-        arg3: *mut nng_sockaddr,
     ) -> ::core::ffi::c_int;
 }
 unsafe extern "C" {
@@ -1441,6 +1432,12 @@ unsafe extern "C" {
     pub fn nng_stream_dialer_dial(arg1: *mut nng_stream_dialer, arg2: *mut nng_aio);
 }
 unsafe extern "C" {
+    pub fn nng_stream_dialer_bind(
+        arg1: *mut nng_stream_dialer,
+        arg2: *const nng_sockaddr,
+    ) -> nng_err;
+}
+unsafe extern "C" {
     pub fn nng_stream_dialer_get_bool(
         arg1: *mut nng_stream_dialer,
         arg2: *const ::core::ffi::c_char,
@@ -1522,13 +1519,6 @@ unsafe extern "C" {
         arg1: *mut nng_stream_dialer,
         arg2: *const ::core::ffi::c_char,
         arg3: *const ::core::ffi::c_char,
-    ) -> nng_err;
-}
-unsafe extern "C" {
-    pub fn nng_stream_dialer_set_addr(
-        arg1: *mut nng_stream_dialer,
-        arg2: *const ::core::ffi::c_char,
-        arg3: *const nng_sockaddr,
     ) -> nng_err;
 }
 unsafe extern "C" {
@@ -1652,13 +1642,6 @@ unsafe extern "C" {
         arg1: *mut nng_stream_listener,
         arg2: *const ::core::ffi::c_char,
         arg3: *const ::core::ffi::c_char,
-    ) -> nng_err;
-}
-unsafe extern "C" {
-    pub fn nng_stream_listener_set_addr(
-        arg1: *mut nng_stream_listener,
-        arg2: *const ::core::ffi::c_char,
-        arg3: *const nng_sockaddr,
     ) -> nng_err;
 }
 unsafe extern "C" {
@@ -2224,7 +2207,7 @@ pub enum nng_http_status {
     NNG_HTTP_STATUS_ALREADY_REPORTED = 208,
     NNG_HTTP_STATUS_IM_USED = 226,
     NNG_HTTP_STATUS_MULTIPLE_CHOICES = 300,
-    NNG_HTTP_STATUS_STATUS_MOVED_PERMANENTLY = 301,
+    NNG_HTTP_STATUS_MOVED_PERMANENTLY = 301,
     NNG_HTTP_STATUS_FOUND = 302,
     NNG_HTTP_STATUS_SEE_OTHER = 303,
     NNG_HTTP_STATUS_NOT_MODIFIED = 304,
@@ -2354,6 +2337,48 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn nng_http_remote_address(arg1: *mut nng_http, arg2: *mut nng_sockaddr) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_http_get_bool(
+        arg1: *mut nng_http,
+        arg2: *const ::core::ffi::c_char,
+        arg3: *mut bool,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_http_get_int(
+        arg1: *mut nng_http,
+        arg2: *const ::core::ffi::c_char,
+        arg3: *mut ::core::ffi::c_int,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_http_get_ms(
+        arg1: *mut nng_http,
+        arg2: *const ::core::ffi::c_char,
+        arg3: *mut nng_duration,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_http_get_size(
+        arg1: *mut nng_http,
+        arg2: *const ::core::ffi::c_char,
+        arg3: *mut usize,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_http_get_uint64(
+        arg1: *mut nng_http,
+        arg2: *const ::core::ffi::c_char,
+        arg3: *mut u64,
+    ) -> nng_err;
+}
+unsafe extern "C" {
+    pub fn nng_http_get_string(
+        arg1: *mut nng_http,
+        arg2: *const ::core::ffi::c_char,
+        arg3: *mut *const ::core::ffi::c_char,
+    ) -> nng_err;
 }
 unsafe extern "C" {
     pub fn nng_http_set_header(
@@ -2542,7 +2567,7 @@ unsafe extern "C" {
     pub fn nng_http_server_error(arg1: *mut nng_http_server, arg2: *mut nng_http) -> nng_err;
 }
 unsafe extern "C" {
-    pub fn nng_http_hijack(arg1: *mut nng_http) -> nng_err;
+    pub fn nng_http_hijack_stream(arg1: *mut nng_http, arg2: *mut *mut nng_stream) -> nng_err;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]

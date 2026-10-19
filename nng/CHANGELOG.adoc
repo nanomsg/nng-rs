@@ -13,6 +13,7 @@ The format is based on https://keepachangelog.com/en/1.0.0/[Keep a Changelog] an
 === Changed ===
 
 * The crate now depends on NNGv2.
+* Adapt to NNG v2.0.0-rc.1 (`nng-sys` 0.4.0-v2pre.4).
 
 === Deprecated ===
 
