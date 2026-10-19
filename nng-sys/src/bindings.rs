@@ -3,7 +3,7 @@
 pub const NNG_MAJOR_VERSION: u32 = 2;
 pub const NNG_MINOR_VERSION: u32 = 0;
 pub const NNG_PATCH_VERSION: u32 = 0;
-pub const NNG_RELEASE_SUFFIX: &[u8; 5] = b"beta\0";
+pub const NNG_RELEASE_SUFFIX: &[u8; 1] = b"\0";
 pub const NNG_MAXADDRLEN: u32 = 128;
 pub const NNG_DURATION_INFINITE: i32 = -1;
 pub const NNG_DURATION_DEFAULT: i32 = -2;

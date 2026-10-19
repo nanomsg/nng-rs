@@ -11,10 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Adapt to NNG v2.0.0-rc.1 (`nng-sys` 0.4.0-v2pre.4). Upstream removed
-  `NNG_OPT_LOCADDR` and the `nng_*_set_addr`/`nng_dialer_get_addr` functions in
-  favour of `nng_dialer_bind`.
-
 ### Deprecated
 
 ### Removed
@@ -22,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## [0.2.0-v2pre.4]
+
+### Changed
+
+- Adapt to NNG v2.0.0 (`nng-sys` 0.4.0). Upstream removed
+  `NNG_OPT_LOCADDR` and the `nng_*_set_addr`/`nng_dialer_get_addr` functions in
+  favour of `nng_dialer_bind`.
 
 ## [0.2.0-v2pre.3]
 
@@ -77,7 +81,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Initial public release.
 
-[unreleased]: https://github.com/nanomsg/nng-rs/compare/anng-v0.2.0-v2pre.3...HEAD
+[unreleased]: https://github.com/nanomsg/nng-rs/compare/anng-v0.2.0-v2pre.4...HEAD
+[0.2.0-v2pre.4]: https://github.com/nanomsg/nng-rs/compare/anng-v0.2.0-v2pre.3...anng-v0.2.0-v2pre.4
 [0.2.0-v2pre.3]: https://github.com/nanomsg/nng-rs/compare/anng-v0.2.0-v2pre.2...anng-v0.2.0-v2pre.3
 [0.2.0-v2pre.2]: https://github.com/nanomsg/nng-rs/compare/anng-v0.2.0-v2pre.1...anng-v0.2.0-v2pre.2
 [0.2.0-v2pre.1]: https://github.com/nanomsg/nng-rs/compare/anng-v0.1.3...anng-v0.2.0-v2pre.1
