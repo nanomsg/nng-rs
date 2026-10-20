@@ -126,7 +126,7 @@ use std::io;
 ///
 /// # Connection patterns
 ///
-/// - **Point-to-point**: One endpoint listens, the other dials (`Pair0::listen()` + `pair0::dial()`)
+/// - **Point-to-point**: One endpoint listens, the other dials (`Pair0::listen()` + `Pair0::dial()`)
 /// - **Exactly two endpoints**: Additional connection attempts may succeed but any new pipes are immediately dropped, leaving the original connection active
 #[derive(Debug, Clone, Copy)]
 pub struct Pair0;
@@ -134,7 +134,7 @@ pub struct Pair0;
 impl Pair0 {
     /// Creates a new pair0 socket without establishing connections.
     ///
-    /// For simple cases, prefer [`Pair0::dial`] or [`pair0::listen`] which create and connect in one step.
+    /// For simple cases, prefer [`Pair0::dial`] or [`Pair0::listen`] which create and connect in one step.
     pub fn socket() -> io::Result<Socket<Pair0>> {
         // SAFETY: nng_pair0_open is the correct initialization function for Pair0 protocol.
         unsafe { super::create_socket(nng_sys::nng_pair0_open, Pair0) }
