@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "anng"
-version = "0.2.0-v2pre.3"
+version = "0.2.0-v2pre.4"
 dependencies = [
  "bytes",
  "lazy_static",
@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "nng"
-version = "2.0.0-v2pre.1"
+version = "2.0.0-v2pre.2"
 dependencies = [
  "log",
  "nng-sys",
@@ -214,7 +214,7 @@ dependencies = [
 
 [[package]]
 name = "nng-sys"
-version = "0.4.0-v2pre.3+v2.0.0-beta.2"
+version = "0.4.0+2.0.0"
 dependencies = [
  "bindgen",
  "cc",

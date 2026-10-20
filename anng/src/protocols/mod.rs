@@ -286,8 +286,17 @@ pub(crate) async fn add_dialer_to_socket<Protocol>(
                 panic!("OOM");
             }
             err if err == ErrorCode::ETIMEDOUT as u32 => Err(io::Error::from(AioError::TimedOut)),
+            // ECONNSHUT and ECRYPTO are not in the nng_dialer_start docs, but the transports
+            // return them when the peer hangs up or the TLS handshake fails during SP
+            // negotiation:
+            //
+            //   <https://github.com/nanomsg/nng/blob/a692322bdb4c887195d00c01895b7614edbf6a67/src/sp/transport/tcp/tcp.c#L231-L238>
+            //   <https://github.com/nanomsg/nng/blob/a692322bdb4c887195d00c01895b7614edbf6a67/src/sp/transport/tls/tls.c#L245-L252>
+            //   <https://github.com/nanomsg/nng/blob/a692322bdb4c887195d00c01895b7614edbf6a67/src/core/dialer.c#L426-L443>
             err if err == ErrorCode::EADDRINVAL as u32
                 || err == ErrorCode::ECONNABORTED as u32
+                || err == ErrorCode::ECONNSHUT as u32
+                || err == ErrorCode::ECRYPTO as u32
                 || err == ErrorCode::ECONNREFUSED as u32
                 || err == ErrorCode::ECONNRESET as u32
                 || err == ErrorCode::EINVAL as u32
