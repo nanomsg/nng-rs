@@ -53,7 +53,7 @@ source-update-bindings = ["bindgen"]
 [dependencies]
 
 [build-dependencies]
-bindgen = "0.72.1"
+bindgen = "0.73.2"
 cc = "1.2.41"
 cmake = { version = "0.1.54", optional = true }
 version_check = "0.9"
