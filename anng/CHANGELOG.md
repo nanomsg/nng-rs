@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Depend on `nng-sys` 0.4.1 (NNG v2.1.0).
+
 ### Deprecated
 
 ### Removed

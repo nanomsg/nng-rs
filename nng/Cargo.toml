@@ -27,7 +27,7 @@ ffi-module = []
 log = "0.4.28"
 
 [dependencies.nng-sys]
-version = "0.4.0"
+version = "0.4.1"
 path = "../nng-sys"
 default-features = false
 
