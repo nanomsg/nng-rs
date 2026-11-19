@@ -119,3 +119,80 @@ async fn remote_addr_inproc() {
 
     tokio::join!(rep_task, req_task);
 }
+
+#[tokio::test]
+async fn local_addr_tcp() {
+    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+
+    let socket = anng::protocols::reqrep0::Rep0::socket().unwrap();
+    let listener = socket
+        .listen_tcp(
+            SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
+            &anng::pipes::TcpOptions::default(),
+        )
+        .await
+        .unwrap();
+
+    let listener_addr = listener.local_addr().unwrap();
+    tracing::info!(?listener_addr, "Listener bound to address");
+
+    let url = CString::new(format!("tcp://{}", listener_addr)).unwrap();
+    let req0 = anng::protocols::reqrep0::Req0::dial(&url).await.unwrap();
+
+    let rep_task = async {
+        let mut rep0 = socket.context();
+        let (msg, reply) = rep0.receive().await.unwrap();
+
+        // Check local address - should be the listener's address
+        let addr = msg.local_addr().unwrap();
+        assert!(
+            addr.as_str().starts_with("tcp://"),
+            "Expected tcp:// URL, got: {addr}"
+        );
+        let addr_part = addr.as_str().strip_prefix("tcp://").unwrap();
+        let sock_addr: SocketAddr = addr_part.parse().unwrap();
+        assert_eq!(sock_addr, listener_addr);
+
+        // The dialer's address as seen by the listener, compared below
+        let remote = msg.remote_addr().unwrap();
+
+        reply.reply(msg).await.unwrap();
+        remote
+    }
+    .instrument(tracing::info_span!("rep0"));
+
+    let req_task = async {
+        let mut req0 = req0.context();
+        let mut msg = Message::with_capacity(4);
+        let _ = msg.write(b"test").unwrap();
+        let reply = req0.request(msg).await.unwrap();
+        let reply_msg = reply.await.unwrap();
+
+        // Check local address of the reply - should be the dialer's ephemeral address
+        let addr = reply_msg.local_addr().unwrap();
+        assert!(
+            addr.as_str().starts_with("tcp://"),
+            "Expected tcp:// URL, got: {addr}"
+        );
+        
+        let addr_part = addr.as_str().strip_prefix("tcp://").unwrap();
+        let sock_addr: SocketAddr = addr_part.parse().unwrap();
+        assert!(sock_addr.ip().is_loopback());
+        assert_ne!(sock_addr.port(), 0);
+        assert_ne!(sock_addr.port(), listener_addr.port());
+
+        (addr, reply_msg)
+    }
+    .instrument(tracing::info_span!("req0"));
+
+    let (rep_remote, (req_local, req_msg)) = tokio::join!(rep_task, req_task);
+
+    // Both ends should agree on the dialer's address
+    assert_eq!(rep_remote, req_local);
+
+    // Explicitly close the connection which invalidates the pipe referenced
+    // in the message
+    drop(req0);
+
+    assert_eq!(req_msg.local_addr(), None);
+}

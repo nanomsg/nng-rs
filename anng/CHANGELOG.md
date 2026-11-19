@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `Message::local_addr()`, the counterpart to `Message::remote_addr()`, returns
+  the local address of the pipe a message was received on.
+
 ### Changed
 
 ### Deprecated
