@@ -182,6 +182,12 @@ impl Default for Message {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+enum PipeEnd {
+    Local,
+    Remote,
+}
+
 impl Message {
     /// # Safety
     ///
@@ -388,30 +394,32 @@ impl Message {
 
     /// Returns the remote URL of the message (ie, where it was received from), if available.
     pub fn remote_addr(&self) -> Option<Url> {
-        self.pipe_addr(nng_sys::nng_pipe_peer_addr, "nng_pipe_peer_addr")
+        self.pipe_addr(PipeEnd::Remote)
     }
 
-    /// Returns the local URL of the message (ie, where it was received on), if available.
+    /// Returns the local URL of pipe this message was received on, if available.
     pub fn local_addr(&self) -> Option<Url> {
-        self.pipe_addr(nng_sys::nng_pipe_self_addr, "nng_pipe_self_addr")
+        self.pipe_addr(PipeEnd::Local)
     }
 
-    /// Reads a pipe address with `get_addr` (`nng_pipe_peer_addr` or `nng_pipe_self_addr`) and
-    /// formats it as a URL using the pipe's scheme.
-    fn pipe_addr(
-        &self,
-        get_addr: unsafe extern "C" fn(nng_sys::nng_pipe, *mut nng_sys::nng_sockaddr) -> nng_err,
-        fn_name: &str,
-    ) -> Option<Url> {
+    /// Reads the address of one end of the message's pipe and formats it as a URL using the
+    /// pipe's scheme.
+    fn pipe_addr(&self, end: PipeEnd) -> Option<Url> {
         use core::ffi::CStr;
 
         let pipe = self.pipe()?;
 
+        let (get_addr, fn_name): (unsafe extern "C" fn(_, _) -> _, _) = match end {
+            PipeEnd::Local => (nng_sys::nng_pipe_self_addr, "nng_pipe_self_addr"),
+            PipeEnd::Remote => (nng_sys::nng_pipe_peer_addr, "nng_pipe_peer_addr"),
+        };
+
         let mut addr = MaybeUninit::<nng_sys::nng_sockaddr>::uninit();
-        // SAFETY: pipe is valid (from self.pipe()), addr is valid for writing.
+        // SAFETY: get_addr is nng_pipe_self_addr or nng_pipe_peer_addr (selected above), pipe is
+        // valid (from self.pipe()), addr is valid for writing.
         let errno = unsafe { get_addr(pipe, addr.as_mut_ptr()) };
         let addr = match errno {
-            // SAFETY: `get_addr` initializes addr on success.
+            // SAFETY: nng_pipe_self_addr and nng_pipe_peer_addr initialize addr on success.
             nng_err::NNG_OK => unsafe { addr.assume_init() },
             nng_err::NNG_ENOTSUP => {
                 tracing::warn!("Message pipe does not support {fn_name}");

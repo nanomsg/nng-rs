@@ -174,7 +174,7 @@ async fn local_addr_tcp() {
             addr.as_str().starts_with("tcp://"),
             "Expected tcp:// URL, got: {addr}"
         );
-        
+
         let addr_part = addr.as_str().strip_prefix("tcp://").unwrap();
         let sock_addr: SocketAddr = addr_part.parse().unwrap();
         assert!(sock_addr.ip().is_loopback());
