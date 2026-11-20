@@ -182,6 +182,12 @@ impl Default for Message {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+enum PipeEnd {
+    Local,
+    Remote,
+}
+
 impl Message {
     /// # Safety
     ///
@@ -388,43 +394,57 @@ impl Message {
 
     /// Returns the remote URL of the message (ie, where it was received from), if available.
     pub fn remote_addr(&self) -> Option<Url> {
+        self.pipe_addr(PipeEnd::Remote)
+    }
+
+    /// Returns the local URL of pipe this message was received on, if available.
+    pub fn local_addr(&self) -> Option<Url> {
+        self.pipe_addr(PipeEnd::Local)
+    }
+
+    /// Reads the address of one end of the message's pipe and formats it as a URL using the
+    /// pipe's scheme.
+    fn pipe_addr(&self, end: PipeEnd) -> Option<Url> {
         use core::ffi::CStr;
 
         let pipe = self.pipe()?;
 
-        // Get the peer address from the pipe.
+        let (get_addr, fn_name): (unsafe extern "C" fn(_, _) -> _, _) = match end {
+            PipeEnd::Local => (nng_sys::nng_pipe_self_addr, "nng_pipe_self_addr"),
+            PipeEnd::Remote => (nng_sys::nng_pipe_peer_addr, "nng_pipe_peer_addr"),
+        };
+
         let mut addr = MaybeUninit::<nng_sys::nng_sockaddr>::uninit();
-        // SAFETY: pipe is valid (from self.pipe()), addr is valid for writing.
-        let errno = unsafe { nng_sys::nng_pipe_peer_addr(pipe, addr.as_mut_ptr()) };
+        // SAFETY: get_addr is nng_pipe_self_addr or nng_pipe_peer_addr (selected above), pipe is
+        // valid (from self.pipe()), addr is valid for writing.
+        let errno = unsafe { get_addr(pipe, addr.as_mut_ptr()) };
         let addr = match errno {
-            // SAFETY: nng_pipe_peer_addr initializes addr on success.
+            // SAFETY: nng_pipe_self_addr and nng_pipe_peer_addr initialize addr on success.
             nng_err::NNG_OK => unsafe { addr.assume_init() },
             nng_err::NNG_ENOTSUP => {
-                tracing::warn!("Message pipe does not support peer address");
+                tracing::warn!("Message pipe does not support {fn_name}");
                 return None;
             }
             nng_err::NNG_ENOENT => {
                 // The pipe ID stored in the message is stale - the pipe was closed
                 // between self.pipe() (which only checks the stored ID) and the
-                // nng_pipe_peer_addr call.
+                // `get_addr` call.
                 return None;
             }
             err if err.0 & nng_err::NNG_ESYSERR.0 != 0 => {
                 tracing::warn!(
-                    "nng_pipe_peer_addr returned a system error: {}",
+                    "{fn_name} returned a system error: {}",
                     io::Error::from_raw_os_error((err.0 & !(nng_err::NNG_ESYSERR.0)) as i32)
                 );
                 return None;
             }
             _ => {
-                unreachable!(
-                    "nng_pipe_peer_addr documentation claims err \"{errno}\" is never returned"
-                );
+                unreachable!("{fn_name} documentation claims err \"{errno}\" is never returned");
             }
         };
 
         // Get the URL scheme of the endpoint (listener or dialer) that created this pipe.
-        // The peer address (`nng_sockaddr`) only carries the address family, not the scheme.
+        // The address (`nng_sockaddr`) only carries the address family, not the scheme.
         //
         // Note on ownership: NNG hands back a pointer into its static table of recognised
         // schemes (`nni_schemes` in nng/src/core/url.c), not into per-endpoint storage. It is
