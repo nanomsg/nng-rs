@@ -91,6 +91,7 @@ pub(crate) unsafe fn create_socket<Protocol: core::fmt::Debug>(
         socket,
         aio: crate::aio::Aio::new(),
         recovered_msg: None,
+        connections: None,
         protocol: PhantomData::<Protocol>,
     })
 }
