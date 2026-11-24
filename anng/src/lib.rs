@@ -191,7 +191,7 @@ pub struct Socket<Protocol> {
     socket: nng_sys::nng_socket,
     pub(crate) aio: Aio,
     recovered_msg: Option<Message>,
-    connections: Option<Box<tokio::sync::watch::Sender<pipes::Connections>>>,
+    connections: Option<Box<pipes::ConnectionsSender>>,
     protocol: PhantomData<Protocol>,
 }
 

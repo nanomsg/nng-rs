@@ -11,9 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Message::local_addr()`, the counterpart to `Message::remote_addr()`, returns
   the local address of the pipe a message was received on.
-- `Socket::connections()` returns a `tokio::sync::watch` of the connections
-  currently open on the socket (including accepted connections and reconnects),
-  with the local and remote address of each connection.
+- `Socket::connections()` returns a `pipes::ConnectionsReceiver` that tracks the
+  connections currently open on the socket (including accepted connections and
+  reconnects), with the local and remote address of each connection.
 
 ### Changed
 

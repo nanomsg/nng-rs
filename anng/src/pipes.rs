@@ -338,26 +338,61 @@ pub struct Connection {
 pub type Connections = std::collections::BTreeMap<PipeId, Connection>;
 
 /// The sender behind [`Socket::connections`], which NNG passes to `connections_cb` as `arg`.
-type ConnectionsSender = tokio::sync::watch::Sender<Connections>;
+pub(crate) type ConnectionsSender = tokio::sync::watch::Sender<std::sync::Arc<Connections>>;
+
+/// Receives the connections currently open on a socket, as returned by [`Socket::connections`].
+///
+/// This wraps a [`watch`](tokio::sync::watch) receiver, but never exposes its borrow guard. The
+/// watch is updated from inside NNG's pipe callback, so a guard held by user code would block
+/// NNG and dropping the socket would hang.
+#[derive(Debug, Clone)]
+pub struct ConnectionsReceiver(tokio::sync::watch::Receiver<std::sync::Arc<Connections>>);
+
+impl ConnectionsReceiver {
+    /// Returns a snapshot of the connections that are currently open.
+    pub fn get(&self) -> std::sync::Arc<Connections> {
+        std::sync::Arc::clone(&self.0.borrow())
+    }
+
+    /// Waits until the connections have changed since this receiver last saw them.
+    ///
+    /// Returns `false` once the socket has been dropped.
+    pub async fn changed(&mut self) -> bool {
+        self.0.changed().await.is_ok()
+    }
+
+    /// Waits until the connections satisfy `f`, and returns that snapshot.
+    ///
+    /// Returns `None` if the socket is dropped first.
+    pub async fn wait_for(
+        &mut self,
+        mut f: impl FnMut(&Connections) -> bool,
+    ) -> Option<std::sync::Arc<Connections>> {
+        let connections = self.0.wait_for(|c| f(c)).await.ok()?;
+        Some(std::sync::Arc::clone(&connections))
+    }
+}
 
 impl<Protocol> Socket<Protocol> {
-    /// Returns a [`watch`](tokio::sync::watch) of the connections currently open on this socket,
-    /// with their local and remote addresses.
+    /// Returns a receiver for the connections currently open on this socket, with their local
+    /// and remote addresses.
     ///
     /// Covers both dialed (including reconnects) and accepted connections. Each one appears once
     /// it is added to the socket, before any messages are exchanged, and disappears once removed.
     /// A connection that opens and closes before the receiver looks may never be seen.
     ///
     /// Only connections established after the first call are tracked, so call this before
-    /// dialing or listening. Later calls return another receiver for the same map. The watch
-    /// closes when the socket is dropped.
-    pub fn connections(&mut self) -> tokio::sync::watch::Receiver<Connections> {
+    /// dialing or listening. Later calls return another receiver for the same connections.
+    /// Once the socket is dropped, [`changed`](ConnectionsReceiver::changed) returns `false`.
+    pub fn connections(&mut self) -> ConnectionsReceiver {
         if let Some(tx) = &self.connections {
-            return tx.subscribe();
+            return ConnectionsReceiver(tx.subscribe());
         }
 
-        let (tx, rx) = tokio::sync::watch::channel(Connections::new());
+        let (tx, rx) = tokio::sync::watch::channel(std::sync::Arc::default());
 
+        // NOTE: the sender is boxed so that its address stays fixed when the socket moves, as NNG
+        // keeps a raw pointer to it. The socket frees it only after nng_socket_close returns.
         let tx = self.connections.insert(Box::new(tx));
         let arg = &**tx as *const ConnectionsSender as *mut core::ffi::c_void;
 
@@ -380,7 +415,7 @@ impl<Protocol> Socket<Protocol> {
             }
         }
 
-        rx
+        ConnectionsReceiver(rx)
     }
 }
 
@@ -389,16 +424,17 @@ impl<Protocol> Socket<Protocol> {
 ///
 /// # Safety
 ///
-/// `arg` must point to a live `watch::Sender<Connections>`. The `Socket` owns it and frees it
-/// only after nng_socket_close returns, which waits until every pipe has been removed, and pipes
-/// are removed only after their REM_POST callback has finished.
+/// `arg` must point to a live `ConnectionsSender`. The `Socket` owns it and frees it only after
+/// nng_socket_close returns, which waits until every pipe has been removed, and pipes are removed
+/// only after their REM_POST callback has finished.
 unsafe extern "C" fn connections_cb(
     pipe: nng_sys::nng_pipe,
     event: nng_sys::nng_pipe_ev,
     arg: *mut core::ffi::c_void,
 ) {
     // NOTE: NNG holds a global lock during this callback, so it must not block or touch the
-    // socket. Updating a watch doesn't block or need a runtime.
+    // socket. The watch's lock is never held by user code (see `ConnectionsReceiver`), so
+    // updating it doesn't block. Panics must not unwind into C.
     let result = std::panic::catch_unwind(|| {
         // SAFETY: see the function's safety comment.
         let tx = unsafe { &*(arg as *const ConnectionsSender) };
@@ -412,11 +448,14 @@ unsafe extern "C" fn connections_cb(
                     remote_addr: pipe_addr(pipe, PipeEnd::Remote),
                 };
                 tx.send_modify(|connections| {
-                    connections.insert(id, connection);
+                    std::sync::Arc::make_mut(connections).insert(id, connection);
                 });
             }
             nng_sys::NNG_PIPE_EV_REM_POST => {
-                tx.send_if_modified(|connections| connections.remove(&id).is_some());
+                tx.send_if_modified(|connections| {
+                    connections.contains_key(&id)
+                        && std::sync::Arc::make_mut(connections).remove(&id).is_some()
+                });
             }
             _ => tracing::warn!(?event, "unexpected pipe event"),
         }
