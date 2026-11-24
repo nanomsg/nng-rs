@@ -191,6 +191,7 @@ pub struct Socket<Protocol> {
     socket: nng_sys::nng_socket,
     pub(crate) aio: Aio,
     recovered_msg: Option<Message>,
+    connections: Option<Box<tokio::sync::watch::Sender<pipes::Connections>>>,
     protocol: PhantomData<Protocol>,
 }
 
@@ -201,6 +202,7 @@ impl<Protocol> fmt::Debug for Socket<Protocol> {
             .field("socket", &self.socket)
             .field("aio", &self.aio)
             .field("recovered_msg", &self.recovered_msg)
+            .field("connections", &self.connections)
             .field("protocol", &self.protocol)
             .finish()
     }

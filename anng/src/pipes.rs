@@ -249,6 +249,183 @@ impl From<Url> for String {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum PipeEnd {
+    Local,
+    Remote,
+}
+
+/// Reads the address of one end of a pipe and formats it as a URL using the pipe's scheme.
+///
+/// Returns `None` if the pipe has been closed, or if its transport does not report the address.
+pub(crate) fn pipe_addr(pipe: nng_sys::nng_pipe, end: PipeEnd) -> Option<Url> {
+    use core::mem::MaybeUninit;
+    use nng_sys::nng_err;
+
+    let (get_addr, fn_name): (unsafe extern "C" fn(_, _) -> _, _) = match end {
+        PipeEnd::Local => (nng_sys::nng_pipe_self_addr, "nng_pipe_self_addr"),
+        PipeEnd::Remote => (nng_sys::nng_pipe_peer_addr, "nng_pipe_peer_addr"),
+    };
+
+    let mut addr = MaybeUninit::<nng_sys::nng_sockaddr>::uninit();
+    // SAFETY: get_addr is nng_pipe_self_addr or nng_pipe_peer_addr (selected above), both of
+    // which accept any pipe ID, and addr is valid for writing.
+    let errno = unsafe { get_addr(pipe, addr.as_mut_ptr()) };
+    let addr = match errno {
+        // SAFETY: nng_pipe_self_addr and nng_pipe_peer_addr initialize addr on success.
+        nng_err::NNG_OK => unsafe { addr.assume_init() },
+        nng_err::NNG_ENOTSUP => {
+            tracing::warn!("Pipe does not support {fn_name}");
+            return None;
+        }
+        nng_err::NNG_ENOENT => {
+            // The pipe ID is stale - the pipe was closed before the `get_addr` call.
+            return None;
+        }
+        err if err.0 & nng_err::NNG_ESYSERR.0 != 0 => {
+            tracing::warn!(
+                "{fn_name} returned a system error: {}",
+                io::Error::from_raw_os_error((err.0 & !(nng_err::NNG_ESYSERR.0)) as i32)
+            );
+            return None;
+        }
+        _ => {
+            unreachable!("{fn_name} documentation claims err \"{errno}\" is never returned");
+        }
+    };
+
+    // Get the URL scheme of the endpoint (listener or dialer) that created this pipe.
+    // The address (`nng_sockaddr`) only carries the address family, not the scheme.
+    //
+    // Note on ownership: NNG hands back a pointer into its static table of recognised
+    // schemes (`nni_schemes` in nng/src/core/url.c), not into per-endpoint storage. It is
+    // valid for the lifetime of the process and must not be freed.
+    let mut scheme_ptr: *const c_char = core::ptr::null();
+    // SAFETY: nng_pipe_get_scheme accepts any pipe ID, and scheme_ptr is valid for writing.
+    let errno = unsafe { nng_sys::nng_pipe_get_scheme(pipe, &mut scheme_ptr) };
+    match errno {
+        nng_err::NNG_OK => {}
+        // The pipe was closed between `get_addr` and here.
+        nng_err::NNG_ENOENT => return None,
+        // The pipe has neither a dialer nor a listener, so there is no scheme.
+        nng_err::NNG_ENOTSUP => return None,
+        _ => {
+            unreachable!(
+                "nng_pipe_get_scheme documentation claims err \"{errno}\" is never returned"
+            );
+        }
+    }
+
+    // SAFETY: nng_pipe_get_scheme writes `scheme_ptr` and returns NNG_OK only when the
+    // scheme is non-null, so on this path it points to a valid C string owned by NNG.
+    let scheme = unsafe { CStr::from_ptr(scheme_ptr) };
+
+    Url::from_nng(&addr, scheme)
+}
+
+/// Identifies a connection (an NNG pipe). IDs may be reused once a connection closes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PipeId(u32);
+
+/// An open connection, as reported by [`Socket::connections`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Connection {
+    pub local_addr: Option<Url>,
+    pub remote_addr: Option<Url>,
+}
+
+/// The connections currently open on a socket, as reported by [`Socket::connections`].
+pub type Connections = std::collections::BTreeMap<PipeId, Connection>;
+
+/// The sender behind [`Socket::connections`], which NNG passes to `connections_cb` as `arg`.
+type ConnectionsSender = tokio::sync::watch::Sender<Connections>;
+
+impl<Protocol> Socket<Protocol> {
+    /// Returns a [`watch`](tokio::sync::watch) of the connections currently open on this socket,
+    /// with their local and remote addresses.
+    ///
+    /// Covers both dialed (including reconnects) and accepted connections. Each one appears once
+    /// it is added to the socket, before any messages are exchanged, and disappears once removed.
+    /// A connection that opens and closes before the receiver looks may never be seen.
+    ///
+    /// Only connections established after the first call are tracked, so call this before
+    /// dialing or listening. Later calls return another receiver for the same map. The watch
+    /// closes when the socket is dropped.
+    pub fn connections(&mut self) -> tokio::sync::watch::Receiver<Connections> {
+        if let Some(tx) = &self.connections {
+            return tx.subscribe();
+        }
+
+        let (tx, rx) = tokio::sync::watch::channel(Connections::new());
+
+        let tx = self.connections.insert(Box::new(tx));
+        let arg = &**tx as *const ConnectionsSender as *mut core::ffi::c_void;
+
+        for event in [nng_sys::NNG_PIPE_EV_ADD_POST, nng_sys::NNG_PIPE_EV_REM_POST] {
+            // SAFETY: socket is valid and not closed (socket is live until `self` drops), and
+            //         `arg` outlives every callback (see `connections_cb`).
+            let errno =
+                unsafe { nng_sys::nng_pipe_notify(self.socket, event, Some(connections_cb), arg) };
+
+            match errno {
+                nng_sys::nng_err::NNG_OK => {}
+                nng_sys::nng_err::NNG_ECLOSED => {
+                    unreachable!("socket is still open since we have a reference to it");
+                }
+                _ => {
+                    unreachable!(
+                        "nng_pipe_notify documentation claims err \"{errno}\" is never returned"
+                    );
+                }
+            }
+        }
+
+        rx
+    }
+}
+
+/// Called by NNG on `NNG_PIPE_EV_ADD_POST` and `NNG_PIPE_EV_REM_POST` for each pipe of a socket
+/// with [`Socket::connections`] enabled. NNG never reports ADD_POST after REM_POST for a pipe.
+///
+/// # Safety
+///
+/// `arg` must point to a live `watch::Sender<Connections>`. The `Socket` owns it and frees it
+/// only after nng_socket_close returns, which waits until every pipe has been removed, and pipes
+/// are removed only after their REM_POST callback has finished.
+unsafe extern "C" fn connections_cb(
+    pipe: nng_sys::nng_pipe,
+    event: nng_sys::nng_pipe_ev,
+    arg: *mut core::ffi::c_void,
+) {
+    // NOTE: NNG holds a global lock during this callback, so it must not block or touch the
+    // socket. Updating a watch doesn't block or need a runtime.
+    let result = std::panic::catch_unwind(|| {
+        // SAFETY: see the function's safety comment.
+        let tx = unsafe { &*(arg as *const ConnectionsSender) };
+        // SAFETY: nng_pipe_id only reads the ID from the handle.
+        let id = PipeId(unsafe { nng_sys::nng_pipe_id(pipe) } as u32);
+
+        match event {
+            nng_sys::NNG_PIPE_EV_ADD_POST => {
+                let connection = Connection {
+                    local_addr: pipe_addr(pipe, PipeEnd::Local),
+                    remote_addr: pipe_addr(pipe, PipeEnd::Remote),
+                };
+                tx.send_modify(|connections| {
+                    connections.insert(id, connection);
+                });
+            }
+            nng_sys::NNG_PIPE_EV_REM_POST => {
+                tx.send_if_modified(|connections| connections.remove(&id).is_some());
+            }
+            _ => tracing::warn!(?event, "unexpected pipe event"),
+        }
+    });
+    if result.is_err() {
+        tracing::error!("panic while updating connections; update dropped");
+    }
+}
+
 /// Parses a TCP/TLS URL into a [`SocketAddr`].
 ///
 /// Accepts URLs with schemes: `tcp://`, `tcp4://`, `tcp6://`, `tls+tcp://`, `tls+tcp4://`, `tls+tcp6://`
