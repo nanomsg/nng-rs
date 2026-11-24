@@ -360,17 +360,6 @@ impl ConnectionsReceiver {
     pub async fn changed(&mut self) -> bool {
         self.0.changed().await.is_ok()
     }
-
-    /// Waits until the connections satisfy `f`, and returns that snapshot.
-    ///
-    /// Returns `None` if the socket is dropped first.
-    pub async fn wait_for(
-        &mut self,
-        mut f: impl FnMut(&Connections) -> bool,
-    ) -> Option<std::sync::Arc<Connections>> {
-        let connections = self.0.wait_for(|c| f(c)).await.ok()?;
-        Some(std::sync::Arc::clone(&connections))
-    }
 }
 
 impl<Protocol> Socket<Protocol> {
